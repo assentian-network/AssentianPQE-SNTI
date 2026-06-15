@@ -493,7 +493,7 @@ def stratum_stats():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("QNT_EXPLORER_PORT", 8080))
+    port = int(os.environ.get("QNT_EXPLORER_PORT", 8081))
     debug = os.environ.get("QNT_EXPLORER_DEBUG", "0") == "1"
     print(f"QNT Block Explorer starting on http://0.0.0.0:{port}")
     print(f"RPC target: {RPC_URL}")

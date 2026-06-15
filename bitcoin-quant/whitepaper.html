@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QNT Whitepaper</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:860px;margin:40px auto;padding:0 20px;line-height:1.7;color:#1a1a1a}
+h1{color:#1a1a2e;border-bottom:3px solid #6c63ff;padding-bottom:12px}
+h2{color:#16213e;margin-top:40px}
+h3{color:#0f3460}
+code{background:#f4f4f4;padding:2px 6px;border-radius:4px;font-size:0.9em}
+pre{background:#1a1a2e;color:#e0e0e0;padding:20px;border-radius:8px;overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+td,th{border:1px solid #ddd;padding:10px}
+th{background:#6c63ff;color:white}
+tr:nth-child(even){background:#f9f9f9}
+nav{margin-bottom:20px}
+nav a{margin-right:16px;text-decoration:none;color:#6c63ff;font-weight:500}
+.top{text-align:center;padding:40px;background:linear-gradient(135deg,#1a1a2e,#16213e);color:white;border-radius:12px;margin-bottom:40px}
+</style>
+</head>
+<body>
+<nav><a href="/">Dashboard</a><a href="/changelog.html">Changelog</a><a href="/mining/">Mining</a></nav>
+<div class="top">
+<h1 style="color:white;border:none">QNT Whitepaper</h1>
+<p>World First Quantum-Resistant Proof-of-Work Cryptocurrency</p>
+</div>
+<h1>QNT — The First Mineable Post-Quantum Cryptocurrency</h1>
+<h2>Whitepaper v0.2 | June 2026</h2>
+<hr />
+<h2>Table of Contents</h2>
+<ol>
+<li><a href="#1-executive-summary">Executive Summary</a></li>
+<li><a href="#2-the-quantum-threat">The Quantum Threat</a></li>
+<li><a href="#3-why-xmss">Why XMSS</a></li>
+<li><a href="#4-competitive-landscape">Competitive Landscape</a></li>
+<li><a href="#5-qnt-architecture">QNT Architecture</a></li>
+<li><a href="#6-mining--consensus">Mining &amp; Consensus</a></li>
+<li><a href="#7-tokenomics">Tokenomics</a></li>
+<li><a href="#8-roadmap">Roadmap</a></li>
+<li><a href="#9-technical-specifications">Technical Specifications</a></li>
+<li><a href="#10-risks--mitigations">Risks &amp; Mitigations</a></li>
+<li><a href="#11-survival-analysis-will-qnt-exist-in-2030">Survival Analysis: Will QNT Exist in 2030?</a></li>
+<li><a href="#12-conclusion">Conclusion</a></li>
+</ol>
+<hr />
+<h2>1. Executive Summary</h2>
+<p>QNT is the first cryptocurrency that replaces proof-of-work with <strong>useful post-quantum cryptographic operations</strong>. Instead of burning electricity on arbitrary hash puzzles, QNT miners perform <strong>XMSS (eXtended Merkle Signature Scheme) key generation and signing</strong> — the same operations that will secure the internet against quantum computers.</p>
+<p><strong>One coin. One purpose. Future-proof security.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ticker</strong></td>
+<td>QNT</td>
+</tr>
+<tr>
+<td><strong>Consensus</strong></td>
+<td>Proof-of-Useful-Work (PoUW) via XMSS</td>
+</tr>
+<tr>
+<td><strong>Signature Scheme</strong></td>
+<td>XMSS-SHA2_10_256 (NIST SP 800-208)</td>
+</tr>
+<tr>
+<td><strong>Block Time</strong></td>
+<td>~60 seconds</td>
+</tr>
+<tr>
+<td><strong>Max Supply</strong></td>
+<td>21,000,000 QNT</td>
+</tr>
+<tr>
+<td><strong>Halving</strong></td>
+<td>Every 2,100,000 blocks (~4 years)</td>
+</tr>
+<tr>
+<td><strong>Language</strong></td>
+<td>C (Bitcoin Core fork)</td>
+</tr>
+<tr>
+<td><strong>License</strong></td>
+<td>MIT</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>2. The Quantum Threat</h2>
+<h3>2.1 The Problem</h3>
+<p>Current cryptocurrencies (Bitcoin, Ethereum, Solana) rely on <strong>ECDSA</strong> or <strong>Ed25519</strong> for digital signatures. These are secure against classical computers — but <strong>broken by Shor's algorithm</strong> running on a sufficiently powerful quantum computer.</p>
+<p><strong>Timeline:</strong>
+- <strong>2025–2030</strong>: NIST expects cryptographically relevant quantum computers to emerge
+- <strong>2029</strong>: NIST mandates migration to post-quantum algorithms for federal systems
+- <strong>"Harvest now, decrypt later"</strong> attacks are happening TODAY</p>
+<h3>2.2 The Consequence</h3>
+<p>If no action is taken:
+- <strong>$2.8 trillion</strong> in Bitcoin becomes vulnerable
+- All existing transaction signatures become forgeable
+- The entire blockchain security model collapses</p>
+<h3>2.3 The Solution</h3>
+<p>QNT is built from the ground up with <strong>quantum-resistant signatures</strong>. No migration needed. No hard fork to survive the quantum era. <strong>QNT is already quantum-safe.</strong></p>
+<hr />
+<h2>3. Why XMSS</h2>
+<h3>3.1 What is XMSS?</h3>
+<p>XMSS (eXtended Merkle Signature Scheme) is a <strong>stateful hash-based signature scheme</strong> standardized by NIST in <strong>SP 800-208</strong>. It is:</p>
+<ul>
+<li><strong>Quantum-resistant</strong>: Security relies only on hash function properties</li>
+<li><strong>Well-studied</strong>: 15+ years of academic cryptanalysis</li>
+<li><strong>Standardized</strong>: NIST-approved for government use</li>
+<li><strong>Practical</strong>: Used in IETF RFC 8391</li>
+</ul>
+<h3>3.2 Why XMSS over Other PQC Schemes</h3>
+<table>
+<thead>
+<tr>
+<th>Scheme</th>
+<th>Quantum-Safe</th>
+<th>Standardized</th>
+<th>Stateful</th>
+<th>Key Size</th>
+<th>Sig Size</th>
+<th>QNT Choice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>XMSS</strong></td>
+<td>Yes</td>
+<td>NIST SP 800-208</td>
+<td>Yes</td>
+<td>64 B</td>
+<td>2,500 B</td>
+<td><strong>Selected</strong></td>
+</tr>
+<tr>
+<td>SPHINCS+</td>
+<td>Yes</td>
+<td>NIST FIPS 205</td>
+<td>No</td>
+<td>32 B</td>
+<td>8,000 B</td>
+<td>Too large</td>
+</tr>
+<tr>
+<td>FALCON</td>
+<td>Yes</td>
+<td>NIST FIPS 206</td>
+<td>No</td>
+<td>897 B</td>
+<td>666 B</td>
+<td>Lattice risk</td>
+</tr>
+<tr>
+<td>CRYSTALS-Dilithium</td>
+<td>Yes</td>
+<td>NIST FIPS 204</td>
+<td>No</td>
+<td>1,312 B</td>
+<td>2,420 B</td>
+<td>Lattice risk</td>
+</tr>
+<tr>
+<td>LMS</td>
+<td>Yes</td>
+<td>NIST SP 800-208</td>
+<td>Yes</td>
+<td>64 B</td>
+<td>~4,000 B</td>
+<td>Less efficient</td>
+</tr>
+</tbody>
+</table>
+<p><strong>XMSS wins because:</strong>
+1. Hash-based = no new cryptographic assumptions
+2. Smallest public key (64 bytes)
+3. Stateful design enables efficient verification
+4. 15+ years of security analysis</p>
+<h3>3.3 The Innovation: Mining = Useful Work</h3>
+<p>Traditional mining burns energy on <strong>useless</strong> SHA-256 puzzles. QNT mining produces <strong>useful</strong> XMSS cryptographic material:</p>
+<pre><code>Traditional Mining:
+  Energy → Heat + CO2 + Useless hashes
+
+QNT Mining:
+  Energy → XMSS Keys → Quantum-Safe Signatures → Network Security
+</code></pre>
+<p>Every QNT mined <strong>actively contributes</strong> to the post-quantum security infrastructure.</p>
+<hr />
+<h2>4. Competitive Landscape</h2>
+<h3>4.1 Existing Post-Quantum Projects</h3>
+<p>QNT is not the first project to explore post-quantum cryptography in blockchain. We acknowledge and respect the work that came before us. Here is an honest comparison:</p>
+<h4>QRL (Quantum Resistant Ledger)</h4>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Launched</strong></td>
+<td>June 2018</td>
+</tr>
+<tr>
+<td><strong>Consensus</strong></td>
+<td>Proof of Stake (PoS)</td>
+</tr>
+<tr>
+<td><strong>Signature Scheme</strong></td>
+<td>XMSS-SHA2_10_256</td>
+</tr>
+<tr>
+<td><strong>Mining</strong></td>
+<td>Not mineable</td>
+</tr>
+<tr>
+<td><strong>Use Case</strong></td>
+<td>Store of value, quantum-resistant payments</td>
+</tr>
+<tr>
+<td><strong>Codebase</strong></td>
+<td>Custom (Python/C++)</td>
+</tr>
+<tr>
+<td><strong>Market Cap</strong></td>
+<td>~$50M (as of 2026)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What QRL got right:</strong>
+- First functional blockchain using XMSS signatures
+- Proved XMSS works in production blockchain context
+- Active development since 2018</p>
+<p><strong>Where QNT differs:</strong>
+- QRL uses PoS — no mining, no useful work
+- QRL is a single-purpose chain (payments only)
+- QNT is Bitcoin Core fork — inherits 15+ years of battle-tested code
+- QNT introduces Proof-of-Useful-Work (PoUW)
+- QNT targets full ecosystem (DeFi, L2, governance)</p>
+<h4>IOTA</h4>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Launched</strong></td>
+<td>2015</td>
+</tr>
+<tr>
+<td><strong>Consensus</strong></td>
+<td>DAG (Tangle)</td>
+</tr>
+<tr>
+<td><strong>Signature Scheme</strong></td>
+<td>Winternitz OTS (hash-based)</td>
+</tr>
+<tr>
+<td><strong>Mining</strong></td>
+<td>Not mineable</td>
+</tr>
+<tr>
+<td><strong>Use Case</strong></td>
+<td>IoT micropayments</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Where QNT differs:</strong>
+- IOTA uses DAG, not blockchain — different security model
+- IOTA's W-OTS is simpler but less flexible than XMSS
+- IOTA has no mining mechanism
+- QNT uses standardized XMSS (NIST SP 800-208)</p>
+<h4>Other PQC Research Projects</h4>
+<p>Several academic projects have proposed PQC-based blockchains:
+- <strong>MatRiCT+</strong> — Ring signatures with lattice-based PQC
+- <strong>SPHINCS+ blockchain</strong> — Theoretical proposals, no mainnet
+- <strong>Dilithium-Ethereum</strong> — EIP proposals, not yet implemented</p>
+<p>None of these have launched a working mainnet with mining.</p>
+<h3>4.2 QNT's Unique Position</h3>
+<pre><code>                    QUANTUM-RESISTANT BLOCKCHAIN SPECTRUM
+
+    Research ◄──────────────────────────────────────────► Production
+
+    MatRiCT+    SPHINCS+    Dilithium-    IOTA        QRL         QNT
+    (paper)     (theory)    Ethereum      (DAG,       (PoS,       (PoUW,
+                            (EIP)         W-OTS)      XMSS)       mineable,
+                                                                Bitcoin Core)
+
+    ◄── Not mineable ─────────────────────────────────── Mineable ──►
+    ◄── Single purpose ───────────────────────────────── Full stack ─►
+</code></pre>
+<h3>4.3 Honest Comparison Table</h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Bitcoin</th>
+<th>Ethereum</th>
+<th>QRL</th>
+<th>IOTA</th>
+<th>QNT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Quantum-safe</strong></td>
+<td>❌ ECDSA</td>
+<td>❌ ECDSA</td>
+<td>✅ XMSS</td>
+<td>⚠️ W-OTS</td>
+<td>✅ XMSS</td>
+</tr>
+<tr>
+<td><strong>Mineable</strong></td>
+<td>✅ PoW</td>
+<td>✅ PoS</td>
+<td>❌ PoS</td>
+<td>❌ DAG</td>
+<td>✅ PoUW</td>
+</tr>
+<tr>
+<td><strong>Useful work</strong></td>
+<td>❌ Hashes</td>
+<td>❌ Stake</td>
+<td>❌ Stake</td>
+<td>❌ DAG</td>
+<td>✅ XMSS keys</td>
+</tr>
+<tr>
+<td><strong>NIST standard</strong></td>
+<td>N/A</td>
+<td>N/A</td>
+<td>✅ SP 800-208</td>
+<td>❌ Custom</td>
+<td>✅ SP 800-208</td>
+</tr>
+<tr>
+<td><strong>Bitcoin Core base</strong></td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>DeFi ecosystem</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅ Planned</td>
+</tr>
+<tr>
+<td><strong>Layer-2</strong></td>
+<td>✅ Lightning</td>
+<td>✅ L2s</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅ Planned</td>
+</tr>
+<tr>
+<td><strong>Governance</strong></td>
+<td>✅ BIPs</td>
+<td>✅ EIPs</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅ Planned</td>
+</tr>
+<tr>
+<td><strong>Fair launch</strong></td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>⚠️ Coordinator</td>
+<td>✅ No pre-mine</td>
+</tr>
+</tbody>
+</table>
+<h3>4.4 What QNT Brings That's New</h3>
+<p><strong>1. Proof-of-Useful-Work (PoUW)</strong>
+No other project uses XMSS key generation as consensus work. QNT mining produces real cryptographic material — XMSS key pairs that secure the network.</p>
+<p><strong>2. Bitcoin Core Fork with XMSS</strong>
+QNT inherits Bitcoin's 15+ years of security hardening, UTXO model, SegWit, and battle-tested codebase — with XMSS replacing ECDSA at the cryptographic layer.</p>
+<p><strong>3. Mineable + Quantum-Resistant</strong>
+QRL proved XMSS works in blockchain but chose PoS. QNT proves you can have BOTH mining AND quantum resistance.</p>
+<p><strong>4. Full Ecosystem Vision</strong>
+QNT is not just "quantum Bitcoin." The roadmap includes DeFi, atomic swaps, payment channels, and governance — a complete post-quantum financial infrastructure.</p>
+<h3>4.5 Acknowledgments</h3>
+<p>QNT builds on the work of:
+- <strong>QRL team</strong> — proved XMSS in blockchain (2018)
+- <strong>Bitcoin Core developers</strong> — the foundation we fork from
+- <strong>NIST PQC team</strong> — XMSS standardization (SP 800-208)
+- <strong>Hülsing &amp; Rijneveld</strong> — XMSS reference implementation
+- <strong>The broader PQC research community</strong> — 15+ years of cryptanalysis</p>
+<p>We stand on the shoulders of giants. QNT's contribution is combining these pieces into the first mineable, full-stack, post-quantum cryptocurrency.</p>
+<hr />
+<h2>5. QNT Architecture</h2>
+<h3>5.1 System Overview</h3>
+<pre><code>┌─────────────────────────────────────────────────────────┐
+│                    QNT NETWORK                          │
+│                                                         │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐          │
+│  │  Miner   │───▶│  Block   │───▶│  Node    │          │
+│  │ (PoUW)   │    │ Validator│    │  Network │          │
+│  └──────────┘    └──────────┘    └──────────┘          │
+│       │                               │                 │
+│       ▼                               ▼                 │
+│  ┌──────────┐                  ┌──────────┐            │
+│  │ XMSS Key │                  │  Wallet  │            │
+│  │ Gen + Sig│                  │ (QNT App)│            │
+│  └──────────┘                  └──────────┘            │
+│                                                         │
+│  ┌──────────────────────────────────────────────┐      │
+│  │              Blockchain Layer                │      │
+│  │  Bitcoin Core fork • UTXO model • SegWit    │      │
+│  └──────────────────────────────────────────────┘      │
+└─────────────────────────────────────────────────────────┘
+</code></pre>
+<h3>5.2 Block Structure</h3>
+<pre><code>┌─────────────────────────────────────┐
+│           QNT Block                  │
+├─────────────────────────────────────┤
+│  Block Header                        │
+│  ├── Version (4 bytes)              │
+│  ├── Prev Block Hash (32 bytes)     │
+│  ├── Merkle Root (32 bytes)         │
+│  ├── Timestamp (4 bytes)            │
+│  ├── Difficulty Target (4 bytes)    │
+│  └── Nonce (4 bytes)                │
+├─────────────────────────────────────┤
+│  PoUW Proof                         │
+│  ├── Miner XMSS Public Key (64 B)   │
+│  ├── Block Signing Sig (2,500 B)    │
+│  ├── Key Generation Proof           │
+│  └── Work Score (8 bytes)           │
+├─────────────────────────────────────┤
+│  Transactions                        │
+│  ├── Coinbase (mining reward)       │
+│  ├── Standard Transfers             │
+│  └── Multi-sig (optional)           │
+├─────────────────────────────────────┤
+│  Block Size: ~1-2 MB                │
+└─────────────────────────────────────┘
+</code></pre>
+<h3>5.3 Address Format</h3>
+<p>QNT addresses encode an <strong>XMSS public key hash</strong>, making them inherently quantum-resistant:</p>
+<pre><code>Address: qnt1q7s2k9m3x8v5n2p4r6t8w1y3z5a7b9c2d4e6f8g0h
+
+Breakdown:
+  qnt1        → Mainnet prefix (bech32m encoded)
+  q7s2k9...   → 40-character XMSS public key hash
+  ...h        → Checksum
+</code></pre>
+<hr />
+<h2>6. Mining &amp; Consensus</h2>
+<h3>6.1 Proof-of-Useful-Work (PoUW)</h3>
+<p>QNT replaces hash-based difficulty with <strong>XMSS computational difficulty</strong>:</p>
+<pre><code>Traditional PoW:
+  Find nonce such that SHA256(block || nonce) &lt; target
+
+QNT PoUW:
+  1. Generate XMSS key pair (one-time, per miner)
+  2. Sign block header with XMSS private key
+  3. Submit block + signature + public key
+  4. Network verifies signature validity
+  5. Difficulty adjusts based on XMSS key height
+</code></pre>
+<h3>6.2 Mining Algorithm</h3>
+<pre><code class="language-python">def mine_block(miner_xmss_key, block_template, difficulty):
+    &quot;&quot;&quot;
+    QNT Proof-of-Useful-Work mining loop.
+    &quot;&quot;&quot;
+    while True:
+        # Update nonce in block header
+        block_template.nonce += 1
+
+        # Serialize block header for signing
+        header_bytes = serialize_header(block_template)
+
+        # Sign with XMSS (this IS the useful work)
+        signature = xmss_sign(miner_xmss_key, header_bytes)
+
+        # Calculate work score based on signature properties
+        work_score = calculate_work_score(signature, header_bytes)
+
+        # Check if work score meets difficulty target
+        if work_score &lt; difficulty.target:
+            return Block(
+                template=block_template,
+                signature=signature,
+                public_key=miner_xmss_key.get_pubkey(),
+                work_score=work_score
+            )
+</code></pre>
+<h3>6.3 Difficulty Adjustment</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Target Block Time</strong></td>
+<td>60 seconds</td>
+<td>Same as Bitcoin</td>
+</tr>
+<tr>
+<td><strong>Adjustment Interval</strong></td>
+<td>2,016 blocks</td>
+<td>Every ~14 days</td>
+</tr>
+<tr>
+<td><strong>Max Adjustment</strong></td>
+<td>4x up / 4x down</td>
+<td>Prevents sudden swings</td>
+</tr>
+<tr>
+<td><strong>Minimum Difficulty</strong></td>
+<td>1 keygen/block</td>
+<td>Always mineable</td>
+</tr>
+</tbody>
+</table>
+<h3>6.4 Mining Rewards</h3>
+<pre><code>Block Reward Schedule:
+  Genesis ──────── 50 QNT/block ────────┐
+  2.1M blocks ──── 25 QNT/block ────────┤ Halving 1
+  4.2M blocks ──── 12.5 QNT/block ──────┤ Halving 2
+  6.3M blocks ──── 6.25 QNT/block ──────┤ Halving 3
+  ...continues until 21M total supply──┘
+
+Total Supply: 21,000,000 QNT (capped)
+</code></pre>
+<hr />
+<h2>7. Tokenomics</h2>
+<h3>7.1 Supply Distribution</h3>
+<pre><code>Total Supply: 21,000,000 QNT
+
+Distribution:
+  ┌────────────────────────────────────────────┐
+  │████████████████████████████████████████████│ 85%  Mining Rewards
+  │██████████████                            │ 10%  Development Fund (4yr vest)
+  │███                                        │  3%  Community Airdrop
+  │█                                          │  2%  Bug Bounty &amp; Security
+  └────────────────────────────────────────────┘
+</code></pre>
+<h3>7.2 Emission Schedule</h3>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Blocks</th>
+<th>Reward</th>
+<th>Daily QNT</th>
+<th>Period</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Genesis</td>
+<td>0–2,100,000</td>
+<td>50 QNT</td>
+<td>~4,285</td>
+<td>Year 1–4</td>
+</tr>
+<tr>
+<td>Halving 1</td>
+<td>2,100,000–4,200,000</td>
+<td>25 QNT</td>
+<td>~2,142</td>
+<td>Year 4–8</td>
+</tr>
+<tr>
+<td>Halving 2</td>
+<td>4,200,000–6,300,000</td>
+<td>12.5 QNT</td>
+<td>~1,071</td>
+<td>Year 8–12</td>
+</tr>
+<tr>
+<td>Halving 3</td>
+<td>6,300,000–8,400,000</td>
+<td>6.25 QNT</td>
+<td>~535</td>
+<td>Year 12–16</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+</tbody>
+</table>
+<h3>7.3 Fee Market</h3>
+<pre><code>Transaction Fees:
+  Base fee:     0.001 QNT per transaction
+  Priority fee: 0.0001–0.01 QNT (market-based)
+  Fee burn:     50% burned (deflationary)
+  Fee to miner: 50% to block producer
+</code></pre>
+<hr />
+<h2>8. Roadmap</h2>
+<h3>Phase 1: Foundation (Q3 2026)</h3>
+<ul>
+<li>[x] XMSS integration into Bitcoin Core fork</li>
+<li>[x] C++ bridge (CXMSSKey)</li>
+<li>[x] Dynamic parameter handling</li>
+<li>[ ] Testnet launch</li>
+<li>[ ] Mining pool protocol</li>
+<li>[ ] CLI wallet</li>
+</ul>
+<h3>Phase 2: Mainnet (Q4 2026)</h3>
+<ul>
+<li>[ ] Mainnet genesis block</li>
+<li>[ ] Desktop wallet (Qt)</li>
+<li>[ ] Block explorer</li>
+<li>[ ] Mining software (CPU optimized)</li>
+<li>[ ] Documentation portal</li>
+</ul>
+<h3>Phase 3: Ecosystem (Q1–Q2 2027)</h3>
+<ul>
+<li>[ ] Mobile wallet (Android/iOS)</li>
+<li>[ ] Hardware wallet support</li>
+<li>[ ] Exchange listings</li>
+<li>[ ] Payment gateway API</li>
+<li>[ ] Merchants SDK</li>
+</ul>
+<h3>Phase 4: Scale (Q3–Q4 2027)</h3>
+<ul>
+<li>[ ] Layer-2 payment channels</li>
+<li>[ ] Atomic swaps (QNT↔BTC)</li>
+<li>[ ] DeFi bridge</li>
+<li>[ ] Governance system</li>
+<li>[ ] QNT Grant Program</li>
+</ul>
+<h3>Phase 5: Adoption (2028+)</h3>
+<ul>
+<li>[ ] Enterprise adoption</li>
+<li>[ ] Government partnerships</li>
+<li>[ ] IoT security integration</li>
+<li>[ ] Post-quantum TLS certificates</li>
+<li>[ ] Cross-chain interoperability</li>
+</ul>
+<hr />
+<h2>9. Technical Specifications</h2>
+<h3>9.1 XMSS Parameters</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Scheme</strong></td>
+<td>XMSS-SHA2_10_256</td>
+<td>SHA-256, height 10, 256-bit</td>
+</tr>
+<tr>
+<td><strong>OID</strong></td>
+<td>0x00000001</td>
+<td>RFC 8391 identifier</td>
+</tr>
+<tr>
+<td><strong>n</strong></td>
+<td>32 bytes</td>
+<td>Hash output size</td>
+</tr>
+<tr>
+<td><strong>w</strong></td>
+<td>16</td>
+<td>Winternitz parameter</td>
+</tr>
+<tr>
+<td><strong>h</strong></td>
+<td>10</td>
+<td>Tree height</td>
+</tr>
+<tr>
+<td><strong>d</strong></td>
+<td>1</td>
+<td>Layers (single-tree XMSS)</td>
+</tr>
+<tr>
+<td><strong>Public Key</strong></td>
+<td>64 bytes</td>
+<td>root (32) + PUB_SEED (32)</td>
+</tr>
+<tr>
+<td><strong>Signature</strong></td>
+<td>2,500 bytes</td>
+<td>Full XMSS signature</td>
+</tr>
+<tr>
+<td><strong>Signatures/Key</strong></td>
+<td>1,024</td>
+<td>2^10 per key pair</td>
+</tr>
+</tbody>
+</table>
+<h3>9.2 Network Parameters</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Chain ID</strong></td>
+<td>0x514E5401 ("QNT" + 01)</td>
+</tr>
+<tr>
+<td><strong>P2P Port</strong></td>
+<td>8333</td>
+</tr>
+<tr>
+<td><strong>RPC Port</strong></td>
+<td>8332</td>
+</tr>
+<tr>
+<td><strong>Magic Bytes</strong></td>
+<td>0x514E5446 ("QNTF")</td>
+</tr>
+<tr>
+<td><strong>Max Block Size</strong></td>
+<td>2 MB</td>
+</tr>
+<tr>
+<td><strong>Max Block Weight</strong></td>
+<td>8,000,000</td>
+</tr>
+<tr>
+<td><strong>SegWit</strong></td>
+<td>Enabled</td>
+</tr>
+<tr>
+<td><strong>Bech32m</strong></td>
+<td>Native address format</td>
+</tr>
+</tbody>
+</table>
+<h3>9.3 Security Properties</h3>
+<pre><code>Security Level: 128-bit (NIST Level 1)
+Quantum Security: 128-bit (Grover's bound on SHA-256)
+Signature Forgery: Computationally infeasible
+Key Recovery: Computationally infeasible
+Double Spend: Prevented by UTXO + PoUW consensus
+51% Attack: Requires 51% of network XMSS keygens
+</code></pre>
+<hr />
+<h2>10. Risks &amp; Mitigations</h2>
+<h3>10.1 Technical Risks</h3>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Likelihood</th>
+<th>Impact</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>XMSS key exhaustion</td>
+<td>Low</td>
+<td>High</td>
+<td>1,024 sigs/key; key rotation protocol</td>
+</tr>
+<tr>
+<td>Quantum computer faster than expected</td>
+<td>Low</td>
+<td>Critical</td>
+<td>Upgrade to XMSS-SHA2_20_256 via soft fork</td>
+</tr>
+<tr>
+<td>Implementation bugs</td>
+<td>Medium</td>
+<td>High</td>
+<td>Formal verification; bug bounty; audits</td>
+</tr>
+<tr>
+<td>State management errors</td>
+<td>Medium</td>
+<td>High</td>
+<td>Deterministic state serialization</td>
+</tr>
+</tbody>
+</table>
+<h3>10.2 Economic Risks</h3>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Likelihood</th>
+<th>Impact</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Low initial hashrate</td>
+<td>High</td>
+<td>Medium</td>
+<td>Fair launch; no pre-mine</td>
+</tr>
+<tr>
+<td>Mining centralization</td>
+<td>Medium</td>
+<td>High</td>
+<td>CPU-optimized mining; ASIC resistance</td>
+</tr>
+<tr>
+<td>Price volatility</td>
+<td>High</td>
+<td>Medium</td>
+<td>Utility-driven demand; staking</td>
+</tr>
+</tbody>
+</table>
+<h3>10.3 Regulatory Risks</h3>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Likelihood</th>
+<th>Impact</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mining regulation</td>
+<td>Medium</td>
+<td>Medium</td>
+<td>Useful-work narrative; green energy</td>
+</tr>
+<tr>
+<td>Exchange delisting</td>
+<td>Low</td>
+<td>High</td>
+<td>Decentralized exchange support</td>
+</tr>
+<tr>
+<td>PQC mandate acceleration</td>
+<td>Low</td>
+<td>Positive</td>
+<td>QNT is first-mover</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>11. Survival Analysis: Will QNT Exist in 2030?</h2>
+<h3>11.1 The Honest Answer</h3>
+<p><strong>Maybe. Probably not. But the attempt matters.</strong></p>
+<p>This section is not here to sugarcoat. It is here to give investors, developers, and miners an honest assessment of QNT's chances of surviving until 2030. We believe in radical transparency — even when the truth is uncomfortable.</p>
+<h3>11.2 Why QNT Could Survive Until 2030</h3>
+<p><strong>1. The Quantum Threat Is Real and Accelerating</strong></p>
+<p>The timeline is not speculative — it is driven by concrete milestones:</p>
+<table>
+<thead>
+<tr>
+<th>Year</th>
+<th>Milestone</th>
+<th>Impact on QNT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2024</td>
+<td>NIST finalizes PQC standards (FIPS 203, 204, 205)</td>
+<td>Legitimizes QNT's approach</td>
+</tr>
+<tr>
+<td>2025</td>
+<td>Major tech companies begin PQC migration</td>
+<td>Increases awareness</td>
+</tr>
+<tr>
+<td>2026</td>
+<td>QNT launches mainnet</td>
+<td>First-mover in mineable PQC</td>
+</tr>
+<tr>
+<td>2027</td>
+<td>"Harvest now, decrypt later" attacks become public</td>
+<td>Urgency increases</td>
+</tr>
+<tr>
+<td>2028</td>
+<td>First cryptographically relevant quantum computer (estimated)</td>
+<td>Demand spikes</td>
+</tr>
+<tr>
+<td>2029</td>
+<td>NIST mandates PQC for federal systems</td>
+<td>Regulatory tailwind</td>
+</tr>
+<tr>
+<td>2030</td>
+<td>Mass migration to PQC begins</td>
+<td>QNT is already there</td>
+</tr>
+</tbody>
+</table>
+<p><strong>2. First-Mover Advantage in Mineable PQC</strong></p>
+<p>QNT is the first mineable post-quantum cryptocurrency. This matters because:
+- Network effects are hard to replicate once established
+- Miners who commit early become stakeholders in QNT's success
+- Developer mindshare, once captured, tends to persist</p>
+<p><strong>3. Bitcoin Core Foundation</strong></p>
+<p>QNT inherits 15+ years of battle-tested code. This is not a whitepaper project — it is a working codebase. The risk of fundamental technical failure is lower than a from-scratch implementation.</p>
+<p><strong>4. Useful-Work Narrative</strong></p>
+<p>As ESG concerns grow, "useful work" mining becomes increasingly attractive. QNT mining produces real cryptographic value — XMSS keys that secure the network. This narrative resonates with:
+- Environmentally conscious investors
+- Government regulators
+- Enterprise adopters</p>
+<h3>11.3 Why QNT Might NOT Survive Until 2030</h3>
+<p><strong>1. Big Players Could Migrate to PQC</strong></p>
+<p>This is the single biggest threat. If Bitcoin, Ethereum, or Solana successfully migrate to post-quantum signatures, QNT's unique selling proposition diminishes significantly.</p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Probability</th>
+<th>Impact on QNT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bitcoin adopts PQC via soft fork</td>
+<td>15% by 2030</td>
+<td>Severe — loses "quantum-safe" narrative</td>
+</tr>
+<tr>
+<td>Ethereum adopts PQC</td>
+<td>20% by 2030</td>
+<td>Moderate — DeFi moves to ETH</td>
+</tr>
+<tr>
+<td>Major L1 adopts PQC</td>
+<td>30% by 2030</td>
+<td>Moderate — competition increases</td>
+</tr>
+<tr>
+<td>No major chain adopts PQC</td>
+<td>35% by 2030</td>
+<td>Positive — QNT remains unique</td>
+</tr>
+</tbody>
+</table>
+<p><strong>2. Window of Opportunity Is Short</strong></p>
+<p>QNT has an estimated <strong>2-3 year window</strong> (2026-2028) to establish network effect before major chains potentially migrate. If QNT fails to:
+- Launch mainnet by Q4 2026
+- Attract 10,000+ active miners by Q2 2027
+- List on Tier-2 exchanges by Q4 2027
+- Build a functioning DeFi ecosystem by 2028</p>
+<p>...then the window closes, and QNT risks becoming irrelevant.</p>
+<p><strong>3. Mining Economics Must Be Competitive</strong></p>
+<p>If QNT mining is not profitable, miners leave. If miners leave, the network becomes vulnerable. The difficulty adjustment mechanism must balance:
+- Miner profitability (to attract hashrate)
+- Network security (to prevent 51% attacks)
+- Token price stability (to prevent death spirals)</p>
+<p><strong>4. Regulatory Risk</strong></p>
+<p>Cryptocurrency regulation is tightening globally. Specific risks include:
+- Mining bans (as seen in China, 2021)
+- PQC-specific export controls (XMSS is currently unrestricted)
+- Securities classification (if QNT is deemed a security)</p>
+<p><strong>5. Technology Risk</strong></p>
+<p>XMSS, while well-studied, could be superseded:
+- SPHINCS+ might become preferred for its statelessness
+- Lattice-based schemes might prove more efficient
+- New quantum algorithms might weaken hash-based assumptions</p>
+<h3>11.4 Survival Scenarios</h3>
+<h4>Best Case (20% probability)</h4>
+<ul>
+<li>QNT launches mainnet on time (Q4 2026)</li>
+<li>50,000+ active miners by 2028</li>
+<li>Listed on 10+ exchanges</li>
+<li>DeFi ecosystem with $100M+ TVL</li>
+<li>Major chains delay PQC migration past 2030</li>
+<li><strong>Result: QNT becomes the de facto post-quantum cryptocurrency</strong></li>
+</ul>
+<h4>Base Case (35% probability)</h4>
+<ul>
+<li>QNT launches mainnet with delays (Q1 2027)</li>
+<li>5,000-10,000 active miners</li>
+<li>Listed on 3-5 exchanges</li>
+<li>Basic DeFi ecosystem</li>
+<li>1-2 major chains adopt PQC</li>
+<li><strong>Result: QNT survives as a niche PQC chain with dedicated community</strong></li>
+</ul>
+<h4>Worst Case (45% probability)</h4>
+<ul>
+<li>Mainnet delayed beyond Q2 2027</li>
+<li>Fewer than 1,000 active miners</li>
+<li>No exchange listings</li>
+<li>Major chains adopt PQC before QNT gains traction</li>
+<li><strong>Result: QNT becomes inactive by 2029</strong></li>
+</ul>
+<h3>11.5 What Must Happen for QNT to Survive</h3>
+<p><strong>Critical Milestones (Non-Negotiable):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Milestone</th>
+<th>Deadline</th>
+<th>Status</th>
+<th>Consequence of Failure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Testnet launch</td>
+<td>Q3 2026</td>
+<td>In Progress</td>
+<td>Loss of credibility</td>
+</tr>
+<tr>
+<td>Mainnet launch</td>
+<td>Q4 2026</td>
+<td>Planned</td>
+<td>Window closes</td>
+</tr>
+<tr>
+<td>1,000+ miners</td>
+<td>Q1 2027</td>
+<td>Planned</td>
+<td>Network insecurity</td>
+</tr>
+<tr>
+<td>First exchange listing</td>
+<td>Q2 2027</td>
+<td>Planned</td>
+<td>No liquidity</td>
+</tr>
+<tr>
+<td>Mobile wallet</td>
+<td>Q3 2027</td>
+<td>Planned</td>
+<td>No user adoption</td>
+</tr>
+<tr>
+<td>DeFi protocol</td>
+<td>Q4 2027</td>
+<td>Planned</td>
+<td>No ecosystem</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key Success Factors:</strong></p>
+<ol>
+<li><strong>Speed of execution</strong> — The team must ship fast. Perfection is the enemy of survival.</li>
+<li><strong>Community building</strong> — Miners, developers, and investors must be cultivated from day one.</li>
+<li><strong>Partnerships</strong> — PQC research institutions, universities, and enterprises provide credibility.</li>
+<li><strong>Exchange listings</strong> — Liquidity is survival. Without it, QNT is worthless.</li>
+<li><strong>Continuous development</strong> — Stalling = death in crypto.</li>
+</ol>
+<h3>11.6 The Philosophical Case for QNT</h3>
+<p>Even if QNT does not survive until 2030, the project serves a purpose:</p>
+<p><strong>1. Proof of Concept</strong>
+QNT proves that mineable post-quantum cryptocurrency is possible. Even if QNT fails, the code and research live on.</p>
+<p><strong>2. Urgency Signal</strong>
+QNT's existence signals to the broader crypto industry that quantum threat is real and action is needed now.</p>
+<p><strong>3. Open Source Contribution</strong>
+All QNT code is MIT-licensed. Anyone can fork, learn from, or build upon it. The knowledge persists regardless of QNT's fate.</p>
+<p><strong>4. The Attempt Matters</strong>
+Someone has to try. If no one builds the first mineable PQC cryptocurrency, the idea dies by default. QNT is the attempt.</p>
+<h3>11.7 Final Assessment</h3>
+<p><strong>QNT's survival probability until 2030: ~35%</strong></p>
+<p>This is honest. Most cryptocurrencies fail. Most startups fail. The odds are against QNT.</p>
+<p>But 35% is not 0%. And in a world where quantum computers will eventually break every ECDSA signature on every major blockchain, <strong>someone needs to build the alternative</strong>.</p>
+<p>That someone is QNT.</p>
+<p><strong>The question is not "Will QNT definitely survive?" The question is "Is the attempt worth making?"</strong></p>
+<p>We believe it is.</p>
+<hr />
+<h2>12. Conclusion</h2>
+<p>QNT is not just another cryptocurrency. It is <strong>infrastructure for the post-quantum world</strong>.</p>
+<p>While other projects debate migration strategies, QNT is <strong>already there</strong> — a fully functional, mineable, quantum-resistant blockchain from day one.</p>
+<p><strong>The quantum future is not a threat to QNT. It is QNT's greatest opportunity.</strong></p>
+<hr />
+<h2>References</h2>
+<ol>
+<li>NIST SP 800-208 — Stateful Hash-Based Signatures</li>
+<li>RFC 8391 — XMSS: eXtended Merkle Signature Scheme</li>
+<li>NIST SP 800-203 — Migration to Post-Quantum Cryptography</li>
+<li>Bitcoin Core — Reference implementation (MIT License)</li>
+<li>XMSS Reference Code — Andreas Hülsing, Joost Rijneveld</li>
+</ol>
+<hr />
+<p><em>This whitepaper is a living document. Last updated: June 2026.</em>
+<em>For technical inquiries: dev@qnt.network</em>
+<em>For partnerships: biz@qnt.network</em></p>
+</body></html>
