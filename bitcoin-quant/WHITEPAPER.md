@@ -34,9 +34,9 @@ QNT is the first cryptocurrency that replaces proof-of-work with **useful post-q
 | **Signature Scheme** | XMSS-SHA2_10_256 (NIST SP 800-208) |
 | **Block Time** | ~60 seconds |
 | **Max Supply** | 21,000,000 QNT |
-| **Halving** | Every 2,100,000 blocks (~4 years) |
+| **Halving** | Every 210,000 blocks (~4 years) |
 | **Language** | C (Bitcoin Core fork) |
-| **License** | MIT |
+| **License** | BSL-1.1 (→ GPL-2.0 on 2030) |
 
 ---
 
@@ -381,10 +381,10 @@ Distribution:
 
 | Phase | Blocks | Reward | Daily QNT | Period |
 |---|---|---|---|---|
-| Genesis | 0–2,100,000 | 50 QNT | ~4,285 | Year 1–4 |
-| Halving 1 | 2,100,000–4,200,000 | 25 QNT | ~2,142 | Year 4–8 |
-| Halving 2 | 4,200,000–6,300,000 | 12.5 QNT | ~1,071 | Year 8–12 |
-| Halving 3 | 6,300,000–8,400,000 | 6.25 QNT | ~535 | Year 12–16 |
+| Genesis | 0–210,000 | 50 QNT | ~720 | Year 1–4 |
+| Halving 1 | 210,000–420,000 | 25 QNT | ~360 | Year 4–8 |
+| Halving 2 | 420,000–630,000 | 12.5 QNT | ~180 | Year 8–12 |
+| Halving 3 | 630,000–840,000 | 6.25 QNT | ~90 | Year 12–16 |
 | ... | ... | ... | ... | ... |
 
 ### 7.3 Fee Market
@@ -459,10 +459,10 @@ Transaction Fees:
 
 | Parameter | Value |
 |---|---|
-| **Chain ID** | 0x514E5401 ("QNT" + 01) |
-| **P2P Port** | 8333 |
-| **RPC Port** | 8332 |
-| **Magic Bytes** | 0x514E5446 ("QNTF") |
+| **Chain ID** | 0x5155414E ("QUAN") |
+| **P2P Port** | 9333 (mainnet), 19333 (testnet) |
+| **RPC Port** | 29332 (testnet), 9332 (mainnet) |
+| **Magic Bytes** | 0x5155414E ("QUAN") |
 | **Max Block Size** | 2 MB |
 | **Max Block Weight** | 8,000,000 |
 | **SegWit** | Enabled |
