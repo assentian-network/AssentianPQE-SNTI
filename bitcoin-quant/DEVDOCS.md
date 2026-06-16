@@ -388,6 +388,28 @@ Block Data
    └── Save XMSS state to wallet DB
 ```
 
+
+### Design Decision Record — Key lifecycle (16/Jun/2026)
+
+**Decision**: Keep the one-shot key model (fresh XMSS key generated and
+discarded per block) for the testnet/pre-mainnet phase. Key reuse across
+the full 1024-signature capacity was considered and explicitly deferred.
+
+**Reasoning**: Reusing an XMSS key across multiple blocks requires durable,
+crash-safe persistence of the signing index. If a node crashes after
+signing but before flushing the updated index to disk, a restart could
+sign again at the same index — which leaks the private key under XMSS's
+security model. Building that persistence correctly (atomic writes, fsync
+ordering, recovery on corrupt state) is real work with real risk of
+getting subtly wrong. The one-shot model has no such failure mode by
+construction. The tradeoff (1023 of 1024 signature capacity wasted per
+key, ~2-3s of keygen overhead per block) is accepted for now in exchange
+for that safety margin.
+
+**Revisit when**: mainnet launch planning begins in earnest, or if block
+time needs to drop below ~5 seconds and keygen overhead becomes the
+binding constraint.
+
 ### Key Components
 
 | Component | File | Purpose |
