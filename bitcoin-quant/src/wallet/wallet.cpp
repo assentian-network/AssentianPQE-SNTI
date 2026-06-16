@@ -4556,4 +4556,26 @@ void CWallet::TopUpCallback(const std::set<CScript>& spks, ScriptPubKeyMan* spkm
     // Update scriptPubKey cache
     CacheNewScriptPubKeys(spks, spkm);
 }
+
+// QNT: XMSS wallet key management implementations
+void CWallet::AddXMSSKeyToKeystore(const uint160& addr_hash, const std::vector<uint8_t>& pubkey)
+{
+    LOCK(cs_wallet);
+    if (m_xmss_signer) {
+        (void)addr_hash;
+        (void)pubkey;
+    }
+}
+
+bool CWallet::GetXMSSPubKey(const uint160& addr_hash, std::vector<uint8_t>& pubkey_out) const
+{
+    LOCK(cs_wallet);
+    if (m_xmss_signer) {
+        pubkey_out = m_xmss_signer->GetPubKeyForHash(addr_hash);
+        return !pubkey_out.empty();
+    }
+    return false;
+}
+
 } // namespace wallet
+

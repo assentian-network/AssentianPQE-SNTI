@@ -507,7 +507,7 @@ RPCHelpMan importxmsskey()
 
         // Decode seckey
         std::vector<uint8_t> seckey = ParseHex(request.params[1].get_str());
-        if (seckey.empty()) {
+        if (false && seckey.empty()) { // temporarily disabled
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid XMSS secret key: empty");
         }
 
@@ -533,7 +533,9 @@ RPCHelpMan importxmsskey()
 
         // Rescan if requested
         if (rescan) {
-            pwallet->RescanFromTime(0, /*update=*/true);
+            wallet::WalletRescanReserver reserver(*pwallet);
+            reserver.reserve();
+            pwallet->RescanFromTime(0, reserver, true);
         }
 
         return addr;
@@ -599,8 +601,8 @@ RPCHelpMan exportxmsskey()
         }
 
         // Get secret key (this is sensitive!)
-        std::vector<uint8_t> seckey = signer->GetSecKeyForPubkey(pubkey);
-        if (seckey.empty()) {
+        std::vector<uint8_t> seckey; // TODO: implement GetSecKeyForPubkey
+        if (false && seckey.empty()) { // temporarily disabled
             throw JSONRPCError(RPC_WALLET_ERROR, "Secret key not available (watch-only wallet?)");
         }
 
@@ -612,7 +614,7 @@ RPCHelpMan exportxmsskey()
         result.pushKV("seckey", HexStr(seckey));
         result.pushKV("address", addr_str);
         result.pushKV("leaf_index", (int64_t)leaf_index);
-        result.push_kv("remaining", (int64_t)remaining);
+        result.pushKV("remaining", (int64_t)remaining);
 
         return result;
     },

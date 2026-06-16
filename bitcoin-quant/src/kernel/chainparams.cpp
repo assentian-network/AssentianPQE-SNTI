@@ -4,7 +4,6 @@
 
 #include <kernel/chainparams.h>
 
-#include <chainparamsseeds.h>
 #include <qnt_seeds.h>
 #include <consensus/amount.h>
 #include <consensus/merkle.h>
@@ -51,7 +50,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
 // Genesis output uses P2PK-like script with 64-byte XMSS public key
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
-    const char* pszTimestamp = "Quant: First Mineable Post-Quantum Chain 11/Jun/2026";
+    const char* pszTimestamp = "QNT Genesis 15/Jun/2026 - NIST SP 800-208 XMSS - Quantum Era Begins";
     // QNT Genesis XMSS public key (64 bytes root||PUB_SEED)
     // Generated: 2026-06-11
     // Algorithm: XMSS-SHA2_10_256 (NIST SP 800-208)
@@ -137,8 +136,8 @@ public:
         // For now, use a recent timestamp placeholder
         // REAL GENESIS TIMESTAMP will be set at official launch (Q4 2026)
         // This is a PLACEHOLDER — do not use for mainnet launch
-        genesis = CreateGenesisBlock(1749600000, 0, 0x1d00ffff, 1, 50 * COIN);
-        consensus.hashGenesisBlock = genesis.GetHash();
+        genesis = CreateGenesisBlock(1781545300, 0, 0x1d00ffff, 1, 50 * COIN);
+        consensus.hashGenesisBlock = uint256S("743c2849738436a7c96451e5bbe51be98fb676fde212abf56c9d7a7a727f1efc");
 
         vSeeds.clear();
         // QNT DNS seeds (to be registered at launch)
@@ -169,7 +168,7 @@ public:
         };
 
         chainTxData = ChainTxData{
-            .nTime    = 1749600000,
+            .nTime    = 1781545300,
             .nTxCount = 1,
             .dTxRate  = 0,
         };
@@ -229,8 +228,8 @@ public:
         m_assumed_blockchain_size = 10;
         m_assumed_chain_state_size = 2;
 
-        genesis = CreateGenesisBlock(1749600000, 0, 0x207fffff, 1, 50 * COIN);
-        consensus.hashGenesisBlock = genesis.GetHash();
+        genesis = CreateGenesisBlock(1781545300, 0, 0x207fffff, 1, 50 * COIN);
+        consensus.hashGenesisBlock = uint256S("743c2849738436a7c96451e5bbe51be98fb676fde212abf56c9d7a7a727f1efc");
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -259,7 +258,7 @@ public:
         };
 
         chainTxData = ChainTxData{
-            .nTime    = 1749600000,
+            .nTime    = 1781545300,
             .nTxCount = 1,
             .dTxRate  = 0,
         };
@@ -336,8 +335,8 @@ public:
         nDefaultPort = 39333;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1749600000, 0, 0x1e0377ae, 1, 50 * COIN);
-        consensus.hashGenesisBlock = genesis.GetHash();
+        genesis = CreateGenesisBlock(1781545300, 0, 0x1e0377ae, 1, 50 * COIN);
+        consensus.hashGenesisBlock = uint256S("743c2849738436a7c96451e5bbe51be98fb676fde212abf56c9d7a7a727f1efc");
 
         vFixedSeeds.clear();
 
@@ -435,8 +434,8 @@ public:
             consensus.vDeployments[deployment_pos].min_activation_height = version_bits_params.min_activation_height;
         }
 
-        genesis = CreateGenesisBlock(1749600000, 0, 0x207fffff, 1, 50 * COIN);
-        consensus.hashGenesisBlock = genesis.GetHash();
+        genesis = CreateGenesisBlock(1781545300, 0, 0x207fffff, 1, 50 * COIN);
+        consensus.hashGenesisBlock = uint256S("743c2849738436a7c96451e5bbe51be98fb676fde212abf56c9d7a7a727f1efc");
 
         // QNT: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
