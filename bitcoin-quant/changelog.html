@@ -259,6 +259,33 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
 
+
+  <!-- Phase 6b -->
+  <div class="phase">
+    <div class="phase-header" onclick="toggle('p6b')">
+      <div class="phase-title">
+        <span class="phase-num done">PHASE 6.5</span>
+        <span class="phase-name">PQ-PoW Validation & Genesis Launch</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="phase-badge done">✅ COMPLETE</span>
+        <span class="phase-toggle" id="tp6b">▼</span>
+      </div>
+    </div>
+    <div class="phase-body open" id="p6b">
+      <div class="progress-bar"><div class="progress-fill done" style="width:100%"></div></div>
+      <table>
+        <thead><tr><th></th><th>Item</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="chk done">✅</td><td class="item-name">6.5.1 — Official Genesis Block Mined<div class="item-detail">Timestamp 1781545300 (15/Jun/2026). Message: "QNT Genesis 15/Jun/2026 - NIST SP 800-208 XMSS - Quantum Era Begins"</div><div class="item-files">kernel/chainparams.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">6.5.2 — Build System Fixes<div class="item-detail">Resolved duplicate seed definitions (chainparamsseeds.h vs qnt_seeds.h), UniValue API mismatch (push_kv → pushKV), RescanFromTime signature, missing CWallet::AddXMSSKeyToKeystore / GetXMSSPubKey implementations</div><div class="item-files">kernel/chainparams.cpp, wallet/rpc/xmss.cpp, wallet/wallet.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">6.5.3 — PQ-PoW End-to-End Validation<div class="item-detail">6 consecutive blocks mined on regtest, all with valid XMSS signature in coinbase witness + 64-byte pubkey in OP_RETURN. CheckPoUW() consensus enforcement confirmed — pouw_enabled: true throughout, zero rejected blocks</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">6.5.4 — License & Documentation Consistency<div class="item-detail">BSL-1.1 license added (→ GPL-2.0 in 2030). Whitepaper fixed: license MIT→BSL-1.1, P2P port 8333→9333, magic bytes QNTF→QUAN, halving 2,100,000→210,000 blocks</div><div class="item-files">LICENSE, WHITEPAPER.md</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">6.5.5 — Public Infrastructure Live<div class="item-detail">Dashboard, mining page, explorer, whitepaper.html, and /api/status all verified returning HTTP 200 via nginx reverse proxy. bitcoind + explorer running as systemd services with auto-restart</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
   <!-- Phase 7 -->
   <div class="phase">
     <div class="phase-header" onclick="toggle('p7')">
