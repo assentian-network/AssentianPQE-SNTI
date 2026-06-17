@@ -410,6 +410,40 @@ for that safety margin.
 time needs to drop below ~5 seconds and keygen overhead becomes the
 binding constraint.
 
+
+### Known Reference Library Bug — Final Signature (index 1023) Fails Verification
+
+Discovered 17/Jun/2026 during key-exhaustion audit testing. Confirmed empirically
+with a standalone test harness linked directly against the project's compiled
+XMSS library (bypassing the bitcoind wrapper entirely):
+Index 0–1022:  sign() succeeds, verify() succeeds   — 1023 of 1024 signatures OK
+
+Index 1023:    sign() succeeds, verify() FAILS      — the final signature is broken
+
+Index 1024:    sign() correctly refuses (code -2)   — key properly exhausted
+
+**Root cause**: in the core sign function (`xmss_core_fast.c` / `xmss_commons.c`),
+when the secret key's index reaches the maximum valid value, the implementation
+zeroes/marks the secret key's index bytes as a "key exhausted" sentinel *before*
+copying those same index bytes into the produced signature's index field. The
+final, otherwise-legitimate signature is therefore serialized with a corrupted
+index, which `xmss_sign_open()` cannot reconcile against the public key's Merkle
+root — verification fails even though the signature was produced from a valid,
+unused leaf.
+
+**Why this hasn't affected QNT mining**: under the current one-shot key design
+(see Design Decision Record above), every block generates a fresh key and signs
+exactly once at index 0 — index 1023 is never reached in practice, so this bug
+has zero observable effect on PoUW today.
+
+**Why it matters anyway**: if the one-shot key design is ever revisited in favor
+of reusing a key across its full 1024-signature capacity, this bug would cause
+the 1024th use of every key to silently produce an unverifiable, rejected block.
+Any future work in that direction must fix this in the XMSS library layer first
+— either by reordering the zero-out to happen after the signature's index bytes
+are committed to the output, or by reserving index 1023 as unusable (i.e.,
+treating 1023 effective signatures per key as the safe practical maximum).
+
 ### Key Components
 
 | Component | File | Purpose |
