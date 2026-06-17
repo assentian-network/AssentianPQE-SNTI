@@ -168,7 +168,7 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
             CMutableTransaction coinbase(*block.vtx[0]);
             // Add OP_RETURN output with 64-byte XMSS pubkey
             CScript op_return_script;
-            op_return_script << OP_RETURN << std::vector<uint8_t>(0x40) << xmss_pk;
+            op_return_script << OP_RETURN << xmss_pk;
             coinbase.vout.push_back(CTxOut(0, op_return_script));
             block.vtx[0] = MakeTransactionRef(std::move(coinbase));
             block.hashMerkleRoot = BlockMerkleRoot(block);
@@ -218,7 +218,7 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
                     }
                 }
                 CScript op_return_script;
-                op_return_script << OP_RETURN << std::vector<uint8_t>(0x40) << xmss_pk;
+                op_return_script << OP_RETURN << xmss_pk;
                 new_vout.push_back(CTxOut(0, op_return_script));
                 coinbase.vout = new_vout;
                 block.vtx[0] = MakeTransactionRef(std::move(coinbase));

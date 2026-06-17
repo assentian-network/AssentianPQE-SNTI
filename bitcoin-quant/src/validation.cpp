@@ -3747,7 +3747,7 @@ static bool CheckWitnessMalleation(const CBlock& block, bool expect_witness_comm
 }
 
 // QNT: Forward declaration — PoUW XMSS signature verification
-static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams);
+static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, int nHeight = -1);
 
 bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW, bool fCheckMerkleRoot)
 {
@@ -3824,16 +3824,20 @@ bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensu
 //   - An OP_RETURN output with the 64-byte XMSS public key: OP_RETURN <0x40> <64-byte-pk>
 //   - The XMSS signature embedded in the coinbase scriptSig after the height + extra nonce
 // The signature signs the block header hash (which includes the merkle root).
-static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams)
+static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, int nHeight)
 {
     if (!consensusParams.fPoUW) return true;
 
-    // Check activation height
-    // Note: block height is not available in CheckBlock, so we check via the
-    // nPoUWStartHeight == 0 (always active) or skip if not yet activated.
-    // For height-gated activation, the check is done in ContextualCheckBlock.
-    if (consensusParams.nPoUWStartHeight > 0) {
-        // Height-based activation is checked in ContextualCheckBlock
+    // QNT: Height-gated activation.
+    // nHeight == -1 means "unknown / not yet contextually validated" (e.g. the
+    // call from CheckBlock(), which runs before ContextualCheckBlock and has
+    // no access to chain height). In that case, defer the real check to the
+    // contextual call below, which always supplies a concrete height.
+    if (nHeight < 0) {
+        return true;
+    }
+    if (consensusParams.nPoUWStartHeight > 0 && nHeight < consensusParams.nPoUWStartHeight) {
+        // PoUW not yet active at this height — skip signature requirement.
         return true;
     }
 
@@ -4041,7 +4045,7 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
  *  in ConnectBlock().
  *  Note that -reindex-chainstate skips the validation that happens here!
  */
-static bool ContextualCheckBlock(const CBlock& block, BlockValidationState& state, const ChainstateManager& chainman, const CBlockIndex* pindexPrev)
+static bool ContextualCheckBlock(const CBlock& block, BlockValidationState& state, const ChainstateManager& chainman, const CBlockIndex* pindexPrev, bool fCheckPOW = true)
 {
     const int nHeight = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
 
@@ -4093,6 +4097,18 @@ static bool ContextualCheckBlock(const CBlock& block, BlockValidationState& stat
     // failed).
     if (GetBlockWeight(block) > MAX_BLOCK_WEIGHT) {
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-blk-weight", strprintf("%s : weight limit failed", __func__));
+    }
+
+    // QNT: PoUW height-gated enforcement. This is the real check — the call
+    // in CheckBlock() only runs the unconditional (nHeight == 0) case and
+    // defers here whenever nPoUWStartHeight > 0, since only this function
+    // has access to the contextual block height.
+    // QNT: skip the PoUW signature check on a not-yet-PoW-grinded template
+    // (fCheckPOW=false), since the coinbase OP_RETURN/witness aren't filled
+    // in until after grinding and XMSS-signing in GenerateBlock(). The real
+    // enforcement happens when fCheckPOW=true, i.e. on the final submitted block.
+    if (fCheckPOW && !CheckPoUW(block, state, chainman.GetConsensus(), nHeight)) {
+        return false;
     }
 
     return true;
@@ -4316,7 +4332,7 @@ bool ChainstateManager::AcceptBlock(const std::shared_ptr<const CBlock>& pblock,
     const CChainParams& params{GetParams()};
 
     if (!CheckBlock(block, state, params.GetConsensus()) ||
-        !ContextualCheckBlock(block, state, *this, pindex->pprev)) {
+        !ContextualCheckBlock(block, state, *this, pindex->pprev, /*fCheckPOW=*/true)) {
         if (state.IsInvalid() && state.GetResult() != BlockValidationResult::BLOCK_MUTATED) {
             pindex->nStatus |= BLOCK_FAILED_VALID;
             m_blockman.m_dirty_blockindex.insert(pindex);
@@ -4437,7 +4453,7 @@ bool TestBlockValidity(BlockValidationState& state,
         return error("%s: Consensus::ContextualCheckBlockHeader: %s", __func__, state.ToString());
     if (!CheckBlock(block, state, chainparams.GetConsensus(), fCheckPOW, fCheckMerkleRoot))
         return error("%s: Consensus::CheckBlock: %s", __func__, state.ToString());
-    if (!ContextualCheckBlock(block, state, chainstate.m_chainman, pindexPrev))
+    if (!ContextualCheckBlock(block, state, chainstate.m_chainman, pindexPrev, fCheckPOW))
         return error("%s: Consensus::ContextualCheckBlock: %s", __func__, state.ToString());
     if (!chainstate.ConnectBlock(block, state, &indexDummy, viewNew, true)) {
         return false;

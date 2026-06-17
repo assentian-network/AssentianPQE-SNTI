@@ -179,6 +179,20 @@ bool CXMSSKey::Verify(const std::vector<uint8_t>& hash,
     // Default OID for verify
     uint32_t oid = XMSS_OID_SHA2_10_256;
 
+    // QNT FIX (17/Jun/2026): the reference xmssmt_core_sign_open() writes
+    // into m at offset params.sig_bytes (it uses the tail of the output
+    // buffer as scratch space for message-hash computation), then copies
+    // the actual message into the front. The output buffer m therefore
+    // MUST be at least params.sig_bytes + message_length bytes, not just
+    // message_length. Allocating only hash.size() here caused a heap
+    // buffer overflow on every single call to Verify(), corrupting the
+    // allocator and crashing intermittently a few mallocs later (visible
+    // under Valgrind as "Invalid read ... inside an unallocated block").
+    xmss_params params;
+    if (xmss_parse_oid(&params, oid) != 0) {
+        return false;
+    }
+
     // Build pk with OID prefix from the 64-byte raw pubkey.
     std::vector<uint8_t> pk = MakePKWithOID(pubkey_bytes.data(), oid);
 
@@ -191,7 +205,8 @@ bool CXMSSKey::Verify(const std::vector<uint8_t>& hash,
     std::memcpy(sm.data() + sig.size(), hash.data(), hash.size());
 
     unsigned long long mlen = 0;
-    std::vector<unsigned char> m(hash.size(), 0);
+    // Must be at least params.sig_bytes + hash.size() — see comment above.
+    std::vector<unsigned char> m(params.sig_bytes + hash.size(), 0);
 
     int ret = xmss_sign_open(
         m.data(), &mlen,

@@ -189,8 +189,15 @@ inline bool VerifyPoUW(const uint8_t* block_hash,
     memcpy(sm.data(), sig.data(), sig.size());
     memcpy(sm.data() + sig.size(), block_hash, 32);
 
+    // QNT FIX (17/Jun/2026): m must be at least params.sig_bytes + 32
+    // bytes — see xmss_bridge.cpp Verify() for the full explanation.
+    xmss_params params;
+    if (xmss_parse_oid(&params, XMSS_OID) != 0) {
+        return false;
+    }
+
     unsigned long long mlen = 0;
-    std::vector<uint8_t> m(32, 0);
+    std::vector<uint8_t> m(params.sig_bytes + 32, 0);
 
     int ret = xmss_sign_open(m.data(), &mlen, sm.data(),
                              (unsigned long long)sm.size(), pk.data());

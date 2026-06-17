@@ -278,8 +278,17 @@ inline bool VerifySignature(const uint8_t* hash32,
     memcpy(sm.data(), sig.data(), sig.size());
     memcpy(sm.data() + sig.size(), hash32, 32);
 
+    // QNT FIX (17/Jun/2026): xmssmt_core_sign_open() writes into m at
+    // offset params.sig_bytes before copying the message to the front —
+    // see xmss_bridge.cpp Verify() for the full explanation. m must be
+    // at least params.sig_bytes + 32 bytes, not just 32.
+    xmss_params params;
+    if (xmss_parse_oid(&params, QNT_XMSS_OID) != 0) {
+        return false;
+    }
+
     unsigned long long mlen = 0;
-    std::vector<uint8_t> m(32, 0);
+    std::vector<uint8_t> m(params.sig_bytes + 32, 0);
 
     int ret = xmss_sign_open(m.data(), &mlen, sm.data(),
                              (unsigned long long)sm.size(), pk.data());
