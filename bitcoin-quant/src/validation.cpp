@@ -3872,31 +3872,62 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
                              "PoUW: no valid XMSS public key in coinbase OP_RETURN");
     }
 
-    // Extract XMSS signature from coinbase witness
-    // The signature is the first (and only) witness stack item
+    // QNT FIX (17/Jun/2026): signature is carried in a dedicated OP_RETURN
+    // output instead of the coinbase witness reserved-value slot — see
+    // GenerateBlock() in rpc/mining.cpp for why (embedding it in witness
+    // violated BIP141's single-32-byte-reserved-value rule for coinbase
+    // witnesses, causing every block to be rejected by any node other than
+    // the one that mined it). The signature output is also excluded below
+    // when reconstructing the pre-signature coinbase for preimage
+    // verification, since the miner signs before attaching it.
     std::vector<uint8_t> xmss_sig;
-    const auto& witness = coinbase.vin[0].scriptWitness.stack;
-    if (!witness.empty() && witness[0].size() > 100) {
-        xmss_sig = witness[0];
+    int sig_vout_index = -1;
+    for (size_t i = 0; i < coinbase.vout.size(); i++) {
+        const CScript& script = coinbase.vout[i].scriptPubKey;
+        // The signature output is large (~2500+ bytes); the pubkey output
+        // is exactly 66 bytes, so a simple size threshold distinguishes them.
+        if (script.size() > 1000 && !script.empty() && script[0] == OP_RETURN) {
+            CScript::const_iterator pc = script.begin() + 1;
+            opcodetype opcode;
+            std::vector<unsigned char> data;
+            if (script.GetOp(pc, opcode, data) && !data.empty()) {
+                xmss_sig = data;
+                sig_vout_index = (int)i;
+            }
+            break;
+        }
     }
 
-    if (xmss_sig.empty()) {
+    if (xmss_sig.empty() || sig_vout_index < 0) {
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-no-sig",
-                             "PoUW: no XMSS signature found in coinbase scriptSig");
+                             "PoUW: no XMSS signature found in coinbase OP_RETURN output");
     }
 
-    // Verify the XMSS signature against the block header hash
-    uint256 block_hash = block.GetHash();
-    XMSS::CXMSSKey verifier;
-    std::vector<uint8_t> hash_vec(block_hash.begin(), block_hash.end());
+    // QNT FIX: reconstruct the same "coinbase without signature" preimage
+    // the miner signed (see ComputePoUWPreimage in rpc/mining.cpp) by
+    // rebuilding the coinbase transaction with the signature output
+    // removed, then hashing it the same way. This avoids the circular
+    // dependency of verifying against block.GetHash(), which already
+    // reflects the signature's own presence and therefore can never match
+    // what was actually signed before that output existed.
+    CMutableTransaction coinbase_no_sig(coinbase);
+    coinbase_no_sig.vout.erase(coinbase_no_sig.vout.begin() + sig_vout_index);
+    uint256 coinbase_txid_no_sig = CTransaction(coinbase_no_sig).GetHash();
 
-    if (!verifier.Verify(hash_vec, xmss_sig, xmss_pk)) {
+    HashWriter hw{};
+    hw << block.nVersion << block.hashPrevBlock << block.nTime << block.nBits
+       << coinbase_txid_no_sig << xmss_pk;
+    uint256 preimage = hw.GetHash();
+    std::vector<uint8_t> preimage_vec(preimage.begin(), preimage.end());
+
+    XMSS::CXMSSKey verifier;
+    if (!verifier.Verify(preimage_vec, xmss_sig, xmss_pk)) {
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-invalid-sig",
                              "PoUW: XMSS signature verification failed");
     }
 
     LogPrint(BCLog::VALIDATION, "PoUW: block %s verified (pk=%s, sig_len=%d)\n",
-             block_hash.GetHex(), HexStr(xmss_pk).substr(0, 16), (int)xmss_sig.size());
+             block.GetHash().GetHex(), HexStr(xmss_pk).substr(0, 16), (int)xmss_sig.size());
 
     return true;
 }

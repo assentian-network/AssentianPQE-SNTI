@@ -8,6 +8,7 @@
 #endif
 
 #include <chain.h>
+#include <hash.h>
 #include <chainparams.h>
 #include <common/system.h>
 #include <consensus/amount.h>
@@ -131,6 +132,32 @@ static RPCHelpMan getnetworkhashps()
     };
 }
 
+// QNT FIX (17/Jun/2026): Compute the PoUW signing preimage — a hash that
+// commits to the chain position, timing/difficulty, the coinbase content
+// EXCLUDING the not-yet-attached signature output, and the signer's public
+// key. This is deliberately NOT block.GetHash(): embedding the signature
+// into the block as an OP_RETURN output (part of the legacy merkle root)
+// necessarily changes block.GetHash() the moment it's inserted, so signing
+// that hash directly creates a circular dependency — discovered when an
+// independent second node rejected every QNT block ever mined (see
+// CHANGELOG: the original design avoided this by hiding the signature in
+// the coinbase witness, which doesn't affect the merkle root, but that
+// violated BIP141's coinbase-witness-must-be-exactly-32-bytes rule instead).
+// This preimage depends only on fields that are already final before
+// grinding starts (version/prevhash/time/bits/coinbase-without-sig/pubkey),
+// so it can be computed once, signed once, and identically reconstructed
+// and verified by any node from the final block — see CheckPoUW() in
+// validation.cpp for the matching verification-side reconstruction.
+static uint256 ComputePoUWPreimage(int32_t nVersion, const uint256& hashPrevBlock,
+                                    uint32_t nTime, uint32_t nBits,
+                                    const uint256& coinbase_txid_no_sig,
+                                    const std::vector<uint8_t>& xmss_pk)
+{
+    HashWriter hw{};
+    hw << nVersion << hashPrevBlock << nTime << nBits << coinbase_txid_no_sig << xmss_pk;
+    return hw.GetHash();
+}
+
 static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& max_tries, std::shared_ptr<const CBlock>& block_out, bool process_new_block)
 {
     block_out.reset();
@@ -155,8 +182,10 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
         }
         LogPrintf("PoUW: XMSS key generated, pk=%s...\n", HexStr(xmss_pk).substr(0, 16));
 
-        // Add XMSS pubkey OP_RETURN to coinbase if not already present
-        // Check if coinbase already has a PoUW OP_RETURN
+        // Add XMSS pubkey OP_RETURN to coinbase if not already present.
+        // This is safe to do before signing: the pubkey doesn't depend on
+        // the signature, so adding it doesn't create the circular problem
+        // the signature itself would.
         bool has_pouw_output = false;
         for (const auto& txout : block.vtx[0]->vout) {
             if (txout.scriptPubKey.size() == 66 && txout.scriptPubKey[0] == OP_RETURN) {
@@ -166,103 +195,92 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
         }
         if (!has_pouw_output) {
             CMutableTransaction coinbase(*block.vtx[0]);
-            // Add OP_RETURN output with 64-byte XMSS pubkey
             CScript op_return_script;
             op_return_script << OP_RETURN << xmss_pk;
             coinbase.vout.push_back(CTxOut(0, op_return_script));
             block.vtx[0] = MakeTransactionRef(std::move(coinbase));
             block.hashMerkleRoot = BlockMerkleRoot(block);
         }
-    }
 
-    // QNT: PoUW mining loop — grind SHA-256 nonce, then XMSS-sign, then re-verify
-    // This handles the circular dependency between signature and merkle root
-    while (max_tries > 0 && !chainman.m_interrupt) {
-        // Standard SHA-256 PoW grinding
-        while (max_tries > 0 && block.nNonce < std::numeric_limits<uint32_t>::max()
-               && !CheckProofOfWork(block.GetHash(), block.nBits, chainman.GetConsensus())
-               && !chainman.m_interrupt) {
-            ++block.nNonce;
-            --max_tries;
-        }
+        // QNT FIX: sign the stable preimage BEFORE attaching the signature
+        // anywhere in the block. At this point the coinbase contains the
+        // reward output and the pubkey OP_RETURN only — exactly the
+        // "coinbase without signature" content the preimage commits to.
+        uint256 coinbase_txid_no_sig = block.vtx[0]->GetHash();
+        uint256 preimage = ComputePoUWPreimage(block.nVersion, block.hashPrevBlock,
+                                               block.nTime, block.nBits,
+                                               coinbase_txid_no_sig, xmss_pk);
+        std::vector<uint8_t> preimage_vec(preimage.begin(), preimage.end());
+        std::vector<uint8_t> xmss_sig;
 
-        if (max_tries == 0 || chainman.m_interrupt) {
-            return false;
-        }
-        if (block.nNonce == std::numeric_limits<uint32_t>::max()) {
-            return true;
-        }
-
-        // Found a valid PoW candidate — now XMSS-sign if PoUW is active
-        if (pouw_active && miner_key.IsValid()) {
-            uint256 pow_hash = block.GetHash();
-            std::vector<uint8_t> hash_vec(pow_hash.begin(), pow_hash.end());
-            std::vector<uint8_t> xmss_sig;
-
-            if (!miner_key.Sign(hash_vec, xmss_sig)) {
-                LogPrintf("PoUW: WARNING — XMSS sign failed (key index exhausted?), regenerating key\n");
-                // Generate a new key and retry
-                if (!miner_key.Generate()) {
-                    return false;
-                }
-                xmss_pk = miner_key.GetPubKey();
-                if (xmss_pk.size() != 64) return false;
-
-                // Update coinbase OP_RETURN with new pubkey
-                CMutableTransaction coinbase(*block.vtx[0]);
-                // Remove old PoUW OP_RETURN and add new one
-                std::vector<CTxOut> new_vout;
-                for (const auto& txout : coinbase.vout) {
-                    if (!(txout.scriptPubKey.size() == 66 && txout.scriptPubKey[0] == OP_RETURN)) {
-                        new_vout.push_back(txout);
-                    }
-                }
-                CScript op_return_script;
-                op_return_script << OP_RETURN << xmss_pk;
-                new_vout.push_back(CTxOut(0, op_return_script));
-                coinbase.vout = new_vout;
-                block.vtx[0] = MakeTransactionRef(std::move(coinbase));
-                block.hashMerkleRoot = BlockMerkleRoot(block);
-
-                // Re-sign with new key
-                if (!miner_key.Sign(hash_vec, xmss_sig)) {
-                    return false;
-                }
-            }
-
-            if (xmss_sig.empty()) {
+        if (!miner_key.Sign(preimage_vec, xmss_sig)) {
+            LogPrintf("PoUW: WARNING — XMSS sign failed (key index exhausted?), regenerating key\n");
+            if (!miner_key.Generate()) {
                 return false;
             }
+            xmss_pk = miner_key.GetPubKey();
+            if (xmss_pk.size() != 64) return false;
 
-            // Insert XMSS signature into coinbase witness (not scriptSig — 100 byte limit)
-            // Witness data is not checked by bad-cb-length
             CMutableTransaction coinbase(*block.vtx[0]);
-            coinbase.vin[0].scriptSig = CScript() << (chainman.ActiveChain().Tip()->nHeight + 1) << CScriptNum(0); // reset to minimal
-            coinbase.vin[0].scriptWitness.stack.clear();
-            coinbase.vin[0].scriptWitness.stack.push_back(xmss_sig);
+            std::vector<CTxOut> new_vout;
+            for (const auto& txout : coinbase.vout) {
+                if (!(txout.scriptPubKey.size() == 66 && txout.scriptPubKey[0] == OP_RETURN)) {
+                    new_vout.push_back(txout);
+                }
+            }
+            CScript op_return_script;
+            op_return_script << OP_RETURN << xmss_pk;
+            new_vout.push_back(CTxOut(0, op_return_script));
+            coinbase.vout = new_vout;
             block.vtx[0] = MakeTransactionRef(std::move(coinbase));
-
-            // Recompute merkle root (coinbase changed)
             block.hashMerkleRoot = BlockMerkleRoot(block);
 
-            // CRITICAL: Re-verify PoW with updated merkle root
-            if (!CheckProofOfWork(block.GetHash(), block.nBits, chainman.GetConsensus())) {
-                // PoW invalidated by signature insertion — continue mining
-                LogPrint(BCLog::VALIDATION, "PoUW: PoW invalidated by sig insertion, continuing grind (nonce=%u)\n", block.nNonce);
-                ++block.nNonce;
-                --max_tries;
-                continue;
-            }
+            coinbase_txid_no_sig = block.vtx[0]->GetHash();
+            preimage = ComputePoUWPreimage(block.nVersion, block.hashPrevBlock,
+                                           block.nTime, block.nBits,
+                                           coinbase_txid_no_sig, xmss_pk);
+            preimage_vec.assign(preimage.begin(), preimage.end());
 
-            LogPrintf("PoUW: Block %s signed successfully (sig_len=%d)\n",
-                     block.GetHash().GetHex(), (int)xmss_sig.size());
+            if (!miner_key.Sign(preimage_vec, xmss_sig)) {
+                return false;
+            }
         }
 
-        break;  // Valid PoW (+ PoUW sig if active) found
+        if (xmss_sig.empty()) {
+            return false;
+        }
+
+        // Attach the signature as its own OP_RETURN output, alongside the
+        // pubkey output. The preimage signed above deliberately excludes
+        // this output's content, so adding it now — and the merkle root
+        // change that causes — does not invalidate the signature.
+        CMutableTransaction coinbase(*block.vtx[0]);
+        CScript sig_op_return_script;
+        sig_op_return_script << OP_RETURN << xmss_sig;
+        coinbase.vout.push_back(CTxOut(0, sig_op_return_script));
+        block.vtx[0] = MakeTransactionRef(std::move(coinbase));
+        block.hashMerkleRoot = BlockMerkleRoot(block);
+
+        LogPrintf("PoUW: signed preimage %s (sig_len=%d), coinbase finalized\n",
+                 preimage.GetHex(), (int)xmss_sig.size());
+    }
+
+    // QNT: pure SHA-256 nonce grinding. The coinbase — and therefore the
+    // merkle root — is now final: PoUW signing happened above, before
+    // grinding starts, so no further coinbase changes occur here and no
+    // re-verification/retry loop is needed for that reason anymore.
+    while (max_tries > 0 && block.nNonce < std::numeric_limits<uint32_t>::max()
+           && !CheckProofOfWork(block.GetHash(), block.nBits, chainman.GetConsensus())
+           && !chainman.m_interrupt) {
+        ++block.nNonce;
+        --max_tries;
     }
 
     if (max_tries == 0 || chainman.m_interrupt) {
         return false;
+    }
+    if (block.nNonce == std::numeric_limits<uint32_t>::max()) {
+        return true;
     }
 
     block_out = std::make_shared<const CBlock>(block);
