@@ -665,6 +665,12 @@ public:
 
     // QNT: XMSS key management helpers
     void AddXMSSKeyToKeystore(const uint160& addr_hash, const std::vector<uint8_t>& pubkey);
+    // QNT: Persist XMSS signer state to wallet DB immediately.
+    // Must be called after any operation that creates or mutates an XMSS key
+    // (including getnewxmssaddress) so private keys are never stranded in
+    // memory only — a node crash before the first CommitTransaction would
+    // otherwise make any funds received at that address unrecoverable.
+    void PersistXMSSState();
     bool GetXMSSPubKey(const uint160& addr_hash, std::vector<uint8_t>& pubkey_out) const;
     bool GetXMSSSecKey(const uint160& addr_hash, std::vector<uint8_t>& seckey_out) const;
 

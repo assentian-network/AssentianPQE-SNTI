@@ -2384,16 +2384,7 @@ void CWallet::CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::ve
     }
 
     // QNT: Persist XMSS key state after transaction commit
-    // This ensures key index advances are saved even if node crashes
-    if (m_xmss_signer) {
-        std::vector<uint8_t> state = m_xmss_signer->SaveState();
-        if (!state.empty()) {
-            std::string state_str(state.begin(), state.end());
-            WalletBatch batch(GetDatabase());
-            batch.WriteXmssState(state);
-            LogPrint(BCLog::WALLETDB, "QNT: Saved XMSS state (%u bytes) after commit\n", (unsigned)state.size());
-        }
-    }
+    PersistXMSSState();
 
     std::string err_string;
     if (!SubmitTxMemoryPoolAndRelay(*wtx, err_string, true)) {
@@ -4583,6 +4574,24 @@ void CWallet::TopUpCallback(const std::set<CScript>& spks, ScriptPubKeyMan* spkm
 {
     // Update scriptPubKey cache
     CacheNewScriptPubKeys(spks, spkm);
+}
+
+void CWallet::PersistXMSSState()
+{
+    // QNT FIX (18/Jun/2026): save XMSS signer state to wallet DB immediately.
+    // Originally the only call site was CommitTransaction(), which meant that
+    // a key generated via getnewxmssaddress but never yet spent from had its
+    // private key in memory only — a node crash or restart before the first
+    // CommitTransaction would permanently lose the key and any funds received
+    // at that address.  This method is now called in both CommitTransaction
+    // (to persist index advances after signing) and in getnewxmssaddress (to
+    // persist the key itself the moment it is created).
+    if (!m_xmss_signer) return;
+    std::vector<uint8_t> state = m_xmss_signer->SaveState();
+    if (state.empty()) return;
+    WalletBatch batch(GetDatabase());
+    batch.WriteXmssState(state);
+    LogPrint(BCLog::WALLETDB, "QNT: Saved XMSS state (%u bytes)\n", (unsigned)state.size());
 }
 
 // QNT: XMSS wallet key management implementations

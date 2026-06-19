@@ -95,6 +95,9 @@ RPCHelpMan getnewxmssaddress()
         // this, IsMine() never recognizes funds sent here as spendable.
         uint160 new_addr_hash = XMSSAddr::Hash(pubkey);
         pwallet->AddXMSSKeyToKeystore(new_addr_hash, pubkey);
+        // QNT FIX (18/Jun/2026): persist immediately so the private key
+        // survives a node crash or restart before any spending occurs.
+        pwallet->PersistXMSSState();
         std::string addr = XMSSAddr::Encode(pubkey, Params().IsTestChain());
 
         UniValue result(UniValue::VOBJ);
