@@ -1029,3 +1029,54 @@ string. `sendfromxmssaddress` correctly spends it: scriptSig is exactly
 - Pre-existing (unrelated to this session) `-Woverloaded-virtual` warnings
   about `GetXMSSPubKey`/`HaveXMSSKey` signature shadowing between
   `SigningProvider` and `LegacyScriptPubKeyMan` -- harmless, out of scope.
+
+---
+
+## Gap #4 — Investigasi flakiness reload state XMSS (20 Jun 2026) — DITUTUP, TIDAK REPRODUCE
+
+**Status: bukan bug nyata di kode.** Setelah investigasi mendalam + reproduksi
+terkontrol, mekanisme `PersistXMSSState()` → `WalletBatch::WriteXmssState()`
+(DB key `"xms"`) → `CXMSSSigner::LoadState()` saat `CWallet::Create()`
+terbukti benar dan durable di semua skenario yang diuji:
+
+1. Restart bersih (`bitcoin-cli stop` + `loadwallet`), address yang sudah
+   pernah dipakai sign (leaf_index > 0) — konsisten `ismine: true`, 3x
+   putaran berturut-turut.
+2. Restart bersih, address baru yang baru di-generate, belum pernah masuk
+   transaksi apa pun (leaf_index 0) — konsisten `ismine: true`, sebelum
+   maupun sesudah restart.
+3. **`kill -9` paksa** (simulasi crash, bukan shutdown graceful) tepat
+   setelah `getnewxmssaddress` — state tetap selamat setelah restart,
+   `LoadState` berhasil load semua key, tidak ada `NEED_REWRITE` atau
+   tanda corruption di debug.log.
+
+### Akar masalah sebenarnya dari laporan "flaky" sebelumnya (dugaan kuat)
+
+Bukan bug C++. Dua masalah metodologi testing yang ketahuan sendiri di
+sesi investigasi ini:
+
+1. **Binary `bitcoind`/`bitcoin-cli` tidak ada di `$PATH`** — kalau
+   dipanggil tanpa path lengkap (`bitcoin-cli` bukan `./src/bitcoin-cli`),
+   command gagal dengan "command not found" yang **diam-diam tidak
+   menghentikan proses lama**. Restart berikutnya jadi "nyambung" ke
+   proses `bitcoind` lama yang masih jalan, dengan state membingungkan.
+   **Mitigasi**: selalu pakai path lengkap (`./src/bitcoind`,
+   `./src/bitcoin-cli`) atau pastikan `~/quant/bitcoin-quant/src` ada di
+   `$PATH` sebelum testing restart/reload.
+
+2. **`getnewxmssaddress` mengembalikan objek JSON lengkap**
+   (`{"address":..., "pubkey":..., ...}`), bukan string alamat polos.
+   Skrip shell ad-hoc yang nge-capture return value langsung ke variabel
+   (`ADDR=$(bitcoin-cli getnewxmssaddress)`) tanpa ekstraksi field
+   `address` akan mengirim seluruh blob JSON sebagai parameter ke RPC
+   berikutnya (mis. `getxmssaddressinfo`), yang gagal decode dan balikin
+   `ismine: false` palsu — kelihatan seperti bug reload padahal cuma
+   parameter yang salah. **Mitigasi**: selalu ekstrak field dulu, mis.
+   `grep -oP '"address":\s*"\K[^"]+'` atau `jq -r .address`.
+
+### Kalau gejala serupa muncul lagi nanti
+
+Cek dua hal di atas DULU sebelum curiga ke kode `xmss_signer.cpp`/
+`walletdb.cpp`. Kalau sudah dipastikan bukan dari situ, baru investigasi
+ulang dari titik yang sama (`CWallet::Create()` → `ReadXmssState` →
+`CXMSSSigner::LoadState()`).
