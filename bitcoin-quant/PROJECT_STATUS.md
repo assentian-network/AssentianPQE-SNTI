@@ -43,8 +43,9 @@ status terkini — selalu cek file ini dulu.
 
 ## 3. BELUM TERVERIFIKASI ulang (klaim dari dokumen lama, perlu dicek lagi)
 
-- ⚠️ "Key exhausted check" dan "minimum sig length validation" — `FIX_LOG.md` klaim sudah fixed, tapi belum kita cek langsung di kode hari ini
-- ⚠️ `CheckPoUW()` di `validation.cpp` — belum pernah kita baca isinya sama sekali
+- ✅ **[20 Jun]** Minimum sig length — sudah ter-cover (exact-match 2500 byte di interpreter.cpp), lebih ketat dari rekomendasi audit
+- ✅ **[20 Jun]** `CheckPoUW()` direview penuh — verifikasi XMSS REAL di consensus layer, desain preimage anti-circular yang solid. 2 catatan minor (dead code duplikat di parsing pubkey, heuristik ukuran buat identifikasi sig output) — bukan bahaya, tapi layak digali auditor eksternal
+- ⚠️ "Key exhausted check" (leaf_index>=1024) ternyata ada di fungsi Sign(), BUKAN SignXMSS() yang dipakai jalur asli — dokumentasi lama salah taruh. Sudah moot karena fix retirement hari ini otomatis mencegah key sampai index 1024 lewat jalur manapun
 - ⚠️ Multi-node test (commit 76c1ea6/7e08e3a, 17-18 Jun) — kemungkinan REAL, tapi terjadi SEBELUM P2XMSSHASH dan format state v2 ditambahkan. **Perlu di-retest** dengan kode terkini, jangan asumsikan masih valid.
 - ⚠️ Testnet node — tidak ada yang jalan sekarang (RPC port 18332 timeout). Kalau pernah ada, sudah dimatikan.
 
