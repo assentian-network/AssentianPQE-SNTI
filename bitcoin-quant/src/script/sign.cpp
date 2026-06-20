@@ -494,6 +494,10 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
     case TxoutType::NONSTANDARD:
     case TxoutType::NULL_DATA:
     case TxoutType::WITNESS_UNKNOWN:
+    case TxoutType::P2XMSS:
+    case TxoutType::P2XMSSHASH:
+        // QNT: unreachable -- both handled and returned earlier in this
+        // function, listed here only to silence -Wswitch.
         return false;
     case TxoutType::PUBKEY:
         if (!CreateSig(creator, sigdata, provider, sig, CPubKey(vSolutions[0]), scriptPubKey, sigversion)) return false;

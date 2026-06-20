@@ -263,7 +263,9 @@ RPCHelpMan sendtoxmssaddress()
     return RPCHelpMan{"sendtoxmssaddress",
         "\nSend QNT to an XMSS address.\n"
         "The recipient must have an XMSS key pair to spend the funds later.\n"
-        "NOTE: v1 creates a P2PKH output to the XMSS address hash for compatibility.\n",
+        "Uses bare P2XMSS if this wallet already knows the recipient's full\n"
+        "pubkey (e.g. sending to its own address), otherwise the hash-committed\n"
+        "P2XMSSHASH form (pubkey revealed only when the recipient spends).\n",
         {
             {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The XMSS address to send to."},
             {"amount", RPCArg::Type::AMOUNT, RPCArg::Optional::NO, "The amount in " + CURRENCY_UNIT + " to send."},
@@ -320,16 +322,22 @@ RPCHelpMan sendtoxmssaddress()
         }
         std::vector<CRecipient> recipients;
         if (pubkey.size() == 64) {
-            // P2XMSS: <64-byte-pubkey> OP_XMSS_CHECKSIG
+            // P2XMSS: <64-byte-pubkey> OP_XMSS_CHECKSIG -- we already know
+            // the recipient's full pubkey (e.g. paying our own address),
+            // so embed it directly for a slightly smaller/cheaper spend later.
             std::array<uint8_t, 64> pubkey_arr;
             std::copy(pubkey.begin(), pubkey.end(), pubkey_arr.begin());
             XMSSHash xmss_dest(pubkey_arr);
             CRecipient recipient{xmss_dest, nAmount, fSubtractFeeFromAmount};
             recipients.push_back(recipient);
         } else {
-            // Fallback: if we don't have the full pubkey, use P2PKH (v1 compat)
-            PKHash pkhash(hash);
-            CRecipient recipient{pkhash, nAmount, fSubtractFeeFromAmount};
+            // QNT: pubkey unknown to this wallet (paying someone else's
+            // XMSS address) -- use the real hash-committed P2XMSSHASH form
+            // now that it's properly supported (OP_DUP OP_HASH160 <hash>
+            // OP_EQUALVERIFY OP_XMSS_CHECKSIG), instead of the old fake-P2PKH
+            // "v1 compat" placeholder which produced a non-XMSS-spendable output.
+            XMSSHash xmss_hash_dest(hash);
+            CRecipient recipient{xmss_hash_dest, nAmount, fSubtractFeeFromAmount};
             recipients.push_back(recipient);
         }
 

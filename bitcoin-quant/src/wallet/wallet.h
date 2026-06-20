@@ -654,8 +654,6 @@ public:
     /** Sign the tx given the input coins and sighash. */
     bool SignTransaction(CMutableTransaction& tx, const std::map<COutPoint, Coin>& coins, int sighash, std::map<int, bilingual_str>& input_errors) const;
 
-    // QNT: Sign transaction inputs that spend XMSS outputs
-    bool SignTransactionXMSS(CMutableTransaction& tx, const std::map<COutPoint, Coin>& coins) const;
 
     // QNT: XMSS signer accessor for RPC
     wallet::CXMSSSigner* GetXMSSSigner() const { return m_xmss_signer.get(); }

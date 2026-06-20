@@ -970,3 +970,62 @@ string. `sendfromxmssaddress` correctly spends it: scriptSig is exactly
    in switches that are provably unreachable for those types (e.g. the
    lower generic switch in `sign.cpp`'s `SignStep`, `IsMineInner` in
    `scriptpubkeyman.cpp`, `rpc/rawtransaction.cpp`).
+
+## ✅ RESOLVED — cleanup pass: gaps 1, 2, 5, 6 from the P2XMSSHASH session (20/Jun/2026)
+
+**Status: all four fixed, built clean, regression-tested on regtest
+(getxmssaddressinfo + sendfromxmssaddress round trip still work).**
+
+1. **`sendtoxmssaddress`'s fallback fixed** (`wallet/rpc/xmss.cpp`): when
+   the wallet doesn't know the recipient's full pubkey (paying someone
+   else's XMSS address), it now builds a real `XMSSHash(hash)` ->
+   P2XMSSHASH output instead of the old "v1 compat" fake-P2PKH placeholder.
+   Help text updated to match. The bare-P2XMSS fast path (when the wallet
+   *does* know the pubkey, e.g. paying its own address) is unchanged.
+
+2. **`CWallet::IsMine(const CScript&)` now also recognizes P2XMSSHASH**
+   (`wallet/wallet.cpp`): previously only checked `TxoutType::P2XMSS`.
+   Added the same `GetXMSSSigner()->GetPubKeyForHash()` lookup for the
+   hash-committed form (vSolutions[0] is already the hash directly here,
+   no re-derivation needed).
+
+3. **`CWallet::SignTransactionXMSS()` removed entirely**
+   (`wallet/wallet.cpp` + `wallet/wallet.h`): confirmed 100% dead code
+   (zero call sites) across two separate sessions. Real XMSS signing goes
+   through the generic `::SignTransaction()` free function with
+   `m_xmss_signer` as the `SigningProvider` (see `CWallet::SignTransaction()`'s
+   XMSS branch).
+
+4. **Cosmetic `-Wswitch` warnings for `P2XMSS`/`P2XMSSHASH` silenced** in
+   four switches that were provably unreachable or simply needed an
+   explicit case:
+   - `rpc/rawtransaction.cpp` (`decodescript`'s `can_wrap` and
+     `can_wrap_P2WSH` checks) -- added to the "should not be wrapped"
+     group alongside `NULL_DATA`/`SCRIPTHASH`/`WITNESS_*`.
+   - `wallet/scriptpubkeyman.cpp`'s `IsMineInner` -- **first attempt at
+     this introduced a `duplicate case value` compile error**: `P2XMSS`
+     already had a real, meaningful case further down in this switch
+     (using `keystore.HaveXMSSKey()`), missed during the initial grep-only
+     investigation. Corrected: reverted the erroneous duplicate, and added
+     a proper `P2XMSSHASH` case right next to the existing `P2XMSS` one,
+     mirroring its `HaveXMSSKey()` lookup (using the hash directly, no
+     re-derivation needed since `P2XMSSHASH`'s `vSolutions[0]` already IS
+     the hash). Lesson: grep a narrow line range before assuming a TxoutType
+     is fully unhandled in a switch -- it may have a real case elsewhere
+     in the same switch that a partial view missed.
+   - `script/sign.cpp`'s lower `switch (whichTypeRet)` in `SignStep` --
+     both types are handled and returned earlier in the function; this
+     switch is provably unreachable for them, cases added purely to
+     silence the warning.
+
+### Still open (unchanged from before)
+
+- Gap #3 (swept one-time-address key retirement) -- not attempted this
+  pass, candidate for next session if desired.
+- Gap #4 (XMSS state reload-on-`loadwallet` flakiness) -- deliberately
+  deferred to a **separate new session**, since it's an open bug hunt with
+  unknown scope/duration, unlike the other items here which were all
+  well-understood, bounded fixes.
+- Pre-existing (unrelated to this session) `-Woverloaded-virtual` warnings
+  about `GetXMSSPubKey`/`HaveXMSSKey` signature shadowing between
+  `SigningProvider` and `LegacyScriptPubKeyMan` -- harmless, out of scope.

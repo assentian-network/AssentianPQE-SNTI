@@ -189,6 +189,18 @@ IsMineResult IsMineInner(const LegacyScriptPubKeyMan& keystore, const CScript& s
         }
         break;
     }
+    // QNT: P2XMSSHASH — hash-committed form; vSolutions[0] IS the address
+    // hash directly already, no need to re-derive it from a pubkey.
+    case TxoutType::P2XMSSHASH:
+    {
+        if (sigversion != IsMineSigVersion::TOP) break;
+        if (vSolutions[0].size() != 20) break;
+        uint160 addr_hash(vSolutions[0]);
+        if (keystore.HaveXMSSKey(addr_hash)) {
+            ret = std::max(ret, IsMineResult::SPENDABLE);
+        }
+        break;
+    }
 
     case TxoutType::MULTISIG:
     {

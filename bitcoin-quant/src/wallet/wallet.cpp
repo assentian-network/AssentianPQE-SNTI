@@ -1598,6 +1598,17 @@ isminetype CWallet::IsMine(const CScript& script) const
                     return ISMINE_SPENDABLE;
                 }
             }
+        } else if (type == TxoutType::P2XMSSHASH && solutions.size() == 1 && solutions[0].size() == 20) {
+            // QNT: hash-committed form -- solutions[0] IS the address hash
+            // directly already, no need to re-derive it from a pubkey.
+            uint160 addr_hash(solutions[0]);
+            wallet::CXMSSSigner* signer = GetXMSSSigner();
+            if (signer) {
+                std::vector<uint8_t> found_pubkey = signer->GetPubKeyForHash(addr_hash);
+                if (found_pubkey.size() == 64) {
+                    return ISMINE_SPENDABLE;
+                }
+            }
         }
     }
 
@@ -2182,56 +2193,11 @@ bool CWallet::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint,
     return false;
 }
 
-// QNT: Sign transaction inputs that spend XMSS outputs
-// This is called separately from SignTransaction() to avoid
-// modifying the existing ECDSA signing flow
-bool CWallet::SignTransactionXMSS(CMutableTransaction& tx, const std::map<COutPoint, Coin>& coins) const
-{
-    if (!m_xmss_signer) return false;
-
-    for (unsigned int i = 0; i < tx.vin.size(); i++) {
-        const COutPoint& prevout = tx.vin[i].prevout;
-
-        // Find the coin being spent
-        auto coin_it = coins.find(prevout);
-        if (coin_it == coins.end()) continue;
-
-        const CScript& prevPubKey = coin_it->second.out.scriptPubKey;
-
-        // Check if this is an XMSS output (64-byte pubkey + OP_XMSS_CHECKSIG)
-        if (prevPubKey.size() < XMSS_PUBKEY_SIZE + 1) continue;
-
-        // Extract pubkey from script
-        opcodetype opcode;
-        CScript::const_iterator pc = prevPubKey.begin();
-        std::vector<unsigned char> vch;
-        if (!prevPubKey.GetOp(pc, opcode, vch)) continue;
-        if (vch.size() != XMSS_PUBKEY_SIZE) continue;
-
-        // Check next opcode is OP_XMSS_CHECKSIG (0xBB)
-        opcodetype next_opcode;
-        std::vector<unsigned char> next_vch;
-        if (!prevPubKey.GetOp(pc, next_opcode, next_vch)) continue;
-        if (next_opcode != 0xBB) continue;
-
-        // This is an XMSS output — sign with XMSS
-        // Compute sighash
-        uint256 sighash = SignatureHash(prevPubKey, tx, i, SIGHASH_ALL, coin_it->second.out.nValue, SigVersion::BASE, nullptr);
-
-        // Sign with XMSS
-        std::vector<uint8_t> sig;
-        if (!m_xmss_signer->SignXMSS(sighash, vch, sig)) {
-            return false;
-        }
-
-        // Build scriptSig: <sig> <pubkey>
-        CScript& scriptSig = tx.vin[i].scriptSig;
-        scriptSig.clear();
-        scriptSig << sig << vch;
-    }
-
-    return true;
-}
+// QNT: CWallet::SignTransactionXMSS() removed (20/Jun/2026) -- confirmed
+// 100% dead code with zero call sites across two separate sessions. Real
+// XMSS signing happens via the generic ::SignTransaction() free function
+// (script/sign.cpp) with m_xmss_signer as the SigningProvider -- see
+// CWallet::SignTransaction()'s XMSS fallback above and DEVDOCS.md.
 
 TransactionError CWallet::FillPSBT(PartiallySignedTransaction& psbtx, bool& complete, int sighash_type, bool sign, bool bip32derivs, size_t * n_signed, bool finalize) const
 {
