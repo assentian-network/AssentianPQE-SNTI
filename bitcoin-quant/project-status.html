@@ -69,7 +69,7 @@ code{background:rgba(0,212,170,.1);color:var(--accent);padding:1px 6px;border-ra
       <tbody>
         <tr><td>Key exhausted / min sig length check</td><td>FIX_LOG.md klaim sudah fixed, belum dicek langsung di kode</td></tr>
         <tr><td><code>CheckPoUW()</code></td><td>Belum pernah direview sama sekali — consensus-critical</td></tr>
-        <tr><td>Multi-node retest [20 Jun]</td><td><span class="status partial">⚠ Campuran</span> Testnet (207 blok coinbase-only) sync instan. Regtest (137 blok, banyak tx XMSS wallet) MACET TOTAL. Hipotesis "XMSS verify tak terparalelkan" terbukti salah (CScriptCheck generic). Akar masalah belum ketemu — prioritas investigasi berikutnya.</td></tr>
+        <tr><td>Multi-node retest [20 Jun]</td><td><span class="status done">✅ Akar masalah ketemu</span> Blok historis format lama (pra-fix 17 Jun) punya OP_RETURN pubkey 131 byte, ditolak permanen oleh CheckPoUW() yang butuh exact 66 byte. Risiko struktural: bisa jadi network-halting bug di chain live manapun kalau ada mismatch format. Code quality: parsing pubkey rapuh, parsing signature robust (tidak konsisten).</td></tr>
         <tr><td>Encryption at rest</td><td>MEDIUM dari AUDIT.md, masih terbuka</td></tr>
         <tr><td>Testnet node</td><td>Tidak ada yang jalan sekarang (RPC timeout)</td></tr>
       </tbody>

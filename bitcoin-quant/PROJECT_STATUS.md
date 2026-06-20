@@ -62,11 +62,13 @@ status terkini — selalu cek file ini dulu.
 
 1. **Cek 2 klaim "sudah fixed" di FIX_LOG** (key exhausted check, min sig length) — cepat, tinggal grep
 2. **Baca `CheckPoUW()`** — belum pernah direview sama sekali, consensus-critical
-3. **[20 Jun, SELESAI sebagian]** Multi-node retest dilakukan — hasil CAMPURAN:
-   - ✅ Testnet (207 blok, coinbase-only/PoUW, 0 transaksi wallet) — Node kedua sync INSTAN
-   - ❌ Regtest (137 blok, BANYAK transaksi XMSS wallet asli dari testing hari ini) — Node kedua MACET TOTAL di blok 0, CPU tinggi terus
-   - Hipotesis awal (XMSS verify nggak di-paralelkan ke CCheckQueue) **TERBUKTI SALAH** — `CScriptCheck::operator()` generic, nggak ada bypass khusus XMSS
-   - **Akar masalah BELUM ketemu.** Prioritas investigasi berikutnya: kemungkinan bug spesifik di salah satu transaksi P2XMSSHASH/chunked-scriptSig (bukan masalah arsitektur paralelisasi)
-   - Reproduksi: 2 node regtest, sync dari node yang udah ada riwayat testing wallet XMSS hari ini (banyak `sendfromxmssaddress`/P2XMSSHASH) — server kedua connect & amati `getblockcount` macet di 0, CPU thread `msghand` tinggi, `scriptch` idle
+3. **[20 Jun, SELESAI — akar masalah ketemu]** Multi-node retest:
+   - ✅ Testnet (207 blok, semua format baru pasca-fix 17 Jun) — sync INSTAN
+   - ❌ Regtest (137 blok, ada blok historis FORMAT LAMA) — node baru macet PERMANEN di height 0
+   - **AKAR MASALAH**: blok height 1 regtest ditambang sebelum fix BIP141 (commit 76c1ea6), OP_RETURN pubkey-nya 131 byte — `CheckPoUW()` versi sekarang butuh PERSIS 66 byte exact-match, jadi blok lama ini DITOLAK PERMANEN oleh node manapun yang sync dari genesis dengan kode terkini
+   - Hipotesis paralelisasi (XMSS verify nggak di-paralelkan) **gugur** — `CScriptCheck` generic, ini bukan soal itu
+   - **RISIKO STRUKTURAL**: ini bisa terjadi di jaringan LIVE manapun kalau ada mismatch dikit aja antara format mining-side vs parser-side → network-halting bug (node baru nggak akan pernah bisa sync)
+   - **Code quality**: ekstraksi signature pakai `script.GetOp()` (robust), tapi ekstraksi pubkey cuma `size()==66` (rapuh) — TIDAK KONSISTEN, perlu di-robust-kan
+   - **Fix buat regtest kita**: chain ini disposable test data, tinggal wipe & re-genesis biar bisa lanjut tes 2-node bersih
 4. **Encryption at rest** untuk XMSS state (MEDIUM, dari AUDIT.md, masih terbuka)
 5. Baru pertimbangkan: nyalain testnet lagi, nyalain stratum, audit eksternal beneran
