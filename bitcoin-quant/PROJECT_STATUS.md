@@ -31,6 +31,23 @@ status terkini — selalu cek file ini dulu.
 
 ---
 
+## 1.7 MILESTONE: First independent external node [20 Jun]
+
+Node di-build dari nol di mesin TERPISAH (Windows + VirtualBox Ubuntu,
+bukan VPS yang sama), via internet publik asli (IP publik eksternal
+103.133.x.x), connect ke `104.234.26.7:19333`. Hasil: sync penuh 207/207
+blok dalam ~20 detik, transport BIP324 (v2 encrypted) jalan normal.
+
+Bug ditemukan & diperbaiki sepanjang proses: `configure.ac` punya 3
+baris `AC_CONFIG_LINKS` rusak (self-referencing, nggak ke-guard
+`ENABLE_QT`) yang bikin `autogen.sh` GAGAL TOTAL di checkout fresh manapun
+-- sebelumnya nggak ketahuan karena VPS selalu pakai Makefile hasil
+generate lama, nggak pernah re-run autogen.sh. Sekarang fixed & ke-verify
+build bersih dari nol di DUA mesin independen.
+
+Ini bukti pertama: orang lain (bukan tim/VPS asli) bisa build & jalanin
+node QNT dan ikut sinkron jaringan secara nyata.
+
 ## 1.6 Testnet legacy-block scan [20 Jun]
 
 Scan semua 207 blok testnet (`qnt-node.service`) buat pola corrupt yang
