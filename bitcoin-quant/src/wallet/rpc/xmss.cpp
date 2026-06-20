@@ -494,6 +494,16 @@ RPCHelpMan sendfromxmssaddress()
                             coin_control.Select(outpoint);
                             found_input = true;
                         }
+                    } else if (type == TxoutType::P2XMSSHASH && solutions.size() == 1 && solutions[0].size() == 20) {
+                        // QNT: hash-committed funding (e.g. via generic sendtoaddress,
+                        // now that DecodeDestination/GetScriptForDestination correctly
+                        // resolve XMSS addresses to P2XMSSHASH instead of a zero-pubkey
+                        // placeholder). vSolutions[0] IS the address hash directly here.
+                        uint160 this_hash(solutions[0]);
+                        if (this_hash == from_hash) {
+                            coin_control.Select(outpoint);
+                            found_input = true;
+                        }
                     }
                 }
             }

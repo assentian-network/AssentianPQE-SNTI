@@ -30,6 +30,7 @@ std::string GetTxnOutputType(TxoutType t)
     case TxoutType::WITNESS_UNKNOWN: return "witness_unknown";
     // QNT: Post-quantum XMSS
     case TxoutType::P2XMSS: return "p2xmss";
+    case TxoutType::P2XMSSHASH: return "p2xmsshash";
     } // no default case, so the compiler can warn about missing cases
     assert(false);
 }
@@ -218,6 +219,28 @@ TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned c
         {
             vSolutionsRet.push_back(std::move(data));
             return TxoutType::P2XMSS;
+        }
+    }
+
+    // QNT: Pay-to-XMSS-Hash-committed (the XMSS analogue of P2PKH): sender
+    // only needs the 20-byte HASH160(pubkey), the real pubkey is revealed
+    // only when spending.
+    // Script pattern: OP_DUP OP_HASH160 <20 bytes> OP_EQUALVERIFY OP_XMSS_CHECKSIG
+    {
+        opcodetype opcode;
+        valtype data;
+        CScript::const_iterator it = scriptPubKey.begin();
+        if (scriptPubKey.GetOp(it, opcode) && opcode == OP_DUP &&
+            scriptPubKey.GetOp(it, opcode) && opcode == OP_HASH160 &&
+            scriptPubKey.GetOp(it, opcode, data) &&
+            opcode == static_cast<opcodetype>(20) && // PUSH20
+            data.size() == 20 &&
+            scriptPubKey.GetOp(it, opcode) && opcode == OP_EQUALVERIFY &&
+            scriptPubKey.GetOp(it, opcode) && opcode == OP_XMSS_CHECKSIG &&
+            it == scriptPubKey.end())
+        {
+            vSolutionsRet.push_back(std::move(data));
+            return TxoutType::P2XMSSHASH;
         }
     }
 

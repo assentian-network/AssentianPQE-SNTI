@@ -46,6 +46,11 @@ WitnessV0ScriptHash::WitnessV0ScriptHash(const CScript& in)
     CSHA256().Write(in.data(), in.size()).Finalize(begin());
 }
 
+XMSSHash::XMSSHash(const std::array<uint8_t, 64>& pubkey)
+    : m_pubkey(pubkey), m_hash(Hash160(pubkey)), m_has_pubkey(true)
+{
+}
+
 bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
 {
     std::vector<valtype> vSolutions;
@@ -96,6 +101,11 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
         std::array<uint8_t, 64> pubkey;
         std::copy(vSolutions[0].begin(), vSolutions[0].end(), pubkey.begin());
         addressRet = XMSSHash(pubkey);
+        return true;
+    }
+    // QNT: P2XMSSHASH (hash-committed; sender only ever has the hash)
+    case TxoutType::P2XMSSHASH: {
+        addressRet = XMSSHash(uint160(vSolutions[0]));
         return true;
     }
     case TxoutType::MULTISIG:
@@ -151,11 +161,20 @@ public:
         return CScript() << CScript::EncodeOP_N(id.GetWitnessVersion()) << id.GetWitnessProgram();
     }
 
-    // QNT: P2XMSS script: <64-byte-pubkey> OP_XMSS_CHECKSIG
+    // QNT: P2XMSS / P2XMSSHASH. If the destination was constructed with a
+    // known full pubkey (e.g. extracted from an existing P2XMSS output, or
+    // built by code with direct wallet access like sendfromxmssaddress),
+    // embed it directly (bare P2XMSS). Otherwise -- the common case for a
+    // destination decoded from an address string, which only ever encodes
+    // a hash -- build the hash-committed P2XMSSHASH form instead; the real
+    // pubkey is revealed only when spending, exactly like P2PKH.
     CScript operator()(const XMSSHash& xmss) const
     {
-        auto pubkey = xmss.GetPubKeyVec();
-        return CScript() << pubkey << OP_XMSS_CHECKSIG;
+        if (xmss.HasFullPubKey()) {
+            auto pubkey = xmss.GetPubKeyVec();
+            return CScript() << pubkey << OP_XMSS_CHECKSIG;
+        }
+        return CScript() << OP_DUP << OP_HASH160 << ToByteVector(xmss.GetHash()) << OP_EQUALVERIFY << OP_XMSS_CHECKSIG;
     }
 };
 

@@ -84,8 +84,21 @@ public:
     // QNT: XMSS address encoding
     std::string operator()(const XMSSHash& xmss) const
     {
-        auto pubkey = xmss.GetPubKeyVec();
-        return XMSSAddr::Encode(pubkey, m_params.IsTestChain());
+        if (xmss.HasFullPubKey()) {
+            return XMSSAddr::Encode(xmss.GetPubKeyVec(), m_params.IsTestChain());
+        }
+        // Hash-only mode (e.g. extracted from an on-chain P2XMSSHASH
+        // output): encode directly from the already-known hash instead of
+        // re-deriving HASH160 from a pubkey we don't have -- GetPubKeyVec()
+        // is all-zeros in this mode, which previously produced a silently
+        // wrong address.
+        uint8_t version = m_params.IsTestChain() ? XMSSAddr::XMSS_PUBKEY_VERSION_TESTNET : XMSSAddr::XMSS_PUBKEY_VERSION_MAINNET;
+        std::vector<unsigned char> data;
+        data.reserve(21);
+        data.push_back(version);
+        const uint160& h = xmss.GetHash();
+        data.insert(data.end(), h.begin(), h.end());
+        return EncodeBase58Check(data);
     }
 };
 
@@ -120,9 +133,12 @@ CTxDestination DecodeDestination(const std::string& str, const CChainParams& par
             uint160 xmss_hash;
             bool is_testnet = params.IsTestChain();
             if (XMSSAddr::Decode(str, xmss_hash, is_testnet)) {
-                // Return XMSSHash with the address hash (full pubkey looked up later)
-                std::array<uint8_t, 64> empty_pubkey{};
-                return XMSSHash(empty_pubkey);
+                // Hash-only XMSSHash -- the address format only ever encodes
+                // the hash, never the full pubkey (the sender of an
+                // arbitrary payment can't know the recipient's real pubkey
+                // up front). GetScriptForDestination() resolves this to the
+                // hash-committed P2XMSSHASH script form.
+                return XMSSHash(xmss_hash);
             }
         }
 

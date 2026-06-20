@@ -90,23 +90,35 @@ struct WitnessV1Taproot : public XOnlyPubKey
     explicit WitnessV1Taproot(const XOnlyPubKey& xpk) : XOnlyPubKey(xpk) {}
 };
 
-// QNT: XMSS post-quantum destination
-// Stores the full 64-byte XMSS public key (root || PUB_SEED)
+// QNT: XMSS post-quantum destination.
+// Can represent EITHER a full known pubkey (parsed directly from a bare
+// P2XMSS scriptPubKey, or constructed by code that already knows the
+// recipient's pubkey such as sendfromxmssaddress's own internal lookup)
+// OR just the 20-byte HASH160(pubkey) (decoded from an XMSS address
+// string -- which only ever encodes the hash, since the sender of an
+// arbitrary payment has no way to know the recipient's real pubkey up
+// front). GetScriptForDestination() branches on HasFullPubKey() to choose
+// between bare P2XMSS (pubkey embedded) and P2XMSSHASH (hash-committed,
+// pubkey revealed only when spending -- the XMSS analogue of P2PKH).
 struct XMSSHash
 {
 private:
-    std::array<uint8_t, 64> m_pubkey;
+    std::array<uint8_t, 64> m_pubkey{};
+    uint160 m_hash;
+    bool m_has_pubkey{false};
 
 public:
-    XMSSHash() { m_pubkey.fill(0); }
-    explicit XMSSHash(const std::array<uint8_t, 64>& pubkey) : m_pubkey(pubkey) {}
-    explicit XMSSHash(const uint160& hash) { /* from address hash - store zeros, full pubkey needed */ m_pubkey.fill(0); }
+    XMSSHash() = default;
+    explicit XMSSHash(const std::array<uint8_t, 64>& pubkey); // computes m_hash too; defined in addresstype.cpp (needs hash.h)
+    explicit XMSSHash(const uint160& hash) : m_hash(hash), m_has_pubkey(false) {}
 
+    bool HasFullPubKey() const { return m_has_pubkey; }
     const std::array<uint8_t, 64>& GetPubKey() const LIFETIMEBOUND { return m_pubkey; }
     std::vector<uint8_t> GetPubKeyVec() const { return std::vector<uint8_t>(m_pubkey.begin(), m_pubkey.end()); }
+    const uint160& GetHash() const LIFETIMEBOUND { return m_hash; }
 
-    friend bool operator==(const XMSSHash& a, const XMSSHash& b) { return a.m_pubkey == b.m_pubkey; }
-    friend bool operator<(const XMSSHash& a, const XMSSHash& b) { return a.m_pubkey < b.m_pubkey; }
+    friend bool operator==(const XMSSHash& a, const XMSSHash& b) { return a.m_hash == b.m_hash; }
+    friend bool operator<(const XMSSHash& a, const XMSSHash& b) { return a.m_hash < b.m_hash; }
 };
 
 //! CTxDestination subtype to encode any future Witness version

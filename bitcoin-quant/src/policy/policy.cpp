@@ -202,11 +202,13 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
             if (subscript.GetSigOpCount(true) > MAX_P2SH_SIGOPS) {
                 return false;
             }
-        } else if (whichType == TxoutType::P2XMSS) {
-            // QNT: P2XMSS spending scriptSig is a chunked XMSS signature
-            // (~2500 bytes), wider than the standard 1650-byte cap. Allow it
-            // up to the dedicated XMSS cap, but ONLY for inputs that are
-            // genuinely spending a P2XMSS output.
+        } else if (whichType == TxoutType::P2XMSS || whichType == TxoutType::P2XMSSHASH) {
+            // QNT: P2XMSS/P2XMSSHASH spending scriptSig is a chunked XMSS
+            // signature (~2500 bytes; P2XMSSHASH additionally carries the
+            // pubkey itself, ~2580 bytes), wider than the standard
+            // 1650-byte cap. Allow it up to the dedicated XMSS cap, but
+            // ONLY for inputs that are genuinely spending a P2XMSS(HASH)
+            // output.
             if (tx.vin[i].scriptSig.size() > MAX_STANDARD_SCRIPTSIG_SIZE_XMSS) {
                 return false;
             }

@@ -862,3 +862,111 @@ on-chain after mining one block.
    switch) and `SigningProvider::GetXMSSPubKey/HaveXMSSKey was hidden`
    (virtual function shadowing) are pre-existing, harmless for current
    functionality, but worth a cleanup pass.
+
+## ✅ RESOLVED — P2XMSSHASH (hash-committed XMSS funding) (20/Jun/2026)
+
+**Status: generic `sendtoaddress` to an XMSS address now produces a correct,
+spendable output. Full round trip (fund via generic RPC, spend via
+`sendfromxmssaddress`) verified end-to-end on regtest.**
+
+### The bug
+
+`sendtoaddress` (and any other generic RPC building an output from an
+address string) resolved XMSS addresses to a P2XMSS scriptPubKey with an
+all-zero 64-byte pubkey placeholder -- a provably unspendable output. Root
+cause: an XMSS address only ever encodes a 20-byte `HASH160(pubkey)` (the
+sender of an arbitrary payment can't know the recipient's real pubkey up
+front -- this is architecturally unavoidable, same situation as P2PKH).
+`DecodeDestination()` had a stub `XMSSHash(const uint160&)` constructor
+that literally discarded the decoded hash and zero-filled the pubkey field
+instead (comment: "from address hash - store zeros, full pubkey needed").
+`GetScriptForDestination()` then always built the bare P2XMSS form
+(`<pubkey> OP_XMSS_CHECKSIG`) from that zeroed pubkey.
+
+### The fix: real P2XMSSHASH support (the XMSS analogue of P2PKH)
+
+Added a proper hash-committed script type --
+`OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY OP_XMSS_CHECKSIG` -- so a sender
+who only has the address (hash) can pay it correctly; the real pubkey is
+revealed only when spending, exactly like ordinary P2PKH/P2WPKH.
+
+1. **`script/solver.h`** -- new `TxoutType::P2XMSSHASH`.
+2. **`script/solver.cpp`** -- pattern-match the new script form; **also**
+   add the missing `case` to `GetTxnOutputType()` (forgotten on the first
+   pass -- caused an `assert(false)`/SIGABRT crash on any verbose RPC call
+   that decoded a P2XMSSHASH scriptPubKey, e.g. `gettransaction true true`).
+3. **`addresstype.h`** -- `XMSSHash` redesigned to hold *either* a known
+   full pubkey *or* just a hash (`HasFullPubKey()` flag), instead of always
+   forcing a (possibly zeroed) pubkey.
+4. **`addresstype.cpp`** -- `ExtractDestination()` gets a `P2XMSSHASH` case;
+   `CScriptVisitor`'s XMSS handler branches on `HasFullPubKey()` to build
+   bare P2XMSS (pubkey known) or P2XMSSHASH (hash only).
+5. **`key_io.cpp`**, two separate bugs:
+   - `DecodeDestination()`: fixed to actually store the decoded hash
+     (`XMSSHash(xmss_hash)`) instead of discarding it.
+   - `DestinationEncoder` (the *other* direction, hash/destination back to
+     a display string): was unconditionally calling
+     `XMSSAddr::Encode(xmss.GetPubKeyVec(), ...)`, which re-derives
+     `HASH160` from `GetPubKeyVec()` -- all-zeros in hash-only mode --
+     silently producing the *wrong* address in any RPC output that displays
+     an `"address"` field for a P2XMSSHASH script (e.g.
+     `gettransaction`/`decoderawtransaction`). Fixed to encode directly
+     from `xmss.GetHash()` when no full pubkey is known, bypassing
+     `XMSSAddr::Encode()`'s pubkey-hashing path entirely for that case.
+6. **`script/sign.cpp`** -- `SignStep`'s XMSS block extended to handle
+   P2XMSSHASH: look up the real pubkey via `provider.GetXMSSPubKey()`
+   (confirmed this uses the *same* `HASH160(pubkey)` scheme as
+   `XMSSAddr::Hash()` -- both go through `CHash160`, so the lookup keys
+   line up), then push the pubkey *in addition to* the 5 signature chunks
+   (unlike bare P2XMSS, where the pubkey is already embedded in
+   scriptPubKey and must NOT be pushed again).
+7. **`wallet/rpc/xmss.cpp`** -- UTXO discovery's manual `mapWallet` scan
+   extended to also match `TxoutType::P2XMSSHASH` outputs.
+8. **`wallet/spend.cpp`** -- both fee/size-estimation special-cases
+   (`CalculateMaximumSignedInputSize`, `GetSignedTxinWeight`) extended:
+   P2XMSSHASH scriptSig is 2580 bytes (2515 chunked-signature bytes + 65
+   bytes for the extra pubkey push), vs 2515 for bare P2XMSS.
+9. **`policy/policy.cpp`** -- `AreInputsStandard`'s type-gated scriptSig
+   size exception extended to cover P2XMSSHASH too (same
+   `MAX_STANDARD_SCRIPTSIG_SIZE_XMSS` cap; 2580 bytes still comfortably
+   fits under the 3000-byte allowance).
+
+One more compile-time-only fix along the way: `CKeyID keyid(uint160(...))`
+in `sign.cpp` is a classic C++ "most vexing parse" -- parsed as a function
+declaration, not a variable. Fixed with brace-init:
+`CKeyID keyid{uint160(...)};`.
+
+### Verified end-to-end
+
+`sendtoaddress` to an XMSS address now produces a `type: p2xmsshash` output
+whose `address` field correctly round-trips back to the original address
+string. `sendfromxmssaddress` correctly spends it: scriptSig is exactly
+2580 bytes (chunks + pubkey), accepted to mempool, confirmed on-chain.
+
+### Known gaps / cleanup for next session
+
+1. **`sendtoxmssaddress` (the custom RPC, distinct from generic
+   `sendtoaddress`) is now obsolete and arguably actively misleading**: per
+   its own header comment, it's a "v1" stopgap that creates a **plain
+   P2PKH** output to the XMSS address hash (not a real XMSS-spendable
+   output at all) "until `CTxDestination` is extended to support XMSS
+   destinations natively" -- which is exactly what this session did. This
+   RPC should probably be removed (or rewritten as a thin wrapper around
+   the now-correct generic `sendtoaddress` path) so users don't
+   accidentally use the fake-P2PKH stopgap instead of real XMSS funding.
+2. **`CWallet::IsMine(const CScript&)`'s QNT special-case only checks
+   `TxoutType::P2XMSS`, not `P2XMSSHASH`.** This means `getxmssaddressinfo`
+   and other `IsMine()`-dependent paths may not recognize P2XMSSHASH funds
+   as belonging to the wallet, even though `sendfromxmssaddress`'s
+   independent manual `mapWallet` scan (which doesn't use `IsMine()`) can
+   still find and spend them correctly, as verified this session. Worth
+   auditing whether any *other* `IsMine()`-dependent feature (balance
+   totals, `listunspent`, etc.) needs the same P2XMSSHASH awareness.
+3. Carried over from the previous session, still open: swept
+   one-time-address key retirement not implemented; XMSS state
+   reload-on-`loadwallet` flakiness; `CWallet::SignTransactionXMSS()` still
+   100% dead code (now confirmed dead across *two* sessions -- safe to
+   delete); cosmetic `-Wswitch` warnings for unhandled `P2XMSS`/`P2XMSSHASH`
+   in switches that are provably unreachable for those types (e.g. the
+   lower generic switch in `sign.cpp`'s `SignStep`, `IsMineInner` in
+   `scriptpubkeyman.cpp`, `rpc/rawtransaction.cpp`).

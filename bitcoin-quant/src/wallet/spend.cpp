@@ -91,16 +91,23 @@ int CalculateMaximumSignedInputSize(const CTxOut& txout, const COutPoint outpoin
     // of 500 bytes each via OP_PUSHDATA2), so hardcode it here instead.
     {
         std::vector<std::vector<unsigned char>> solutions;
-        if (Solver(txout.scriptPubKey, solutions) == TxoutType::P2XMSS) {
+        const TxoutType qnt_xmss_type = Solver(txout.scriptPubKey, solutions);
+        if (qnt_xmss_type == TxoutType::P2XMSS || qnt_xmss_type == TxoutType::P2XMSSHASH) {
             static constexpr int64_t XMSS_SIG_NUM_CHUNKS = 5;
             static constexpr int64_t XMSS_SIG_CHUNK_SIZE = 500;
             static constexpr int64_t XMSS_PUSHDATA2_OVERHEAD = 3; // opcode(1) + len(2)
             static constexpr int64_t XMSS_SCRIPTSIG_BYTES =
                 XMSS_SIG_NUM_CHUNKS * (XMSS_PUSHDATA2_OVERHEAD + XMSS_SIG_CHUNK_SIZE); // 2515
+            // P2XMSSHASH scriptSig additionally carries the 64-byte pubkey
+            // itself (not embedded in scriptPubKey like bare P2XMSS), pushed
+            // as a single direct-push opcode(1) + 64 data bytes = 65 bytes.
+            static constexpr int64_t XMSS_PUBKEY_PUSH_BYTES = 65;
+            const int64_t scriptsig_bytes = XMSS_SCRIPTSIG_BYTES +
+                (qnt_xmss_type == TxoutType::P2XMSSHASH ? XMSS_PUBKEY_PUSH_BYTES : 0);
             // Legacy (non-witness) input: prevout(32+4) + sequence(4) +
-            // scriptSig CompactSize prefix(3, since 2515 > 252) + scriptSig bytes.
-            static constexpr int64_t XMSS_INPUT_VBYTES = 32 + 4 + 4 + 3 + XMSS_SCRIPTSIG_BYTES;
-            return static_cast<int>(XMSS_INPUT_VBYTES);
+            // scriptSig CompactSize prefix(3, both sizes > 252) + scriptSig bytes.
+            const int64_t input_vbytes = 32 + 4 + 4 + 3 + scriptsig_bytes;
+            return static_cast<int>(input_vbytes);
         }
     }
 
@@ -146,22 +153,28 @@ static std::optional<int64_t> GetSignedTxinWeight(const CWallet* wallet, const C
         return weight.value();
     }
 
-    // QNT: P2XMSS has no Descriptor representation (GetDescriptor() has no XMSS
-    // support, same gap as CalculateMaximumSignedInputSize() above), so the
-    // generic path below always returns nullopt for it. Hardcode the weight
-    // using the same deterministic XMSS chunked scriptSig size.
+    // QNT: P2XMSS/P2XMSSHASH have no Descriptor representation (GetDescriptor()
+    // has no XMSS support, same gap as CalculateMaximumSignedInputSize()
+    // above), so the generic path below always returns nullopt for them.
+    // Hardcode the weight using the deterministic XMSS chunked scriptSig
+    // size (P2XMSSHASH additionally carries the 64-byte pubkey in scriptSig,
+    // since it isn't embedded in scriptPubKey like bare P2XMSS is).
     {
         std::vector<std::vector<unsigned char>> solutions;
-        if (Solver(txo.scriptPubKey, solutions) == TxoutType::P2XMSS) {
+        const TxoutType qnt_xmss_type = Solver(txo.scriptPubKey, solutions);
+        if (qnt_xmss_type == TxoutType::P2XMSS || qnt_xmss_type == TxoutType::P2XMSSHASH) {
             static constexpr int64_t XMSS_SIG_NUM_CHUNKS = 5;
             static constexpr int64_t XMSS_SIG_CHUNK_SIZE = 500;
             static constexpr int64_t XMSS_PUSHDATA2_OVERHEAD = 3; // opcode(1) + len(2)
             static constexpr int64_t XMSS_SCRIPTSIG_BYTES =
                 XMSS_SIG_NUM_CHUNKS * (XMSS_PUSHDATA2_OVERHEAD + XMSS_SIG_CHUNK_SIZE); // 2515
-            static constexpr int64_t XMSS_NONWITNESS_BYTES = 32 + 4 + 4 + 3 + XMSS_SCRIPTSIG_BYTES;
-            int64_t result = XMSS_NONWITNESS_BYTES * WITNESS_SCALE_FACTOR;
+            static constexpr int64_t XMSS_PUBKEY_PUSH_BYTES = 65; // opcode(1) + 64 data bytes
+            const int64_t scriptsig_bytes = XMSS_SCRIPTSIG_BYTES +
+                (qnt_xmss_type == TxoutType::P2XMSSHASH ? XMSS_PUBKEY_PUSH_BYTES : 0);
+            const int64_t nonwitness_bytes = 32 + 4 + 4 + 3 + scriptsig_bytes;
+            int64_t result = nonwitness_bytes * WITNESS_SCALE_FACTOR;
             // Every input needs a witness-stack-count byte if ANY input in the
-            // tx is segwit, even non-segwit ones like this P2XMSS input.
+            // tx is segwit, even non-segwit ones like this P2XMSS(HASH) input.
             if (tx_is_segwit) result += 1;
             return result;
         }

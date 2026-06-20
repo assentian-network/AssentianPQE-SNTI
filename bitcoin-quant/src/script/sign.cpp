@@ -439,43 +439,55 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
     // QNT: Check for XMSS scripts before the standard switch
     // XMSS scripts are currently classified as NONSTANDARD by Solver
     // We detect them by pubkey size (64 bytes) and XMSS opcode
-    if (whichTypeRet == TxoutType::NONSTANDARD || whichTypeRet == TxoutType::PUBKEY || whichTypeRet == TxoutType::PUBKEYHASH || whichTypeRet == TxoutType::P2XMSS) {
-        opcodetype opcode;
-        CScript::const_iterator pc = scriptPubKey.begin();
-        std::vector<unsigned char> vch;
-        if (scriptPubKey.GetOp(pc, opcode, vch)) {
-            if (vch.size() == 64) {
-                // Check if next opcode is OP_XMSS_CHECKSIG (0xBB) or OP_XMSS_CHECKSIGVERIFY (0xBC)
-                opcodetype next_opcode;
-                std::vector<unsigned char> next_vch;
-                if (scriptPubKey.GetOp(pc, next_opcode, next_vch)) {
-                    if (next_opcode == 0xBB || next_opcode == 0xBC) {
-                        // This is an XMSS script — sign with XMSS
-                        if (CreateXMSSSig(creator, sigdata, provider, sig, vch, scriptPubKey, sigversion)) {
-                            // QNT: split the ~2500-byte XMSS signature into <=520-byte
-                            // chunks so no single scriptSig push trips the consensus
-                            // MAX_SCRIPT_ELEMENT_SIZE limit. Chunk size/count MUST match
-                            // XMSS_SIG_CHUNK_SIZE / XMSS_SIG_NUM_CHUNKS in
-                            // script/interpreter.cpp exactly.
-                            // The pubkey is NOT pushed here: for bare P2XMSS it's already
-                            // embedded in scriptPubKey, and OP_XMSS_CHECKSIG reads it from
-                            // there once scriptPubKey itself executes. Pushing it again
-                            // here would leave an extra stack item and break verification.
-                            static const size_t XMSS_SIG_CHUNK_SIZE = 500;
-                            if (sig.empty() || sig.size() % XMSS_SIG_CHUNK_SIZE != 0) {
-                                return false; // unexpected signature length
-                            }
-                            for (size_t off = 0; off < sig.size(); off += XMSS_SIG_CHUNK_SIZE) {
-                                ret.push_back(valtype(sig.begin() + off, sig.begin() + off + XMSS_SIG_CHUNK_SIZE));
-                            }
-                            whichTypeRet = TxoutType::PUBKEY; // Reuse PUBKEY type for compatibility
-                            return true;
-                        }
-                        return false;
-                    }
-                }
-            }
+    // QNT: XMSS signing (both bare P2XMSS and hash-committed P2XMSSHASH).
+    // Solver() already classifies these into their own TxoutTypes (the
+    // comment that used to be here claiming "XMSS scripts are currently
+    // classified as NONSTANDARD by Solver" was simply wrong, confirmed via
+    // direct inspection of script/solver.cpp), so the manual scriptPubKey
+    // opcode-walk this block used to do is unnecessary -- vSolutions from
+    // the Solver() call above already has everything needed.
+    if (whichTypeRet == TxoutType::P2XMSS || whichTypeRet == TxoutType::P2XMSSHASH) {
+        std::vector<unsigned char> pubkey;
+        if (whichTypeRet == TxoutType::P2XMSS) {
+            // Pubkey is embedded directly in scriptPubKey, already in vSolutions[0].
+            pubkey = vSolutions[0];
+        } else {
+            // P2XMSSHASH: vSolutions[0] is the 20-byte HASH160(pubkey).
+            // Look up the real pubkey via the provider -- GetXMSSPubKey()
+            // uses the same HASH160 scheme as XMSS addresses (confirmed:
+            // both XMSSAddr::Hash() and CXMSSSigner::GetXMSSKeyID() compute
+            // HASH160(pubkey) identically).
+            CKeyID keyid{uint160(vSolutions[0])};
+            pubkey = provider.GetXMSSPubKey(keyid);
         }
+        if (pubkey.size() != 64) {
+            return false;
+        }
+        if (!CreateXMSSSig(creator, sigdata, provider, sig, pubkey, scriptPubKey, sigversion)) {
+            return false;
+        }
+        // QNT: split the ~2500-byte XMSS signature into <=520-byte chunks
+        // so no single scriptSig push trips the consensus
+        // MAX_SCRIPT_ELEMENT_SIZE limit. Chunk size/count MUST match
+        // XMSS_SIG_CHUNK_SIZE / XMSS_SIG_NUM_CHUNKS in script/interpreter.cpp
+        // exactly.
+        static const size_t XMSS_SIG_CHUNK_SIZE = 500;
+        if (sig.empty() || sig.size() % XMSS_SIG_CHUNK_SIZE != 0) {
+            return false; // unexpected signature length
+        }
+        for (size_t off = 0; off < sig.size(); off += XMSS_SIG_CHUNK_SIZE) {
+            ret.push_back(valtype(sig.begin() + off, sig.begin() + off + XMSS_SIG_CHUNK_SIZE));
+        }
+        // Bare P2XMSS: pubkey is already embedded in scriptPubKey,
+        // OP_XMSS_CHECKSIG reads it from there once scriptPubKey itself
+        // executes -- do NOT push it again here (extra stack item breaks
+        // verification). P2XMSSHASH: scriptPubKey only carries the hash,
+        // so the pubkey must be supplied via scriptSig.
+        if (whichTypeRet == TxoutType::P2XMSSHASH) {
+            ret.push_back(pubkey);
+        }
+        whichTypeRet = TxoutType::PUBKEY; // Reuse PUBKEY type for compatibility
+        return true;
     }
 
     switch (whichTypeRet) {
