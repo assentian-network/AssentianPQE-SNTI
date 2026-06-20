@@ -83,6 +83,13 @@ def changelog_html():
     qnt_dir = os.path.dirname(BASE_DIR)
     return send_from_directory(qnt_dir, "changelog.html")
 
+@app.route("/project-status")
+@app.route("/project-status.html")
+def project_status_html():
+    import os
+    qnt_dir = os.path.dirname(BASE_DIR)
+    return send_from_directory(qnt_dir, "project-status.html")
+
 # ---------------------------------------------------------------------------
 # API: git commits (changelog)
 # ---------------------------------------------------------------------------

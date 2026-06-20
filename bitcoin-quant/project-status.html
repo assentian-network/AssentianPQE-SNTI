@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QNT Project Status</title>
+<style>
+:root{--bg:#0a0e17;--card:#111827;--border:#2a3a55;--text:#e8edf5;--dim:#8899bb;--accent:#00d4aa;--blue:#3b82f6;--purple:#a855f7;--orange:#f59e0b;--green:#22c55e;--red:#ef4444;--yellow:#eab308}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:var(--bg);color:var(--text);min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:1100px;margin:0 auto;padding:20px}
+header{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:20px}
+.logo{font-size:22px;font-weight:800;color:var(--accent)}
+.logo small{font-size:10px;color:var(--dim);display:block;letter-spacing:2px}
+.back-link{font-size:13px;color:var(--dim)}
+.back-link:hover{color:var(--accent)}
+.intro{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;font-size:13px;line-height:1.7;color:var(--dim)}
+.intro strong{color:var(--text)}
+.section{margin-bottom:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.section-header{padding:16px 20px;border-bottom:1px solid var(--border)}
+.section-title{font-size:15px;font-weight:700;color:var(--text)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 16px;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)}
+td{padding:10px 16px;font-size:13px;border-bottom:1px solid rgba(42,58,85,.4);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.status{font-size:11px;font-weight:700;padding:3px 10px;border-radius:4px;white-space:nowrap;display:inline-block}
+.status.done{background:rgba(34,197,94,.15);color:var(--green)}
+.status.notdone{background:rgba(239,68,68,.15);color:var(--red)}
+.status.partial{background:rgba(245,158,11,.15);color:var(--orange)}
+.list{padding:20px}
+.item{display:flex;gap:14px;padding:10px 0;border-bottom:1px solid rgba(42,58,85,.4);font-size:13px;line-height:1.7}
+.item:last-child{border-bottom:none}
+.footer-note{text-align:center;font-size:11px;color:var(--dim);margin-top:24px;padding:16px;font-style:italic}
+code{background:rgba(0,212,170,.1);color:var(--accent);padding:1px 6px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">QNT <small>PROJECT STATUS (CONSOLIDATED)</small></div>
+    <a href="/dashboard" class="back-link">← Back to Dashboard</a>
+  </header>
+
+  <div class="intro">
+    <strong>Disusun 20 Juni 2026.</strong> Dokumen ini sumber kebenaran tunggal — merekonsiliasi FIX_LOG.md (berantakan, fase duplikat, stale sejak 11 Jun), AUDIT.md (13 Jun, satu verdict-nya terbukti salah), dan checklist-checklist lama terhadap kondisi kode &amp; infrastruktur yang TERVERIFIKASI LANGSUNG. File lama tetap ada sebagai sejarah, tapi bukan acuan status terkini. Lihat juga <a href="/changelog">changelog</a> dan <a href="/mainnet-checklist.html">mainnet checklist</a>.
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="section-title">Terverifikasi langsung (20 Jun)</div></div>
+    <div class="list">
+      <div class="item">✅ <code>OP_XMSS_CHECKSIG</code> — verifikasi matematis nyata di consensus layer, bukan stub</div>
+      <div class="item">✅ State save/load XMSS — tahan restart bersih dan <code>kill -9</code> mendadak</div>
+      <div class="item">✅ Key retirement (one-time address) — sign kedua ke key sama berhasil ditolak</div>
+      <div class="item">✅ Dashboard/explorer live — server.py jalan sejak 17 Jun</div>
+      <div class="item">⚠️ Stratum server — kodenya ada, tapi tidak sedang berjalan saat ini</div>
+      <div class="item">❌ Sighash XMSS belum include <code>leaf_index</code> — risiko teoretis, diredam praktis oleh key retirement</div>
+      <div class="item">❌ XMSS state di wallet DB masih plaintext, belum dienkripsi</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="section-title">Belum diverifikasi ulang — prioritas next step</div></div>
+    <table>
+      <thead><tr><th style="width:30%">Item</th><th>Catatan</th></tr></thead>
+      <tbody>
+        <tr><td>Key exhausted / min sig length check</td><td>FIX_LOG.md klaim sudah fixed, belum dicek langsung di kode</td></tr>
+        <tr><td><code>CheckPoUW()</code></td><td>Belum pernah direview sama sekali — consensus-critical</td></tr>
+        <tr><td>Multi-node test ulang</td><td>Test lama (17-18 Jun) sebelum P2XMSSHASH &amp; state v2 ada — perlu retest dengan kode terkini</td></tr>
+        <tr><td>Encryption at rest</td><td>MEDIUM dari AUDIT.md, masih terbuka</td></tr>
+        <tr><td>Testnet node</td><td>Tidak ada yang jalan sekarang (RPC timeout)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer-note">Generated dari sesi debugging &amp; review 20 Juni 2026. Commit referensi: lihat <a href="/changelog">changelog</a>.</div>
+</div>
+</body>
+</html>

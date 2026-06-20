@@ -1,3 +1,5 @@
+> ⚠️ **Status terkini ada di [`PROJECT_STATUS.md`](./PROJECT_STATUS.md)** — file ini historis/berantakan, jangan dijadikan acuan kondisi terbaru.
+
 # QNT FIX LOG — Post-Quantum Blockchain Development
 ## Core Identity: QNT = First Mineable Post-Quantum Blockchain
 ### Non-negotiable foundation:

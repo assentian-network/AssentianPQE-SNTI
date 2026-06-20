@@ -1,3 +1,5 @@
+> ⚠️ **Status terkini ada di [`PROJECT_STATUS.md`](./PROJECT_STATUS.md)** — file ini historis/berantakan, jangan dijadikan acuan kondisi terbaru.
+
 # QNT Security Audit Report — Phase 4 Self-Audit
 **Date:** June 13, 2026  
 **Auditor:** OWL (automated self-audit)  
