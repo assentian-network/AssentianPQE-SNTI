@@ -62,6 +62,11 @@ status terkini — selalu cek file ini dulu.
 
 1. **Cek 2 klaim "sudah fixed" di FIX_LOG** (key exhausted check, min sig length) — cepat, tinggal grep
 2. **Baca `CheckPoUW()`** — belum pernah direview sama sekali, consensus-critical
-3. **Retest multi-node** dengan kode TERKINI (setelah P2XMSSHASH + state v2 + retirement) — test lama sudah basi
+3. **[20 Jun, SELESAI sebagian]** Multi-node retest dilakukan — hasil CAMPURAN:
+   - ✅ Testnet (207 blok, coinbase-only/PoUW, 0 transaksi wallet) — Node kedua sync INSTAN
+   - ❌ Regtest (137 blok, BANYAK transaksi XMSS wallet asli dari testing hari ini) — Node kedua MACET TOTAL di blok 0, CPU tinggi terus
+   - Hipotesis awal (XMSS verify nggak di-paralelkan ke CCheckQueue) **TERBUKTI SALAH** — `CScriptCheck::operator()` generic, nggak ada bypass khusus XMSS
+   - **Akar masalah BELUM ketemu.** Prioritas investigasi berikutnya: kemungkinan bug spesifik di salah satu transaksi P2XMSSHASH/chunked-scriptSig (bukan masalah arsitektur paralelisasi)
+   - Reproduksi: 2 node regtest, sync dari node yang udah ada riwayat testing wallet XMSS hari ini (banyak `sendfromxmssaddress`/P2XMSSHASH) — server kedua connect & amati `getblockcount` macet di 0, CPU thread `msghand` tinggi, `scriptch` idle
 4. **Encryption at rest** untuk XMSS state (MEDIUM, dari AUDIT.md, masih terbuka)
 5. Baru pertimbangkan: nyalain testnet lagi, nyalain stratum, audit eksternal beneran
