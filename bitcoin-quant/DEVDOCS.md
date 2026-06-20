@@ -1080,3 +1080,31 @@ Cek dua hal di atas DULU sebelum curiga ke kode `xmss_signer.cpp`/
 `walletdb.cpp`. Kalau sudah dipastikan bukan dari situ, baru investigasi
 ulang dari titik yang sama (`CWallet::Create()` → `ReadXmssState` →
 `CXMSSSigner::LoadState()`).
+
+---
+
+## Gap #3 — Key retirement / one-time address enforcement (20 Jun 2026) — SELESAI
+
+Ditambahkan field `retired` ke `XMSSKeyEntry` (`xmss_signer.h`).
+`SignXMSS()` (`xmss_signer.cpp`) cek flag ini sebelum sign, tolak kalau
+sudah `true`; set `true` setelah sign sukses, di dalam lock yang sama
+dengan increment `leaf_index`. State format bump ke v2 (`QNT2` magic
+prefix + 1 byte retired per key entry), `LoadState()` fallback otomatis
+ke parsing v1 kalau magic nggak ada — wallet DB lama tetap kebaca tanpa
+wipe.
+
+Diverifikasi: address baru → fund → sign pertama sukses → sign kedua
+ke address sama ditolak (`SignXMSS refused -- key is retired` di
+debug.log). Address lama format v1 tetap `ismine: true` setelah
+restart pakai binary baru.
+
+**Catatan buat sesi depan**: test di atas belum 100% mengisolasi
+"ditolak karena retired" vs "ditolak karena dana sudah habis disapu"
+(sendfromxmssaddress nyapu semua dana sekali sign). Log
+`SignXMSS refused` adalah bukti independen yang cukup kuat, tapi kalau
+mau lebih rigorous: coba `signrawtransactionwithwallet` manual pakai
+input/scriptPubKey yang sama setelah key retired, buat isolasi murni
+dari soal saldo.
+
+Sisa item lama yang masih opsional/rendah prioritas: index ringkas di
+puncak DEVDOCS.md (lihat catatan sesi 20 Jun pagi).
