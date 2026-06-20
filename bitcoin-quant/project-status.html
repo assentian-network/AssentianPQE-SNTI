@@ -55,6 +55,8 @@ code{background:rgba(0,212,170,.1);color:var(--accent);padding:1px 6px;border-ra
       <div class="item">✅ Key retirement (one-time address) — sign kedua ke key sama berhasil ditolak</div>
       <div class="item">✅ Dashboard/explorer live — server.py jalan sejak 17 Jun</div>
       <div class="item">⚠️ Stratum server — kodenya ada, tapi tidak sedang berjalan saat ini</div>
+      <div class="item">✅ <code>CheckPoUW()</code> direview penuh — verifikasi XMSS real di consensus layer, desain solid (2 catatan minor non-bahaya buat auditor eksternal)</div>
+      <div class="item">✅ Minimum sig length — sudah ter-cover (exact-match 2500 byte), lebih ketat dari rekomendasi audit</div>
       <div class="item">❌ Sighash XMSS belum include <code>leaf_index</code> — risiko teoretis, diredam praktis oleh key retirement</div>
       <div class="item">❌ XMSS state di wallet DB masih plaintext, belum dienkripsi</div>
     </div>
