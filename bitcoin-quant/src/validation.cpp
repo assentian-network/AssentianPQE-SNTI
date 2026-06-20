@@ -3849,21 +3849,26 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
     const CTransaction& coinbase = *block.vtx[0];
 
     // Extract XMSS public key from coinbase OP_RETURN output
-    // Format: OP_RETURN <pushdata: 0x40> <64-byte pubkey>
+    // Format: OP_RETURN <pushdata: 64-byte pubkey>
+    // QNT FIX (CheckPoUW pubkey parsing robustness, 20/Jun/2026): use
+    // proper script parsing (GetOp) instead of brittle exact-size byte
+    // offsets. The old logic required script.size() == 66 exactly, which
+    // silently rejects any otherwise-valid push using a different (but
+    // still correct) opcode encoding, with no diagnostic -- it looks
+    // identical to a block with no PoUW data at all. GetOp() correctly
+    // handles whatever push encoding was used and extracts exactly the
+    // pushed bytes, matching the approach already used below for
+    // signature extraction (consistency fix).
     std::vector<uint8_t> xmss_pk;
     for (const auto& txout : coinbase.vout) {
         const CScript& script = txout.scriptPubKey;
-        if (script.size() >= 66 && script[0] == OP_RETURN) {
-            // Check for pushdata of 64 bytes (0x40)
-            if (script[1] == 0x40 && script.size() == 66) {
-                xmss_pk.assign(script.begin() + 2, script.end());
-                break;
-            }
-            // Also accept pushdata opcode 64 (direct push)
-            if (script[1] == 64 && script.size() == 66) {
-                xmss_pk.assign(script.begin() + 2, script.end());
-                break;
-            }
+        if (script.empty() || script[0] != OP_RETURN) continue;
+        CScript::const_iterator pc = script.begin() + 1;
+        opcodetype opcode;
+        std::vector<unsigned char> data;
+        if (script.GetOp(pc, opcode, data) && data.size() == 64) {
+            xmss_pk = data;
+            break;
         }
     }
 
