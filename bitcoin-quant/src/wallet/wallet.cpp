@@ -3001,15 +3001,11 @@ std::shared_ptr<CWallet> CWallet::Create(WalletContext& context, const std::stri
     bool rescan_required = false;
     DBErrors nLoadWalletRet = walletInstance->LoadWallet();
 
-    // QNT: Load XMSS key state after wallet loaded
-    if (nLoadWalletRet == DBErrors::LOAD_OK && walletInstance->m_xmss_signer) {
-        std::vector<uint8_t> state_data;
-        WalletBatch walletBatch(walletInstance->GetDatabase());
-        if (walletBatch.ReadXmssState(state_data)) {
-            if (!walletInstance->m_xmss_signer->LoadState(state_data)) {
-                LogPrintf("QNT: Failed to load XMSS key state from wallet DB\n");
-            }
-        }
+    // QNT: Load XMSS key state after wallet loaded (handles encrypted
+    // state transparently -- see LoadXMSSStateIfPossible(); if the wallet
+    // is encrypted and locked, this becomes a no-op until Unlock() succeeds)
+    if (nLoadWalletRet == DBErrors::LOAD_OK) {
+        walletInstance->LoadXMSSStateIfPossible();
     }
 
     if (nLoadWalletRet != DBErrors::LOAD_OK) {
@@ -3531,6 +3527,10 @@ bool CWallet::Unlock(const CKeyingMaterial& vMasterKeyIn)
         }
         vMasterKey = vMasterKeyIn;
     }
+    // QNT FIX (encryption at rest, 20/Jun/2026): XMSS state may have been
+    // encrypted and therefore skipped at wallet load time (vMasterKey
+    // wasn't available yet) -- now that we're unlocked, try loading it.
+    LoadXMSSStateIfPossible();
     NotifyStatusChanged(this);
     return true;
 }
@@ -4564,12 +4564,92 @@ void CWallet::PersistXMSSState()
     // at that address.  This method is now called in both CommitTransaction
     // (to persist index advances after signing) and in getnewxmssaddress (to
     // persist the key itself the moment it is created).
+    //
+    // QNT FIX (encryption at rest, 20/Jun/2026): if the wallet is encrypted,
+    // encrypt this blob with the same master key used for regular private
+    // keys before writing it to disk -- previously XMSS secret keys were
+    // always stored in plaintext regardless of whether the user had set a
+    // passphrase. Format: ['X','E','N','C'] [iv(32)] [ciphertext]. If the
+    // wallet is encrypted but currently locked, skip the write rather than
+    // silently persist plaintext -- in-memory state is unaffected, it just
+    // won't be written to disk until the next successful persist while
+    // unlocked.
     if (!m_xmss_signer) return;
     std::vector<uint8_t> state = m_xmss_signer->SaveState();
     if (state.empty()) return;
+
     WalletBatch batch(GetDatabase());
-    batch.WriteXmssState(state);
-    LogPrint(BCLog::WALLETDB, "QNT: Saved XMSS state (%u bytes)\n", (unsigned)state.size());
+
+    if (IsCrypted()) {
+        LOCK(cs_wallet);
+        if (vMasterKey.empty()) {
+            LogPrintf("QNT: wallet is locked, skipping XMSS state persist (will retry after unlock)\n");
+            return;
+        }
+        CKeyingMaterial plaintext(state.begin(), state.end());
+        uint256 iv = GetRandHash();
+        std::vector<unsigned char> ciphertext;
+        if (!EncryptSecret(vMasterKey, plaintext, iv, ciphertext)) {
+            LogPrintf("QNT: ERROR - failed to encrypt XMSS state, not persisting\n");
+            return;
+        }
+        std::vector<uint8_t> encrypted_blob;
+        encrypted_blob.insert(encrypted_blob.end(), {'X','E','N','C'});
+        encrypted_blob.insert(encrypted_blob.end(), iv.begin(), iv.end());
+        encrypted_blob.insert(encrypted_blob.end(), ciphertext.begin(), ciphertext.end());
+        batch.WriteXmssState(encrypted_blob);
+        LogPrint(BCLog::WALLETDB, "QNT: Saved ENCRYPTED XMSS state (%u bytes)\n", (unsigned)encrypted_blob.size());
+    } else {
+        batch.WriteXmssState(state);
+        LogPrint(BCLog::WALLETDB, "QNT: Saved XMSS state (%u bytes)\n", (unsigned)state.size());
+    }
+}
+
+void CWallet::LoadXMSSStateIfPossible()
+{
+    // QNT FIX (encryption at rest, 20/Jun/2026): shared load path used both
+    // at wallet startup (CWallet::Create) and after Unlock() succeeds, since
+    // encrypted XMSS state can only be decrypted once vMasterKey is
+    // available. See PersistXMSSState() for the corresponding write side.
+    if (!m_xmss_signer) return;
+
+    std::vector<uint8_t> state_data;
+    {
+        WalletBatch walletBatch(GetDatabase());
+        if (!walletBatch.ReadXmssState(state_data)) return;
+    }
+
+    std::vector<uint8_t> plain_state;
+    bool is_encrypted = (state_data.size() >= 4 &&
+                          state_data[0] == 'X' && state_data[1] == 'E' &&
+                          state_data[2] == 'N' && state_data[3] == 'C');
+
+    if (is_encrypted) {
+        LOCK(cs_wallet);
+        if (vMasterKey.empty()) {
+            LogPrintf("QNT: XMSS state is encrypted; wallet must be unlocked to load XMSS keys\n");
+            return;
+        }
+        if (state_data.size() < 4 + 32) {
+            LogPrintf("QNT: Failed to load XMSS state - encrypted blob too short\n");
+            return;
+        }
+        uint256 iv;
+        memcpy(iv.begin(), state_data.data() + 4, 32);
+        std::vector<unsigned char> ciphertext(state_data.begin() + 4 + 32, state_data.end());
+        CKeyingMaterial plaintext;
+        if (!DecryptSecret(vMasterKey, ciphertext, iv, plaintext)) {
+            LogPrintf("QNT: Failed to decrypt XMSS state (wrong master key?)\n");
+            return;
+        }
+        plain_state.assign(plaintext.begin(), plaintext.end());
+    } else {
+        plain_state = state_data;
+    }
+
+    if (!m_xmss_signer->LoadState(plain_state)) {
+        LogPrintf("QNT: Failed to load XMSS key state from wallet DB\n");
+    }
 }
 
 // QNT: XMSS wallet key management implementations

@@ -669,6 +669,10 @@ public:
     // memory only — a node crash before the first CommitTransaction would
     // otherwise make any funds received at that address unrecoverable.
     void PersistXMSSState();
+    // QNT: Load XMSS state from wallet DB, decrypting if necessary. Called
+    // both at wallet load (CWallet::Create) and after Unlock() succeeds, so
+    // encrypted XMSS state becomes available as soon as the master key is.
+    void LoadXMSSStateIfPossible();
     bool GetXMSSPubKey(const uint160& addr_hash, std::vector<uint8_t>& pubkey_out) const;
     bool GetXMSSSecKey(const uint160& addr_hash, std::vector<uint8_t>& seckey_out) const;
 
