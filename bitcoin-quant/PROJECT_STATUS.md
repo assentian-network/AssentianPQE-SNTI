@@ -31,6 +31,20 @@ status terkini — selalu cek file ini dulu.
 
 ---
 
+## 1.8 MILESTONE: First externally-mined block accepted [20 Jun]
+
+Dari VM yang sama (node independen, build dari nol, sync via internet),
+dipanggil `generatetoaddress` di TESTNET (bukan regtest) -- ternyata
+RPC ini emang didesain bekerja di chain manapun di fork ini, bukan
+dibatasi regtest. Hasil: blok PoUW asli (XMSS keygen + PoW grind +
+sign + verify) berhasil ditambang CPU biasa dalam **2 detik**
+(`networkhashps` testnet saat itu ~0.0025 H/s, difficulty nyaris nol).
+
+Blok `1254f0a0...` berhasil PROPAGASI ke node resmi VPS dan DITERIMA
+-- `getbestblockhash` identik di kedua sisi (208/208). Ini bukti
+end-to-end lengkap: node eksternal bisa sync DAN aktif menambang DAN
+blok-nya diterima jaringan.
+
 ## 1.7 MILESTONE: First independent external node [20 Jun]
 
 Node di-build dari nol di mesin TERPISAH (Windows + VirtualBox Ubuntu,
