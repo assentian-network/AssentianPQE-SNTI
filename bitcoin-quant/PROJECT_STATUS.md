@@ -55,7 +55,7 @@ penemuan bug konsensus nyata.
 - ✅ Dashboard/explorer live di `104.234.26.7` (HTTP 200, `server.py` jalan sejak 17 Jun)
 - ✅ Kode stratum server ADA (`stratum_server.py` + `/root/qnt-stratum/stratum.js`) — tapi **tidak sedang jalan** saat ini
 - ❌ Sighash XMSS **tidak** include `leaf_index` (masih sama seperti temuan AUDIT.md 13 Juni) — risiko teoretis, tapi praktis sudah diredam oleh fix retirement hari ini
-- ❌ XMSS state di wallet DB **masih plaintext**, belum di-enkripsi terpisah
+- ✅ **[20 Jun]** XMSS state encryption at rest — diimplementasi & diverifikasi end-to-end (locked=ismine:false, unlock=decrypt otomatis & ismine:true). MEDIUM finding audit 13 Jun DITUTUP.
 
 ## 3. BELUM TERVERIFIKASI ulang (klaim dari dokumen lama, perlu dicek lagi)
 
