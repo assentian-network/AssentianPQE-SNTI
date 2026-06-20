@@ -439,7 +439,7 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
     // QNT: Check for XMSS scripts before the standard switch
     // XMSS scripts are currently classified as NONSTANDARD by Solver
     // We detect them by pubkey size (64 bytes) and XMSS opcode
-    if (whichTypeRet == TxoutType::NONSTANDARD || whichTypeRet == TxoutType::PUBKEY || whichTypeRet == TxoutType::PUBKEYHASH) {
+    if (whichTypeRet == TxoutType::NONSTANDARD || whichTypeRet == TxoutType::PUBKEY || whichTypeRet == TxoutType::PUBKEYHASH || whichTypeRet == TxoutType::P2XMSS) {
         opcodetype opcode;
         CScript::const_iterator pc = scriptPubKey.begin();
         std::vector<unsigned char> vch;
@@ -452,8 +452,22 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
                     if (next_opcode == 0xBB || next_opcode == 0xBC) {
                         // This is an XMSS script — sign with XMSS
                         if (CreateXMSSSig(creator, sigdata, provider, sig, vch, scriptPubKey, sigversion)) {
-                            ret.push_back(std::move(sig));
-                            ret.push_back(std::move(vch)); // 64-byte pubkey
+                            // QNT: split the ~2500-byte XMSS signature into <=520-byte
+                            // chunks so no single scriptSig push trips the consensus
+                            // MAX_SCRIPT_ELEMENT_SIZE limit. Chunk size/count MUST match
+                            // XMSS_SIG_CHUNK_SIZE / XMSS_SIG_NUM_CHUNKS in
+                            // script/interpreter.cpp exactly.
+                            // The pubkey is NOT pushed here: for bare P2XMSS it's already
+                            // embedded in scriptPubKey, and OP_XMSS_CHECKSIG reads it from
+                            // there once scriptPubKey itself executes. Pushing it again
+                            // here would leave an extra stack item and break verification.
+                            static const size_t XMSS_SIG_CHUNK_SIZE = 500;
+                            if (sig.empty() || sig.size() % XMSS_SIG_CHUNK_SIZE != 0) {
+                                return false; // unexpected signature length
+                            }
+                            for (size_t off = 0; off < sig.size(); off += XMSS_SIG_CHUNK_SIZE) {
+                                ret.push_back(valtype(sig.begin() + off, sig.begin() + off + XMSS_SIG_CHUNK_SIZE));
+                            }
                             whichTypeRet = TxoutType::PUBKEY; // Reuse PUBKEY type for compatibility
                             return true;
                         }

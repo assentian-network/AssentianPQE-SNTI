@@ -118,7 +118,7 @@ bool IsStandardTx(const CTransaction& tx, const std::optional<unsigned>& max_dat
         // some minor future-proofing. That's also enough to spend a
         // 20-of-20 CHECKMULTISIG scriptPubKey, though such a scriptPubKey
         // is not considered standard.
-        if (txin.scriptSig.size() > MAX_STANDARD_SCRIPTSIG_SIZE) {
+        if (txin.scriptSig.size() > MAX_STANDARD_SCRIPTSIG_SIZE_XMSS) {
             reason = "scriptsig-size";
             return false;
         }
@@ -202,6 +202,20 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
             if (subscript.GetSigOpCount(true) > MAX_P2SH_SIGOPS) {
                 return false;
             }
+        } else if (whichType == TxoutType::P2XMSS) {
+            // QNT: P2XMSS spending scriptSig is a chunked XMSS signature
+            // (~2500 bytes), wider than the standard 1650-byte cap. Allow it
+            // up to the dedicated XMSS cap, but ONLY for inputs that are
+            // genuinely spending a P2XMSS output.
+            if (tx.vin[i].scriptSig.size() > MAX_STANDARD_SCRIPTSIG_SIZE_XMSS) {
+                return false;
+            }
+        } else if (tx.vin[i].scriptSig.size() > MAX_STANDARD_SCRIPTSIG_SIZE) {
+            // QNT: re-enforce the original tight cap for every other input
+            // type now that IsStandardTx()'s type-blind check had to be
+            // loosened to MAX_STANDARD_SCRIPTSIG_SIZE_XMSS to let P2XMSS
+            // through at all.
+            return false;
         }
     }
 

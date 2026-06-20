@@ -2162,10 +2162,22 @@ bool CWallet::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint,
         }
     }
 
-    // QNT: Try to sign remaining inputs with XMSS signer
-    // This is handled separately via SignTransactionXMSS() below
-    // to avoid modifying the existing ECDSA signing flow
-
+    // QNT: Try to sign any remaining (XMSS) inputs with the wallet's XMSS
+    // signer. None of the ScriptPubKeyMans above know about P2XMSS scripts
+    // (no Descriptor representation for XMSS -- see DEVDOCS.md), so an
+    // XMSS-spending input is still unsigned at this point. Reuse the generic
+    // SignTransaction() free function (script/sign.cpp) with m_xmss_signer
+    // as the provider: its SignXMSS()/HaveXMSSKey() are real implementations,
+    // unlike the ScriptPubKeyMans' SigningProvider, whose XMSS overrides are
+    // the always-false/empty defaults from signingprovider.h.
+    // Do NOT call SignTransactionXMSS() -- it builds an un-chunked single
+    // ~2500-byte scriptSig push (violates the consensus
+    // MAX_SCRIPT_ELEMENT_SIZE=520 limit) plus a redundant pubkey push.
+    // The generic path below uses the corrected chunked signing logic in
+    // script/sign.cpp's SignStep()/CreateXMSSSig() instead.
+    if (m_xmss_signer && ::SignTransaction(tx, m_xmss_signer.get(), coins, sighash, input_errors)) {
+        return true;
+    }
     // At this point, one input was not fully signed otherwise we would have exited already
     return false;
 }

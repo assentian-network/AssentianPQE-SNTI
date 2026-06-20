@@ -1087,30 +1087,41 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 case OP_XMSS_CHECKSIG:
                 case OP_XMSS_CHECKSIGVERIFY:
                 {
-                    // (sig pubkey -- bool)
-                    // sig: XMSS signature (~2500 bytes for SHA2_10_256)
+                    // Stack (bottom->top): <chunk1> <chunk2> <chunk3> <chunk4> <chunk5> <pubkey>
+                    // chunk1..chunk5 concatenate to the XMSS signature (~2500 bytes for
+                    // SHA2_10_256), split into <=520-byte pushes so none of them trip
+                    // the consensus MAX_SCRIPT_ELEMENT_SIZE limit.
                     // pubkey: 64-byte XMSS public key (root || PUB_SEED)
-                    if (stack.size() < 2)
+                    static const unsigned int XMSS_SIG_CHUNK_SIZE = 500;
+                    static const unsigned int XMSS_SIG_NUM_CHUNKS = 5;
+                    static const unsigned int XMSS_SIG_TOTAL_BYTES = XMSS_SIG_CHUNK_SIZE * XMSS_SIG_NUM_CHUNKS;
+
+                    if (stack.size() < XMSS_SIG_NUM_CHUNKS + 1)
                         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
-                    valtype& vchSig    = stacktop(-2);
                     valtype& vchPubKey = stacktop(-1);
 
                     // Validate pubkey size (must be 64 bytes for XMSS-SHA2_10_256)
                     if (vchPubKey.size() != 64) {
-                        popstack(stack);
-                        popstack(stack);
+                        for (unsigned int i = 0; i < XMSS_SIG_NUM_CHUNKS + 1; i++) popstack(stack);
                         stack.push_back(vchFalse);
                         if (opcode == OP_XMSS_CHECKSIGVERIFY)
                             return set_error(serror, SCRIPT_ERR_XMSS_CHECKSIGVERIFY);
                         break;
                     }
 
-                    // QNT: Validate minimum signature length
-                    // XMSS-SHA2_10_256 signatures are ~2500 bytes; anything < 100 is invalid
-                    if (vchSig.size() < 100) {
-                        popstack(stack);
-                        popstack(stack);
+                    // QNT: Reassemble signature from chunked scriptSig pushes.
+                    // Stack below pubkey (bottom->top): chunk1 chunk2 chunk3 chunk4 chunk5
+                    // stacktop(-(N+1)) = chunk1 (pushed first) ... stacktop(-2) = chunk5 (pushed last)
+                    // Each chunk is <=520 bytes so none of them trip MAX_SCRIPT_ELEMENT_SIZE.
+                    valtype vchSig;
+                    vchSig.reserve(XMSS_SIG_TOTAL_BYTES);
+                    for (int p = (int)XMSS_SIG_NUM_CHUNKS + 1; p >= 2; p--) {
+                        const valtype& chunk = stacktop(-p);
+                        vchSig.insert(vchSig.end(), chunk.begin(), chunk.end());
+                    }
+                    if (vchSig.size() != XMSS_SIG_TOTAL_BYTES) {
+                        for (unsigned int i = 0; i < XMSS_SIG_NUM_CHUNKS + 1; i++) popstack(stack);
                         stack.push_back(vchFalse);
                         if (opcode == OP_XMSS_CHECKSIGVERIFY)
                             return set_error(serror, SCRIPT_ERR_XMSS_CHECKSIGVERIFY);
@@ -1129,8 +1140,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                         fSuccess = checker.CheckXMSSSignature(vchSig, vchPubKey, scriptCode, sigversion);
                     }
 
-                    popstack(stack);
-                    popstack(stack);
+                    for (unsigned int i = 0; i < XMSS_SIG_NUM_CHUNKS + 1; i++) popstack(stack);
                     stack.push_back(fSuccess ? vchTrue : vchFalse);
                     if (opcode == OP_XMSS_CHECKSIGVERIFY)
                     {

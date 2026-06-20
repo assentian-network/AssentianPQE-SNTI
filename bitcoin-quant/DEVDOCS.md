@@ -618,3 +618,247 @@ Decided, not yet implemented:
    already designed, just needs writing + testing).
 4. Test: full round trip — generate address, receive funds, sweep-spend,
    confirm key retired, confirm wallet refuses second use.
+
+## ✅ RESOLVED — XMSS Wallet Spending (sweep working end-to-end) (20/Jun/2026)
+
+**Status: `sendfromxmssaddress` now produces a transaction that passes full
+consensus validation, is accepted to mempool, and confirms on-chain.**
+**This resolves the blocker documented in the section above.**
+
+### Root cause (the size-limit decision, finally made)
+
+Chose option (a)-and-(b) hybrid from the blocker section above, but neither
+literally: instead of raising `MAX_SCRIPT_ELEMENT_SIZE` (520-byte consensus
+push limit) or redesigning P2XMSS as a witness program, the ~2500-byte
+XMSS-SHA2_10_256 signature is split into **5 chunks of exactly 500 bytes**
+(2500 = 5 × 500, divides evenly — no padding/remainder logic needed) pushed
+as separate scriptSig elements. Each chunk is comfortably under the 520-byte
+consensus limit, so **no consensus-level change was needed at all** — only
+a narrow, type-gated relay-policy exception (`MAX_STANDARD_SCRIPTSIG_SIZE_XMSS
+= 3000`, only applied to inputs spending a confirmed `TxoutType::P2XMSS`
+prevout; the original 1650-byte cap is explicitly re-enforced for every
+other input type).
+
+### All fixes required, in the order discovered (each was a separate,
+### independent blocker — fixing one only revealed the next)
+
+1. **`script/interpreter.cpp`** — `OP_XMSS_CHECKSIG`/`OP_XMSS_CHECKSIGVERIFY`
+   handler rewritten to pop `chunk1..chunk5 pubkey` (6 stack items instead
+   of 2), reassemble the signature by concatenating chunks in push order,
+   and validate the reassembled length is exactly 2500 bytes before calling
+   `CheckXMSSSignature`.
+
+2. **`policy/policy.h` / `policy/policy.cpp`** — `IsStandardTx()`'s
+   type-blind `MAX_STANDARD_SCRIPTSIG_SIZE` check raised to
+   `MAX_STANDARD_SCRIPTSIG_SIZE_XMSS` (necessarily coarse, since that
+   function has no `CCoinsViewCache` to check prevout type); `AreInputsStandard()`
+   (which does have prevout access) re-enforces the original tight 1650-byte
+   cap for every input *except* confirmed P2XMSS spends.
+
+3. **`script/sign.cpp`**, two separate bugs in `SignStep()`:
+   - The XMSS-detection block's guard condition only checked
+     `whichTypeRet == NONSTANDARD || PUBKEY || PUBKEYHASH`, but `Solver()`
+     already classifies P2XMSS as its own distinct `TxoutType::P2XMSS` (not
+     `NONSTANDARD`) — so the guard never matched, the entire XMSS signing
+     block was unreachable, and execution fell through to the generic
+     `switch (whichTypeRet)`'s unhandled-default `assert(false)`, crashing
+     `bitcoind` with `SIGABRT` on every real signing attempt. Fixed by
+     adding `|| whichTypeRet == TxoutType::P2XMSS` to the guard.
+   - Once reachable, the code pushed `<sig><pubkey>` (2 items) into the
+     scriptSig — but for bare P2XMSS the pubkey is already embedded in
+     scriptPubKey and must NOT be pushed again (it produces an extra stray
+     stack item and corrupts the sig/pubkey positions `OP_XMSS_CHECKSIG`
+     reads). Fixed to push only the 5 signature chunks.
+
+4. **`wallet/rpc/xmss.cpp`** — UTXO discovery used
+   `AvailableCoinsListUnspent()`, which filters through `IsMine()`. Descriptor
+   wallets have no working `IsMine()` path for P2XMSS (the `LegacyScriptPubKeyMan`
+   bridge documented as "inert" in the blocker section above), so it never
+   found the funds. Replaced with a manual scan over `pwallet->mapWallet`,
+   exactly as already designed in the Design Decision Record below the
+   original blocker writeup.
+
+5. **`wallet/spend.cpp`**, two separate fee/size-estimation functions that
+   both depend on `InferDescriptor()` (no XMSS support, same root cause as
+   `IsMine()` above — XMSS has no `CPubKey`-based descriptor representation):
+   `CalculateMaximumSignedInputSize()` and `GetSignedTxinWeight()` both
+   special-cased to return the deterministic XMSS input size/weight directly
+   instead of going through descriptor inference.
+
+6. **`wallet/wallet.cpp`** — `CWallet::SignTransaction()` looped over all
+   `ScriptPubKeyMan`s (none know about XMSS) then fell through to a comment
+   promising a `SignTransactionXMSS()` fallback that **was never actually
+   called** (dead code, zero call sites, confirmed via grep). That dead
+   function also independently had both of the `sign.cpp` bugs from #3
+   above (un-chunked single push + redundant pubkey push) — if it had been
+   wired up as-is it would have produced consensus-invalid transactions.
+   Fixed by calling the corrected generic `::SignTransaction()` free
+   function (the one fixed in #3) with `m_xmss_signer.get()` as the
+   `SigningProvider`, instead of the broken dead function.
+
+### Verified end-to-end
+
+`sendfromxmssaddress` from a manually-funded P2XMSS UTXO (regtest) produced
+a transaction with a 2515-byte scriptSig (5 × (3-byte OP_PUSHDATA2 + 500
+bytes)), confirmed via `getmempoolentry` that the *node's actual mempool*
+accepted it (full consensus + policy validation passed), and confirmed
+on-chain after mining one block.
+
+### Known gaps, explicitly NOT fixed this session — next session's starting points
+
+1. **Generic funding bug**: `sendtoaddress` to an XMSS address (decoded via
+   the generic `DecodeDestination()`/`GetScriptForDestination()` path, not
+   the XMSS-aware logic inside `sendfromxmssaddress` itself) produces a
+   scriptPubKey with an all-zero 64-byte pubkey placeholder — the address
+   format only encodes a 20-byte hash, and the generic path has no way to
+   recover the real pubkey from just that hash. The resulting output is
+   provably unspendable. Likely needs the existing-but-unused
+   `GetXMSSHashScriptForPubkey()` (P2XMSSHASH, hash-committed form) wired
+   into `GetScriptForDestination()` for this case instead of the bare
+   pubkey form. Worked around this session via a hand-built raw transaction
+   (`build_p2xmss_tx.py`) to isolate-test the spending-side fix.
+2. **Swept one-time-address key retirement**: the Design Decision Record's
+   "each XMSS address spent exactly once, key retired after" is still
+   unimplemented — nothing currently prevents signing with the same key
+   twice.
+3. **XMSS state reload-on-`loadwallet` flakiness**: observed `ismine: false`
+   for a known-good XMSS key immediately after a clean `bitcoind` restart +
+   `loadwallet`, despite `CWallet::Create()`'s `LoadState()` call being
+   correctly wired into that exact code path. Root cause not yet found —
+   suspect either a `WriteXmssState`/`ReadXmssState` DB-key mismatch or the
+   state being silently overwritten empty by some other `PersistXMSSState()`
+   call. Not blocking (this session's funding/spending used a freshly
+   generated key each time to route around it), but needs investigation
+   before this is safe for any real, persistent-across-restarts use.
+4. **`CWallet::SignTransactionXMSS()` is now confirmed 100% dead code** —
+   zero call sites anywhere in the codebase. Safe to delete entirely in a
+   cleanup pass; keeping it around risks a future contributor wiring it
+   back in by mistake (as happened mid-session here) and reintroducing the
+   un-chunked/redundant-pubkey bugs it contains.
+5. Compiler warnings `enumeration value 'P2XMSS' not handled in switch`
+   (multiple sites: `rpc/rawtransaction.cpp`, `script/sign.cpp`'s main
+   switch) and `SigningProvider::GetXMSSPubKey/HaveXMSSKey was hidden`
+   (virtual function shadowing) are pre-existing, harmless for current
+   functionality, but worth a cleanup pass.
+
+## ✅ RESOLVED — XMSS Wallet Spending (sweep working end-to-end) (20/Jun/2026)
+
+**Status: `sendfromxmssaddress` now produces a transaction that passes full
+consensus validation, is accepted to mempool, and confirms on-chain.**
+**This resolves the blocker documented in the section above.**
+
+### Root cause (the size-limit decision, finally made)
+
+Chose option (a)-and-(b) hybrid from the blocker section above, but neither
+literally: instead of raising `MAX_SCRIPT_ELEMENT_SIZE` (520-byte consensus
+push limit) or redesigning P2XMSS as a witness program, the ~2500-byte
+XMSS-SHA2_10_256 signature is split into **5 chunks of exactly 500 bytes**
+(2500 = 5 × 500, divides evenly — no padding/remainder logic needed) pushed
+as separate scriptSig elements. Each chunk is comfortably under the 520-byte
+consensus limit, so **no consensus-level change was needed at all** — only
+a narrow, type-gated relay-policy exception (`MAX_STANDARD_SCRIPTSIG_SIZE_XMSS
+= 3000`, only applied to inputs spending a confirmed `TxoutType::P2XMSS`
+prevout; the original 1650-byte cap is explicitly re-enforced for every
+other input type).
+
+### All fixes required, in the order discovered (each was a separate,
+### independent blocker — fixing one only revealed the next)
+
+1. **`script/interpreter.cpp`** — `OP_XMSS_CHECKSIG`/`OP_XMSS_CHECKSIGVERIFY`
+   handler rewritten to pop `chunk1..chunk5 pubkey` (6 stack items instead
+   of 2), reassemble the signature by concatenating chunks in push order,
+   and validate the reassembled length is exactly 2500 bytes before calling
+   `CheckXMSSSignature`.
+
+2. **`policy/policy.h` / `policy/policy.cpp`** — `IsStandardTx()`'s
+   type-blind `MAX_STANDARD_SCRIPTSIG_SIZE` check raised to
+   `MAX_STANDARD_SCRIPTSIG_SIZE_XMSS` (necessarily coarse, since that
+   function has no `CCoinsViewCache` to check prevout type); `AreInputsStandard()`
+   (which does have prevout access) re-enforces the original tight 1650-byte
+   cap for every input *except* confirmed P2XMSS spends.
+
+3. **`script/sign.cpp`**, two separate bugs in `SignStep()`:
+   - The XMSS-detection block's guard condition only checked
+     `whichTypeRet == NONSTANDARD || PUBKEY || PUBKEYHASH`, but `Solver()`
+     already classifies P2XMSS as its own distinct `TxoutType::P2XMSS` (not
+     `NONSTANDARD`) — so the guard never matched, the entire XMSS signing
+     block was unreachable, and execution fell through to the generic
+     `switch (whichTypeRet)`'s unhandled-default `assert(false)`, crashing
+     `bitcoind` with `SIGABRT` on every real signing attempt. Fixed by
+     adding `|| whichTypeRet == TxoutType::P2XMSS` to the guard.
+   - Once reachable, the code pushed `<sig><pubkey>` (2 items) into the
+     scriptSig — but for bare P2XMSS the pubkey is already embedded in
+     scriptPubKey and must NOT be pushed again (it produces an extra stray
+     stack item and corrupts the sig/pubkey positions `OP_XMSS_CHECKSIG`
+     reads). Fixed to push only the 5 signature chunks.
+
+4. **`wallet/rpc/xmss.cpp`** — UTXO discovery used
+   `AvailableCoinsListUnspent()`, which filters through `IsMine()`. Descriptor
+   wallets have no working `IsMine()` path for P2XMSS (the `LegacyScriptPubKeyMan`
+   bridge documented as "inert" in the blocker section above), so it never
+   found the funds. Replaced with a manual scan over `pwallet->mapWallet`,
+   exactly as already designed in the Design Decision Record below the
+   original blocker writeup.
+
+5. **`wallet/spend.cpp`**, two separate fee/size-estimation functions that
+   both depend on `InferDescriptor()` (no XMSS support, same root cause as
+   `IsMine()` above — XMSS has no `CPubKey`-based descriptor representation):
+   `CalculateMaximumSignedInputSize()` and `GetSignedTxinWeight()` both
+   special-cased to return the deterministic XMSS input size/weight directly
+   instead of going through descriptor inference.
+
+6. **`wallet/wallet.cpp`** — `CWallet::SignTransaction()` looped over all
+   `ScriptPubKeyMan`s (none know about XMSS) then fell through to a comment
+   promising a `SignTransactionXMSS()` fallback that **was never actually
+   called** (dead code, zero call sites, confirmed via grep). That dead
+   function also independently had both of the `sign.cpp` bugs from #3
+   above (un-chunked single push + redundant pubkey push) — if it had been
+   wired up as-is it would have produced consensus-invalid transactions.
+   Fixed by calling the corrected generic `::SignTransaction()` free
+   function (the one fixed in #3) with `m_xmss_signer.get()` as the
+   `SigningProvider`, instead of the broken dead function.
+
+### Verified end-to-end
+
+`sendfromxmssaddress` from a manually-funded P2XMSS UTXO (regtest) produced
+a transaction with a 2515-byte scriptSig (5 × (3-byte OP_PUSHDATA2 + 500
+bytes)), confirmed via `getmempoolentry` that the *node's actual mempool*
+accepted it (full consensus + policy validation passed), and confirmed
+on-chain after mining one block.
+
+### Known gaps, explicitly NOT fixed this session — next session's starting points
+
+1. **Generic funding bug**: `sendtoaddress` to an XMSS address (decoded via
+   the generic `DecodeDestination()`/`GetScriptForDestination()` path, not
+   the XMSS-aware logic inside `sendfromxmssaddress` itself) produces a
+   scriptPubKey with an all-zero 64-byte pubkey placeholder — the address
+   format only encodes a 20-byte hash, and the generic path has no way to
+   recover the real pubkey from just that hash. The resulting output is
+   provably unspendable. Likely needs the existing-but-unused
+   `GetXMSSHashScriptForPubkey()` (P2XMSSHASH, hash-committed form) wired
+   into `GetScriptForDestination()` for this case instead of the bare
+   pubkey form. Worked around this session via a hand-built raw transaction
+   (`build_p2xmss_tx.py`) to isolate-test the spending-side fix.
+2. **Swept one-time-address key retirement**: the Design Decision Record's
+   "each XMSS address spent exactly once, key retired after" is still
+   unimplemented — nothing currently prevents signing with the same key
+   twice.
+3. **XMSS state reload-on-`loadwallet` flakiness**: observed `ismine: false`
+   for a known-good XMSS key immediately after a clean `bitcoind` restart +
+   `loadwallet`, despite `CWallet::Create()`'s `LoadState()` call being
+   correctly wired into that exact code path. Root cause not yet found —
+   suspect either a `WriteXmssState`/`ReadXmssState` DB-key mismatch or the
+   state being silently overwritten empty by some other `PersistXMSSState()`
+   call. Not blocking (this session's funding/spending used a freshly
+   generated key each time to route around it), but needs investigation
+   before this is safe for any real, persistent-across-restarts use.
+4. **`CWallet::SignTransactionXMSS()` is now confirmed 100% dead code** —
+   zero call sites anywhere in the codebase. Safe to delete entirely in a
+   cleanup pass; keeping it around risks a future contributor wiring it
+   back in by mistake (as happened mid-session here) and reintroducing the
+   un-chunked/redundant-pubkey bugs it contains.
+5. Compiler warnings `enumeration value 'P2XMSS' not handled in switch`
+   (multiple sites: `rpc/rawtransaction.cpp`, `script/sign.cpp`'s main
+   switch) and `SigningProvider::GetXMSSPubKey/HaveXMSSKey was hidden`
+   (virtual function shadowing) are pre-existing, harmless for current
+   functionality, but worth a cleanup pass.

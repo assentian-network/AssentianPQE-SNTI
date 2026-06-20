@@ -473,16 +473,27 @@ RPCHelpMan sendfromxmssaddress()
         // UTXO whose scriptPubKey is a P2XMSS output matching this exact
         // address's pubkey hash, and disallow pulling in unrelated inputs.
         {
+            // QNT FIX (per Design Decision Record): AvailableCoinsListUnspent()
+            // filters through IsMine(), which does not recognize P2XMSS outputs
+            // for descriptor wallets (the LegacyScriptPubKeyMan bridge is inert
+            // here -- see DEVDOCS.md). Bypass it with a manual mapWallet scan,
+            // the same approach getxmssaddressinfo's separate ismine check uses.
             bool found_input = false;
-            auto avail = AvailableCoinsListUnspent(*pwallet);
-            for (const auto& out : avail.All()) {
-                std::vector<std::vector<unsigned char>> solutions;
-                TxoutType type = Solver(out.txout.scriptPubKey, solutions);
-                if (type == TxoutType::P2XMSS && solutions.size() == 1 && solutions[0].size() == 64) {
-                    uint160 this_hash = XMSSAddr::Hash(solutions[0]);
-                    if (this_hash == from_hash) {
-                        coin_control.Select(out.outpoint);
-                        found_input = true;
+            for (const auto& [txid, wtx] : pwallet->mapWallet) {
+                if (pwallet->GetTxDepthInMainChain(wtx) < 1) continue; // require >=1 confirmation
+                const CTransactionRef& wtx_tx = wtx.tx;
+                for (unsigned int n = 0; n < wtx_tx->vout.size(); n++) {
+                    COutPoint outpoint(wtx.GetHash(), n); // QNT FIX: wtx.GetHash() returns properly-typed Txid; raw map key is uint256
+                    if (pwallet->IsSpent(outpoint)) continue;
+                    const CTxOut& txout = wtx_tx->vout[n];
+                    std::vector<std::vector<unsigned char>> solutions;
+                    TxoutType type = Solver(txout.scriptPubKey, solutions);
+                    if (type == TxoutType::P2XMSS && solutions.size() == 1 && solutions[0].size() == 64) {
+                        uint160 this_hash = XMSSAddr::Hash(solutions[0]);
+                        if (this_hash == from_hash) {
+                            coin_control.Select(outpoint);
+                            found_input = true;
+                        }
                     }
                 }
             }

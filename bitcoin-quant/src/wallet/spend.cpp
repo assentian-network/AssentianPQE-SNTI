@@ -80,6 +80,30 @@ static std::optional<int64_t> MaxInputWeight(const Descriptor& desc, const std::
 
 int CalculateMaximumSignedInputSize(const CTxOut& txout, const COutPoint outpoint, const SigningProvider* provider, bool can_grind_r, const CCoinControl* coin_control)
 {
+    // QNT: P2XMSS has no Descriptor representation (InferDescriptor() has no
+    // XMSS support -- same CPubKey-based incompatibility documented in
+    // DEVDOCS.md), so the generic path below always returns -1 for it,
+    // regardless of whether a SigningProvider was found. Checked BEFORE the
+    // `!provider` bailout since the wallet's descriptor ScriptPubKeyMan chain
+    // typically won't produce a provider for P2XMSS either.
+    // Our XMSS chunked scriptSig size is fully deterministic given the fixed
+    // chunking scheme in script/interpreter.cpp and script/sign.cpp (5 chunks
+    // of 500 bytes each via OP_PUSHDATA2), so hardcode it here instead.
+    {
+        std::vector<std::vector<unsigned char>> solutions;
+        if (Solver(txout.scriptPubKey, solutions) == TxoutType::P2XMSS) {
+            static constexpr int64_t XMSS_SIG_NUM_CHUNKS = 5;
+            static constexpr int64_t XMSS_SIG_CHUNK_SIZE = 500;
+            static constexpr int64_t XMSS_PUSHDATA2_OVERHEAD = 3; // opcode(1) + len(2)
+            static constexpr int64_t XMSS_SCRIPTSIG_BYTES =
+                XMSS_SIG_NUM_CHUNKS * (XMSS_PUSHDATA2_OVERHEAD + XMSS_SIG_CHUNK_SIZE); // 2515
+            // Legacy (non-witness) input: prevout(32+4) + sequence(4) +
+            // scriptSig CompactSize prefix(3, since 2515 > 252) + scriptSig bytes.
+            static constexpr int64_t XMSS_INPUT_VBYTES = 32 + 4 + 4 + 3 + XMSS_SCRIPTSIG_BYTES;
+            return static_cast<int>(XMSS_INPUT_VBYTES);
+        }
+    }
+
     if (!provider) return -1;
 
     if (const auto desc = InferDescriptor(txout.scriptPubKey, *provider)) {
@@ -120,6 +144,27 @@ static std::optional<int64_t> GetSignedTxinWeight(const CWallet* wallet, const C
     std::optional<int64_t> weight;
     if (coin_control && (weight = coin_control->GetInputWeight(txin.prevout))) {
         return weight.value();
+    }
+
+    // QNT: P2XMSS has no Descriptor representation (GetDescriptor() has no XMSS
+    // support, same gap as CalculateMaximumSignedInputSize() above), so the
+    // generic path below always returns nullopt for it. Hardcode the weight
+    // using the same deterministic XMSS chunked scriptSig size.
+    {
+        std::vector<std::vector<unsigned char>> solutions;
+        if (Solver(txo.scriptPubKey, solutions) == TxoutType::P2XMSS) {
+            static constexpr int64_t XMSS_SIG_NUM_CHUNKS = 5;
+            static constexpr int64_t XMSS_SIG_CHUNK_SIZE = 500;
+            static constexpr int64_t XMSS_PUSHDATA2_OVERHEAD = 3; // opcode(1) + len(2)
+            static constexpr int64_t XMSS_SCRIPTSIG_BYTES =
+                XMSS_SIG_NUM_CHUNKS * (XMSS_PUSHDATA2_OVERHEAD + XMSS_SIG_CHUNK_SIZE); // 2515
+            static constexpr int64_t XMSS_NONWITNESS_BYTES = 32 + 4 + 4 + 3 + XMSS_SCRIPTSIG_BYTES;
+            int64_t result = XMSS_NONWITNESS_BYTES * WITNESS_SCALE_FACTOR;
+            // Every input needs a witness-stack-count byte if ANY input in the
+            // tx is segwit, even non-segwit ones like this P2XMSS input.
+            if (tx_is_segwit) result += 1;
+            return result;
+        }
     }
 
     // Otherwise, use the maximum satisfaction size provided by the descriptor.

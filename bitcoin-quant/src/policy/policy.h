@@ -41,6 +41,11 @@ static constexpr bool DEFAULT_PERMIT_BAREMULTISIG{true};
 static constexpr unsigned int MAX_STANDARD_P2WSH_STACK_ITEMS{100};
 /** The maximum size in bytes of each witness stack item in a standard P2WSH script */
 static constexpr unsigned int MAX_STANDARD_P2WSH_STACK_ITEM_SIZE{80};
+// QNT: relay-policy scriptSig size cap for inputs spending a P2XMSS output.
+// 5 chunks * (3-byte OP_PUSHDATA2 overhead + 500-byte data) = 2515 bytes,
+// rounded up with margin. Only applies to P2XMSS-spending inputs; see the
+// type-gated check in AreInputsStandard() in policy.cpp.
+static constexpr unsigned int MAX_STANDARD_SCRIPTSIG_SIZE_XMSS{3000};
 /** The maximum size in bytes of each witness stack item in a standard BIP 342 script (Taproot, leaf version 0xc0) */
 static constexpr unsigned int MAX_STANDARD_TAPSCRIPT_STACK_ITEM_SIZE{80};
 /** The maximum size in bytes of a standard witnessScript */
