@@ -36,7 +36,7 @@ bitcoind    <-- QNT node (Bitcoin Core-based)
 ## Installation
 
 ```bash
-cd /root/quant/bitcoin-quant/explorer
+cd /root/Assentian-PQE/SNTI/explorer
 
 # Create a virtual environment (recommended)
 python3 -m venv venv
