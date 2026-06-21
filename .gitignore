@@ -1,54 +1,153 @@
-# Compiled binaries
-*.o
-*.a
-*.so
-*.out
-a.out
+*.tar.gz
+
+*.exe
+*.pdb
+src/bitcoin
+src/bitcoind
+src/bitcoin-cli
+src/bitcoin-gui
+src/bitcoin-node
+src/bitcoin-tx
+src/bitcoin-util
+src/bitcoin-chainstate
+src/bitcoin-wallet
+src/test/fuzz/fuzz
+src/test/test_bitcoin
+src/qt/test/test_bitcoin-qt
+
+# autoreconf
+Makefile.in
+aclocal.m4
+autom4te.cache/
+build-aux/config.guess
+build-aux/config.sub
+build-aux/depcomp
+build-aux/install-sh
+build-aux/ltmain.sh
+build-aux/m4/libtool.m4
+build-aux/m4/lt~obsolete.m4
+build-aux/m4/ltoptions.m4
+build-aux/m4/ltsugar.m4
+build-aux/m4/ltversion.m4
+build-aux/missing
+build-aux/compile
+build-aux/test-driver
+config.cache
 config.log
 config.status
-config.cache
+configure
 libtool
-autom4te.cache/
-__pycache__/
+src/config/bitcoin-config.h
+src/config/bitcoin-config.h.in
+src/config/stamp-h1
+src/obj
+share/setup.nsi
+share/qt/Info.plist
+
+src/qt/*.moc
+src/qt/moc_*.cpp
+src/qt/forms/ui_*.h
+
+src/qt/test/moc*.cpp
+
+src/qt/bitcoin-qt.config
+src/qt/bitcoin-qt.creator
+src/qt/bitcoin-qt.creator.user
+src/qt/bitcoin-qt.files
+src/qt/bitcoin-qt.includes
+
+.deps
+.dirstamp
+.libs
+.*.swp
+*~
+*.bak
+*.rej
+*.orig
 *.pyc
-*.pyo
+*.o
+*.o-*
+*.a
+*.pb.cc
+*.pb.h
+*.dat
 
-# Build artifacts
-*.la
+*.log
+*.trs
+*.zip
+
+*.json.h
+*.raw.h
+
+# Only ignore unexpected patches
+*.patch
+!contrib/guix/patches/*.patch
+!depends/patches/**/*.patch
+
+#libtool object files
 *.lo
-*.obj
-*.exe
-*.dll
-*.dylib
+*.la
 
-# Specific compiled files in project
-bitcoin-quant/a.out
-bitcoin-quant/config.log
-bitcoin-quant/config.status
-bitcoin-quant/configure~
-bitcoin-quant/libtool
-bitcoin-quant/autom4te.cache/
-bitcoin-quant/__pycache__/
-bitcoin-quant/quick_test
-bitcoin-quant/test_bridge
-bitcoin-quant/test_dtor
-bitcoin-quant/test_dtor2
-bitcoin-quant/test_final
-bitcoin-quant/test_minimal
-bitcoin-quant/test_sha256
-bitcoin-quant/test_xmss
-bitcoin-quant/test_xmss_core
-bitcoin-quant/test_xmss_tx
-bitcoin-quant/test_dtor3.cpp.gch
-bitcoin-quant/qnt_genesis_key
-bitcoin-quant/qnt_genesis_mine
-bitcoin-quant/qnt_miner
-bitcoin-quant/mine_testnet_genesis
-bitcoin-quant/*.o
+# Compilation and Qt preprocessor part
+*.qm
+Makefile
+!depends/Makefile
+src/qt/bitcoin-qt
+Bitcoin-Qt.app
 
-# Node modules
-node_modules/
+# Qt Creator
+Makefile.am.user
 
-# OS files
+# Unit-tests
+Makefile.test
+bitcoin-qt_test
+
+# Resources cpp
+qrc_*.cpp
+
+# Mac specific
 .DS_Store
-Thumbs.db
+build
+
+# Previous releases
+releases
+
+#lcov
+*.gcno
+*.gcda
+/*.info
+test_bitcoin.coverage/
+total.coverage/
+fuzz.coverage/
+coverage_percent.txt
+/cov_tool_wrapper.sh
+qa-assets/
+
+#build tests
+linux-coverage-build
+linux-build
+win32-build
+test/config.ini
+test/cache/*
+test/.mypy_cache/
+
+!src/leveldb*/Makefile
+
+/doc/doxygen/
+
+libbitcoinconsensus.pc
+contrib/devtools/split-debug.sh
+
+# Output from running db4 installation
+db4/
+
+# clang-check
+*.plist
+
+osx_volname
+dist/
+
+/guix-build-*
+
+/ci/scratch/
+*.bak-*
