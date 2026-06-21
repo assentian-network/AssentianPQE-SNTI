@@ -45,6 +45,26 @@ Blok `1254f0a0...` berhasil PROPAGASI ke node resmi VPS dan DITERIMA
 end-to-end lengkap: node eksternal bisa sync DAN aktif menambang DAN
 blok-nya diterima jaringan.
 
+## 1.7a MILESTONE: Rebrand to Assentian-PQE / SNTI [21 Jun]
+
+QNT bentrok dengan Quant Network (ticker mapan, ~$1 miliar market cap) -
+diputuskan rebrand. Nama baru: **Assentian-PQE**, ticker **SNTI**.
+Verifikasi manual dilakukan di CoinMarketCap/CoinGecko - bersih.
+
+Genesis BARU di-mine untuk testnet & regtest:
+- Pesan: "Assentian-PQE Genesis 21/Jun/2026 - NIST SP 800-208 XMSS - Post Quantum Era Begins"
+- Hash: `2d858f51fc4af7926bee59c82d06d58a3f260647145aaf6f89263bcb3643b66d`
+- Magic bytes baru per chain (SNTI/sTST/sREG)
+- Mainnet & signet genesis BELUM diupdate (beda nBits, perlu nonce search terpisah - open item)
+
+Genesis lama "QNT Genesis 15/Jun/2026..." (hash 743c2849...) sekarang
+jadi sejarah/arsip - masih ada di git history, tapi chain aktif testnet/
+regtest sekarang pakai identitas baru.
+
+**Belum dikerjakan**: swap binary di `qnt-node.service` (servis testnet
+LIVE) ke genesis baru - servis itu masih jalan dengan chain lama sampai
+langkah ini dilakukan.
+
 ## 1.7 MILESTONE: First independent external node [20 Jun]
 
 Node di-build dari nol di mesin TERPISAH (Windows + VirtualBox Ubuntu,
