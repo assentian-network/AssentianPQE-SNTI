@@ -579,8 +579,15 @@ RPCHelpMan importxmsskey()
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid XMSS secret key: empty");
         }
 
-        std::string label = request.params[2].get_str();
-        bool rescan = request.params[3].get_bool();
+        // QNT FIX (importxmsskey default-parameter bug, 21/Jun/2026): the
+        // original code called .get_str()/.get_bool() directly on
+        // request.params[2]/[3] without checking isNull() first, even
+        // though both are declared as optional with defaults above. Any
+        // call omitting label/rescan crashed with a generic "JSON value
+        // of type null is not of expected type X" instead of using the
+        // declared defaults.
+        std::string label = request.params[2].isNull() ? "" : request.params[2].get_str();
+        bool rescan = request.params[3].isNull() ? true : request.params[3].get_bool();
 
         // Add key to wallet's XMSS signer
         wallet::CXMSSSigner* signer = pwallet->GetXMSSSigner();
