@@ -32,7 +32,7 @@
 
 | Item | Status |
 |---|---|
-| Testnet node (`qnt-node.service`) | ✅ Running — **PERLU RESTART pakai binary terbaru** (fix CheckPoUW + encryption belum aktif di servis ini!) |
+| Testnet node (`assentian-node.service`) | ✅ Running — **PERLU RESTART pakai binary terbaru** (fix CheckPoUW + encryption belum aktif di servis ini!) |
 | Multi-node sync (lokal) | ✅ Verified |
 | **Node independen eksternal** (mesin terpisah, internet asli) | ✅ Verified — build + sync + MINING berhasil dari VM terpisah |
 | Firewall/port 19333 dapat diakses dari luar | ✅ Verified |
@@ -58,9 +58,9 @@
 
 | Item | Status |
 |---|---|
-| Ticker "QNT" | ❌ **BENTROK** dengan Quant Network (market cap ~$1 miliar) — harus diganti sebelum launch publik |
+| Ticker "SNTI" | ❌ **BENTROK** dengan Quant Network (market cap ~$1 miliar) — harus diganti sebelum launch publik |
 | Nama/ticker final | 🔄 Dalam evaluasi — kandidat "Assentian-PQE" / SNTI relatif bersih, perlu verifikasi manual final di CoinMarketCap/CoinGecko |
-| Genesis baru dengan nama final | ❌ Belum dibuat (genesis sekarang masih pakai pesan "QNT") |
+| Genesis baru dengan nama final | ❌ Belum dibuat (genesis sekarang masih pakai pesan "SNTI") |
 
 ## 6. Dokumentasi & Legal
 
@@ -77,7 +77,7 @@
 ## Urutan Prioritas Rekomendasi
 
 1. **Selesaikan keputusan nama/ticker final** — ini blocker buat semua yang lain (genesis, whitepaper, branding)
-2. **Restart `qnt-node.service` pakai binary terbaru** — fix hari ini (CheckPoUW, encryption) belum aktif di servis live
+2. **Restart `assentian-node.service` pakai binary terbaru** — fix hari ini (CheckPoUW, encryption) belum aktif di servis live
 3. **Mine genesis baru** dengan nama final, di difficulty yang lebih realistis
 4. **Audit keamanan eksternal** sebelum exposure publik lebih luas
 5. Baru pertimbangkan: testnet publik resmi, stratum aktif, DNS seed, marketing/komunitas

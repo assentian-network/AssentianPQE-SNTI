@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QNT Block Explorer</title>
+<title>Assentian-PQE Block Explorer</title>
 <style>
   :root {
     --bg: #0d1117;
@@ -252,7 +252,7 @@
 
 <header>
   <div class="container">
-    <a href="#" class="logo" onclick="showPage('home')">QNT<span>Explorer</span></a>
+    <a href="#" class="logo" onclick="showPage('home')">SNTI<span>Explorer</span></a>
     <div class="search-box">
       <input type="text" id="searchInput" placeholder="Search by block hash/height, txid, or address..." onkeydown="if(event.key==='Enter')doSearch()">
       <button onclick="doSearch()">Search</button>
@@ -354,10 +354,10 @@
 
       <div class="wp-section" id="wp-abstract">
         <h2><span class="num">1</span> Abstract</h2>
-        <p><strong>QNT (Quantum Resistant Network Token)</strong> is the world's first mineable blockchain secured by post-quantum cryptography. Built on a fork of Bitcoin Core v27, QNT replaces ECDSA with <strong>XMSS (Extended Merkle Signature Scheme)</strong> — a hash-based signature scheme standardized in NIST SP 800-208 that is resistant to attacks from both classical and quantum computers.</p>
-        <p>Unlike existing "quantum-resistant" projects that are either non-mineable, use unproven cryptographic assumptions, or are centralized, QNT delivers a fully decentralized, proof-of-work blockchain with mathematically proven quantum resistance — while maintaining the battle-tested architecture of Bitcoin.</p>
+        <p><strong>QNT (Quantum Resistant Network Token)</strong> is the world's first mineable blockchain secured by post-quantum cryptography. Built on a fork of Bitcoin Core v27, SNTI replaces ECDSA with <strong>XMSS (Extended Merkle Signature Scheme)</strong> — a hash-based signature scheme standardized in NIST SP 800-208 that is resistant to attacks from both classical and quantum computers.</p>
+        <p>Unlike existing "quantum-resistant" projects that are either non-mineable, use unproven cryptographic assumptions, or are centralized, SNTI delivers a fully decentralized, proof-of-work blockchain with mathematically proven quantum resistance — while maintaining the battle-tested architecture of Bitcoin.</p>
         <div class="wp-highlight green">
-          <strong>Key Innovation:</strong> QNT is the first blockchain to combine XMSS post-quantum signatures with SHA-256 proof-of-work mining, creating a truly quantum-resistant decentralized network that anyone can mine.
+          <strong>Key Innovation:</strong> SNTI is the first blockchain to combine XMSS post-quantum signatures with SHA-256 proof-of-work mining, creating a truly quantum-resistant decentralized network that anyone can mine.
         </div>
       </div>
 
@@ -412,9 +412,9 @@
         <table>
           <tr><th>Parameter</th><th>Value</th><th>Notes</th></tr>
           <tr><td>Block Time</td><td>60 seconds</td><td>Faster than Bitcoin (10 min)</td></tr>
-          <tr><td>Max Supply</td><td>21,000,000 QNT</td><td>Same as Bitcoin</td></tr>
+          <tr><td>Max Supply</td><td>21,000,000 SNTI</td><td>Same as Bitcoin</td></tr>
           <tr><td>Halving Interval</td><td>210,000 blocks (~146 days)</td><td>Same schedule as Bitcoin</td></tr>
-          <tr><td>Initial Block Reward</td><td>50 QNT</td><td></td></tr>
+          <tr><td>Initial Block Reward</td><td>50 SNTI</td><td></td></tr>
           <tr><td>Signature Scheme</td><td>XMSS-SHA2_10_256</td><td>Primary</td></tr>
           <tr><td>Hash Algorithm</td><td>SHA-256</td><td>PoW + XMSS internal</td></tr>
           <tr><td>Address Prefix</td><td>qnr (regtest), qnt (mainnet)</td><td></td></tr>
@@ -435,7 +435,7 @@
           <li><strong>BDS Algorithm:</strong> Efficiently updates the Merkle tree after each signature</li>
           <li><strong>Leaf Index:</strong> Tracks which WOTS+ key is used next (stateful)</li>
         </ol>
-        <h3>5.2 — QNT XMSS Parameters</h3>
+        <h3>5.2 — SNTI XMSS Parameters</h3>
         <table>
           <tr><th>Parameter</th><th>Value</th><th>Meaning</th></tr>
           <tr><td>h (tree height)</td><td>10</td><td>2^10 = 1024 signatures per key</td></tr>
@@ -446,7 +446,7 @@
           <tr><td>Private key</td><td>~1,300 bytes</td><td>Multiple WOTS+ seeds</td></tr>
         </table>
         <h3>5.3 — Stateful Key Management</h3>
-        <p>XMSS is a <strong>stateful</strong> signature scheme — each signature consumes one leaf of the Merkle tree, and the leaf index must be tracked and persisted. QNT handles this through:</p>
+        <p>XMSS is a <strong>stateful</strong> signature scheme — each signature consumes one leaf of the Merkle tree, and the leaf index must be tracked and persisted. SNTI handles this through:</p>
         <ul>
           <li>Automatic leaf index tracking in the wallet keystore</li>
           <li>Atomic state updates after each signature</li>
@@ -491,13 +491,13 @@
         <h3>7.1 — Supply Schedule</h3>
         <table>
           <tr><th>Era</th><th>Block Range</th><th>Reward</th><th>Total New</th><th>Cumulative</th></tr>
-          <tr><td>1</td><td>0 — 209,999</td><td>50.00 QNT</td><td>10,500,000</td><td>10,500,000</td></tr>
-          <tr><td>2</td><td>210,000 — 419,999</td><td>25.00 QNT</td><td>5,250,000</td><td>15,750,000</td></tr>
-          <tr><td>3</td><td>420,000 — 629,999</td><td>12.50 QNT</td><td>2,625,000</td><td>18,375,000</td></tr>
-          <tr><td>4</td><td>630,000 — 839,999</td><td>6.25 QNT</td><td>1,312,500</td><td>19,687,500</td></tr>
-          <tr><td>5</td><td>840,000 — 1,049,999</td><td>3.125 QNT</td><td>656,250</td><td>20,343,750</td></tr>
+          <tr><td>1</td><td>0 — 209,999</td><td>50.00 SNTI</td><td>10,500,000</td><td>10,500,000</td></tr>
+          <tr><td>2</td><td>210,000 — 419,999</td><td>25.00 SNTI</td><td>5,250,000</td><td>15,750,000</td></tr>
+          <tr><td>3</td><td>420,000 — 629,999</td><td>12.50 SNTI</td><td>2,625,000</td><td>18,375,000</td></tr>
+          <tr><td>4</td><td>630,000 — 839,999</td><td>6.25 SNTI</td><td>1,312,500</td><td>19,687,500</td></tr>
+          <tr><td>5</td><td>840,000 — 1,049,999</td><td>3.125 SNTI</td><td>656,250</td><td>20,343,750</td></tr>
           <tr><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td></tr>
-          <tr><td>Total</td><td>—</td><td>—</td><td><strong>21,000,000 QNT</strong></td><td>—</td></tr>
+          <tr><td>Total</td><td>—</td><td>—</td><td><strong>21,000,000 SNTI</strong></td><td>—</td></tr>
         </table>
         <h3>7.2 — Fee Market</h3>
         <p>Transaction fees follow Bitcoin's model: users bid for block space. As block rewards decrease over time, fees become the primary miner incentive. The 60-second block time provides faster confirmation while maintaining reasonable orphan rates.</p>
@@ -727,7 +727,7 @@ async function showBlock(id) {
         return `<tr>
           <td>${linkTxid(tx.txid)}</td>
           <td style="font-size:12px;max-width:250px;overflow:hidden;text-overflow:ellipsis;">${escHtml(addrs)}</td>
-          <td style="text-align:right;">${outTotal.toFixed(8)} QNT</td>
+          <td style="text-align:right;">${outTotal.toFixed(8)} SNTI</td>
           <td>${fmtSize(tx.size)}</td>
         </tr>`;
       }).join('');
@@ -814,7 +814,7 @@ async function showTx(txid) {
           <td>${escHtml(String(vout.n??'—'))}</td>
           <td>${addrs ? linkAddress(addrs) : escHtml(vout.scriptPubKey?.hex||'—').slice(0,40)}</td>
           <td><span class="badge badge-blue">${escHtml(vout.scriptPubKey?.type||'unknown')}</span></td>
-          <td style="text-align:right;" class="tx-amount">${(vout.value||0).toFixed(8)} QNT</td>
+          <td style="text-align:right;" class="tx-amount">${(vout.value||0).toFixed(8)} SNTI</td>
         </tr>`;
       }).join('');
     }
@@ -835,7 +835,7 @@ async function showTx(txid) {
             <div class="detail-label">Locktime</div><div class="detail-value">${escHtml(String(d.locktime??'—'))}</div>
             <div class="detail-label">Fee</div><div class="detail-value">${d.fee !== null && d.fee !== undefined ? d.fee.toFixed(8) + ' QNT' : '—'}</div>
             <div class="detail-label">Total Input</div><div class="detail-value">${d.total_in !== null && d.total_in !== undefined ? d.total_in.toFixed(8) + ' QNT' : '—'}</div>
-            <div class="detail-label">Total Output</div><div class="detail-value">${(d.total_out||0).toFixed(8)} QNT</div>
+            <div class="detail-label">Total Output</div><div class="detail-value">${(d.total_out||0).toFixed(8)} SNTI</div>
           </div>
         </div>
       </div>
@@ -886,7 +886,7 @@ async function showAddress(addr) {
           <td>${tx.blockhash ? linkHash(tx.blockhash, 'Block') : '<span class="badge badge-purple">Unconfirmed</span>'}</td>
           <td>${escHtml(String(tx.confirmations??0))}</td>
           <td>${tsToDate(tx.time||tx.blocktime)}</td>
-          <td style="text-align:right;" class="${netClass}">${netSign}${net.toFixed(8)} QNT</td>
+          <td style="text-align:right;" class="${netClass}">${netSign}${net.toFixed(8)} SNTI</td>
         </tr>`;
       }).join('');
     }
@@ -897,7 +897,7 @@ async function showAddress(addr) {
         <div class="card-body">
           <div class="detail-grid">
             <div class="detail-label">Address</div><div class="detail-value hash" style="word-break:break-all;">${escHtml(d.address)}</div>
-            <div class="detail-label">Balance</div><div class="detail-value" style="font-size:1.2em;font-weight:700;color:var(--accent2);">${(d.balance||0).toFixed(8)} QNT</div>
+            <div class="detail-label">Balance</div><div class="detail-value" style="font-size:1.2em;font-weight:700;color:var(--accent2);">${(d.balance||0).toFixed(8)} SNTI</div>
             <div class="detail-label">Transactions</div><div class="detail-value">${escHtml(String(d.tx_count||0))}</div>
             <div class="detail-label">UTXOs</div><div class="detail-value">${escHtml(String(d.utxo_count||0))}</div>
             <div class="detail-label">Mine</div><div class="detail-value">${d.ismine ? '<span class="badge badge-green">Yes</span>' : '<span>No</span>'}</div>

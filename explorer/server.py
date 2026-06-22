@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-QNT Block Explorer - Flask Backend
+Assentian-PQE Block Explorer - Flask Backend
 Proxies bitcoind RPC calls for the Quant post-quantum cryptocurrency block explorer.
 """
 
@@ -96,7 +96,7 @@ def project_status_html():
 
 @app.route("/api/commits")
 def api_commits():
-    """Return recent git commits from the QNT repo."""
+    """Return recent git commits from the SNTI repo."""
     import subprocess
     count = request.args.get("count", 10, type=int)
     count = min(max(count, 1), 50)
@@ -502,6 +502,6 @@ def stratum_stats():
 if __name__ == "__main__":
     port = int(os.environ.get("QNT_EXPLORER_PORT", 8081))
     debug = os.environ.get("QNT_EXPLORER_DEBUG", "0") == "1"
-    print(f"QNT Block Explorer starting on http://0.0.0.0:{port}")
+    print(f"Assentian-PQE Block Explorer starting on http://0.0.0.0:{port}")
     print(f"RPC target: {RPC_URL}")
     app.run(host="0.0.0.0", port=port, debug=debug)

@@ -1,4 +1,4 @@
-# QNT — Status Project Sebenarnya (Konsolidasi)
+# SNTI — Status Project Sebenarnya (Konsolidasi)
 **Disusun: 20 Juni 2026, sesi Claude.** Dokumen ini menggantikan referensi ke
 FIX_LOG.md (berantakan, duplikat fase, terakhir update 11 Juni — sebelum
 commit pertama project), dan mem-vereifikasi ulang AUDIT.md/SECURITY_AUDIT.md/
@@ -52,8 +52,8 @@ blok-nya diterima jaringan.
 port baru (RPC 39332, P2P 39333 - sengaja beda dari port lama biar nggak
 bentrok). Genesis terverifikasi: `2d858f51fc4af7926bee59c82d06d58a3f260647145aaf6f89263bcb3643b66d`.
 
-Repo lama (`bitcoin-quant`, folder `/root/quant/bitcoin-quant`) dan
-servis lama (`qnt-node.service`) dibiarkan MATI sebagai arsip - tidak
+Repo lama (`assentian-pqe`, folder `/root/quant/assentian-pqe`) dan
+servis lama (`assentian-node.service`) dibiarkan MATI sebagai arsip - tidak
 dihapus, tapi tidak lagi jadi acuan aktif.
 
 **Belum dikerjakan**: reconnect node eksternal (VM) ke testnet baru ini
@@ -71,11 +71,11 @@ Genesis BARU di-mine untuk testnet & regtest:
 - Magic bytes baru per chain (SNTI/sTST/sREG)
 - Mainnet & signet genesis BELUM diupdate (beda nBits, perlu nonce search terpisah - open item)
 
-Genesis lama "QNT Genesis 15/Jun/2026..." (hash 743c2849...) sekarang
+Genesis lama "Assentian-PQE Genesis 15/Jun/2026..." (hash 743c2849...) sekarang
 jadi sejarah/arsip - masih ada di git history, tapi chain aktif testnet/
 regtest sekarang pakai identitas baru.
 
-**Belum dikerjakan**: swap binary di `qnt-node.service` (servis testnet
+**Belum dikerjakan**: swap binary di `assentian-node.service` (servis testnet
 LIVE) ke genesis baru - servis itu masih jalan dengan chain lama sampai
 langkah ini dilakukan.
 
@@ -94,11 +94,11 @@ generate lama, nggak pernah re-run autogen.sh. Sekarang fixed & ke-verify
 build bersih dari nol di DUA mesin independen.
 
 Ini bukti pertama: orang lain (bukan tim/VPS asli) bisa build & jalanin
-node QNT dan ikut sinkron jaringan secara nyata.
+node SNTI dan ikut sinkron jaringan secara nyata.
 
 ## 1.6 Testnet legacy-block scan [20 Jun]
 
-Scan semua 207 blok testnet (`qnt-node.service`) buat pola corrupt yang
+Scan semua 207 blok testnet (`assentian-node.service`) buat pola corrupt yang
 sama kayak regtest. **Hasil: BERSIH.** Semua slot pubkey OP_RETURN
 persis 66 byte. Testnet aman dari bug ini — confirmed dimulai setelah
 fix BIP141 17 Jun.

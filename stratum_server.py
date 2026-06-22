@@ -2,7 +2,7 @@
 """
 QNT Stratum Mining Proxy
 ========================
-Lightweight stratum-to-RPC proxy for QNT (Bitcoin Core fork).
+Lightweight stratum-to-RPC proxy for SNTI (Bitcoin Core fork).
 Connects to bitcoind via JSON-RPC, serves miners via Stratum protocol.
 
 Supports:
@@ -455,7 +455,7 @@ def main():
     args = parser.parse_args()
 
     log.info("=" * 60)
-    log.info("  QNT Stratum Mining Proxy")
+    log.info("  SNTI Stratum Mining Proxy")
     log.info("  Post-Quantum Blockchain - Multi-Miner Support")
     log.info("=" * 60)
 

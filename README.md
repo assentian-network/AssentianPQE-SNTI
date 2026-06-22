@@ -1,7 +1,7 @@
-# QNT — Quantum Resistant Blockchain
+# SNTI — Quantum Resistant Blockchain
 
 > **The world's first mineable post-quantum cryptocurrency.**
-> ⚠️ Nama/ticker "QNT" sedang dalam evaluasi ulang (bentrok dengan Quant Network yang sudah ada) — lihat [`PROJECT_STATUS.md`](PROJECT_STATUS.md) untuk status terkini.
+> ⚠️ Nama/ticker "SNTI" sedang dalam evaluasi ulang (bentrok dengan Quant Network yang sudah ada) — lihat [`PROJECT_STATUS.md`](PROJECT_STATUS.md) untuk status terkini.
 
 QNT is a Bitcoin Core v27 fork with XMSS-SHA2_10_256 post-quantum signature scheme and SHA-256 Proof-of-Useful-Work (PoUW) mining.
 
@@ -14,7 +14,7 @@ QNT is a Bitcoin Core v27 fork with XMSS-SHA2_10_256 post-quantum signature sche
 | **Signature Scheme** | XMSS-SHA2_10_256 (NIST SP 800-208) |
 | **Proof of Work** | SHA-256 + XMSS block signing (PoUW v1) |
 | **Block Time** | 60 seconds |
-| **Max Supply** | 21,000,000 QNT |
+| **Max Supply** | 21,000,000 SNTI |
 | **Halving Interval** | 210,000 blocks (~2 years, scaled for 60s blocks) |
 | **P2P Port** | 9333 (mainnet), 19333 (testnet), 29333 (regtest, lokal) |
 | **Address Prefix** | q (mainnet/testnet) |
@@ -26,7 +26,7 @@ QNT is a Bitcoin Core v27 fork with XMSS-SHA2_10_256 post-quantum signature sche
 
 ```
 bash
-git clone https://github.com/asepganzu-svg/bitcoin-quant.git
+git clone https://github.com/asepganzu-svg/assentian-pqe.git
 # struktur sudah rata, tidak perlu cd ke subfolder
 
 ```
