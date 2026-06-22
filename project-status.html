@@ -57,7 +57,7 @@ code{background:rgba(0,212,170,.1);color:var(--accent);padding:1px 6px;border-ra
       <div class="item">⚠️ Stratum server — kodenya ada, tapi tidak sedang berjalan saat ini</div>
       <div class="item">✅ <code>CheckPoUW()</code> direview penuh — verifikasi XMSS real di consensus layer, desain solid (2 catatan minor non-bahaya buat auditor eksternal)</div>
       <div class="item">✅ Minimum sig length — sudah ter-cover (exact-match 2500 byte), lebih ketat dari rekomendasi audit</div>
-      <div class="item">❌ Sighash XMSS belum include <code>leaf_index</code> — risiko teoretis, diredam praktis oleh key retirement</div>
+      <div class="item">✅ <code>[21 Jun]</code> Sighash-v2 — cross-index recombination attack gap DITUTUP secara teknis. SHA256(sighash_v1 || leaf_index_BE), verified end-to-end.</div>
       <div class="item">✅ <code>[20 Jun]</code> XMSS state encryption at rest — terverifikasi end-to-end (locked→ismine:false, unlock→decrypt otomatis). MEDIUM audit finding ditutup</div>
     </div>
   </div>
