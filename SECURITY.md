@@ -1,20 +1,61 @@
-# Security Policy
+# Security Policy — Assentian-PQE (SNTI)
 
-## Supported Versions
+## Scope
 
-See our website for versions of Bitcoin Core that are currently supported with
-security updates: https://bitcoincore.org/en/lifecycle/#schedule
+This security policy covers the Assentian-PQE-specific code additions:
+- XMSS wallet integration (`src/wallet/xmss_*.h/cpp`)
+- PoUW consensus (`src/validation.cpp` — `CheckPoUW()`)
+- P2XMSS / P2XMSSHASH script types (`src/script/interpreter.cpp`, `src/script/sign.cpp`)
+- XMSS RPC commands (`src/wallet/rpc/xmss.cpp`)
+- XMSS bridge (`src/xmss_bridge.h/cpp`)
 
-## Reporting a Vulnerability
+Bitcoin Core upstream code (unmodified) is out of scope — report those
+to https://bitcoincore.org/en/contact/.
 
-To report security issues send an email to security@bitcoincore.org (not for support).
+## Severity Classification
 
-The following keys may be used to communicate sensitive information to developers:
+| Severity | Examples | Response Target |
+|---|---|---|
+| **Critical** | Fund theft, private key extraction, consensus split | 24 hours |
+| **High** | Denial of service, signature bypass, wallet corruption | 72 hours |
+| **Medium** | Edge case bugs, non-exploitable logic errors | 7 days |
+| **Low** | Best-practice improvements, cosmetic issues | 30 days |
 
-| Name | Fingerprint |
-|------|-------------|
-| Pieter Wuille | 133E AC17 9436 F14A 5CF1  B794 860F EB80 4E66 9320 |
-| Michael Ford | E777 299F C265 DD04 7930  70EB 944D 35F9 AC3D B76A |
-| Ava Chow | 1528 1230 0785 C964 44D3  334D 1756 5732 E08E 5E41 |
+## How to Report
 
-You can import a key by running the following command with that individual’s fingerprint: `gpg --keyserver hkps://keys.openpgp.org --recv-keys "<fingerprint>"` Ensure that you put quotes around fingerprints containing spaces.
+**DO NOT open a public GitHub issue for security vulnerabilities.**
+
+Report privately via email. Include:
+1. Description of the vulnerability
+2. Steps to reproduce
+3. Potential impact assessment
+4. (Optional) Suggested fix
+
+**Contact:** asepganzu@gmail.com *(replace with actual contact email)*
+
+PGP encryption available on request.
+
+## Bug Bounty
+
+We currently do not have a formal bug bounty program. For Critical and
+High severity findings that lead to a confirmed fix, we will acknowledge
+you publicly (with your permission) in the changelog and project credits.
+
+A formal bug bounty program via Immunefi is planned before mainnet launch.
+
+## Known Limitations (Not Bugs)
+
+The following are known design decisions, documented here to avoid
+duplicate reports:
+
+- **XMSS one-time address**: Each XMSS address is intentionally retired
+  after one use. This is by design, not a bug.
+- **Mainnet genesis not yet mined at production difficulty**: Testnet only.
+- **No external security audit yet**: Self-audit completed (see `AUDIT.md`).
+  External audit planned before mainnet.
+
+## Disclosure Policy
+
+We follow responsible disclosure: reporters are asked to give us reasonable
+time to fix and release a patch before public disclosure. We will coordinate
+timing with reporters and credit them in release notes.

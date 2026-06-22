@@ -1,29 +1,41 @@
-# Bitcoin-Quant (QNT) — Business Source License 1.1
+# Assentian-PQE (SNTI) — Business Source License 1.1
 
 Copyright (c) 2026 Asep Ganzu. All rights reserved.
 
 Licensor:         Asep Ganzu
-Licensed Work:    Bitcoin-Quant (QNT) — World's First PQ-PoW Cryptocurrency
+Licensed Work:    Assentian-PQE (SNTI) — World's First Mineable Post-Quantum Cryptocurrency
 Change Date:      June 15, 2030
 Change License:   GPL-2.0-or-later
 
 ## What you CAN do
-- Read, study, and audit the source code
-- Run nodes for research and education
-- Contribute improvements via pull request
-- Build non-commercial tools and experiments
 
-## What you CANNOT do (without written permission)
+- Read, study, and audit the source code
+- Run nodes for research, education, and personal use
+- Mine blocks on the Assentian-PQE testnet or mainnet
+- Contribute improvements via pull request
+- Build non-commercial tools, wallets, and experiments on top of this codebase
+
+## What you CANNOT do (without written permission from the Licensor)
+
 - Launch a competing PQ-PoW cryptocurrency using this codebase
 - Operate a commercial mining pool based on this code
-- List a forked coin on any exchange
-- Use QNT's XMSS-PoUW integration in a commercial product
+- List a forked coin derived from this codebase on any exchange
+- Use Assentian-PQE's XMSS-PoUW integration in a commercial product or service
 
-## Why BSL?
-QNT is the world's first Proof-of-Useful-Work (PQ-PoW) cryptocurrency,
-secured by XMSS post-quantum cryptography (NIST-approved).
-We open our code for transparency and security audits — not to be copied.
-On June 15, 2030, this license converts to GPL-2.0 for the world to use freely.
+## After the Change Date (June 15, 2030)
+
+This software will be re-licensed under GPL-2.0-or-later, at which point
+all restrictions above are lifted and the code becomes fully open source.
+
+## Foundation
+
+This codebase is built on Bitcoin Core v27 (MIT License) and the XMSS
+reference implementation (CC0/Public Domain). Those components retain
+their original licenses. The Assentian-PQE-specific additions (XMSS
+wallet integration, PoUW consensus, P2XMSS/P2XMSSHASH script types,
+and related infrastructure) are covered by this BSL-1.1 license.
 
 ## Contact
-For commercial licensing: github.com/asepganzu-svg
+
+For licensing inquiries: asepganzu@gmail.com (replace with actual email)
+GitHub: https://github.com/asepganzu-svg/AssentianPQE-SNTI
