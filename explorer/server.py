@@ -16,12 +16,12 @@ app = Flask(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
-RPC_USER = os.environ.get("QNT_RPC_USER", "user")
-RPC_PASSWORD = os.environ.get("QNT_RPC_PASSWORD", "password")
+RPC_USER = os.environ.get("SNTI_RPC_USER", "user")
+RPC_PASSWORD = os.environ.get("SNTI_RPC_PASSWORD", "password")
 RPC_HOST = os.environ.get("QNT_RPC_HOST", "127.0.0.1")
-RPC_PORT = os.environ.get("QNT_RPC_PORT", "29332")
+RPC_PORT = os.environ.get("SNTI_RPC_PORT", "39332")
 RPC_URL = os.environ.get(
-    "QNT_RPC_URL", f"http://{RPC_HOST}:{RPC_PORT}"
+    "SNTI_RPC_URL", f"http://{RPC_HOST}:{RPC_PORT}"
 )
 
 # ---------------------------------------------------------------------------
