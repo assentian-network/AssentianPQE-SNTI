@@ -31,7 +31,7 @@ Report privately via email. Include:
 3. Potential impact assessment
 4. (Optional) Suggested fix
 
-**Contact:** asepganzu@gmail.com *(replace with actual contact email)*
+**Contact:** assentianpqe@gmail.com *(replace with actual contact email)*
 
 PGP encryption available on request.
 
