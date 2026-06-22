@@ -1754,6 +1754,25 @@ bool GenericTransactionSignatureChecker<T>::CheckXMSSSignature(const std::vector
     const CAmount amount_check = (sigversion == SigVersion::BASE || sigversion == SigVersion::WITNESS_V0) ? amount : 0;
     uint256 sighash = SignatureHash(scriptCode, *txTo, nIn, SIGHASH_ALL, amount_check, sigversion, nullptr);
 
+    // QNT FIX (sighash-v2, 21/Jun/2026): include leaf_index in the data
+    // being signed to prevent cross-index recombination attacks.
+    // RFC 8391 XMSS signature format embeds the OTS index as the first
+    // 4 bytes of the signature -- extract it here so the verifier does
+    // not need wallet access (consensus layer must stay wallet-free).
+    // sighash_v2 = SHA256(sighash_v1 || leaf_index_4_bytes_BE)
+    if (sig.size() >= 4) {
+        uint32_t leaf_index_be = ((uint32_t)sig[0] << 24) |
+                                  ((uint32_t)sig[1] << 16) |
+                                  ((uint32_t)sig[2] << 8)  |
+                                  ((uint32_t)sig[3]);
+        std::vector<uint8_t> sighash_v2_preimage(sighash.begin(), sighash.end());
+        sighash_v2_preimage.push_back((leaf_index_be >> 24) & 0xFF);
+        sighash_v2_preimage.push_back((leaf_index_be >> 16) & 0xFF);
+        sighash_v2_preimage.push_back((leaf_index_be >> 8)  & 0xFF);
+        sighash_v2_preimage.push_back(leaf_index_be & 0xFF);
+        CSHA256().Write(sighash_v2_preimage.data(), sighash_v2_preimage.size()).Finalize(sighash.begin());
+    }
+
     std::vector<uint8_t> pubkey_vec(pubkey.begin(), pubkey.end());
     std::vector<uint8_t> sig_vec(sig.begin(), sig.end());
     std::vector<uint8_t> hash_vec(sighash.begin(), sighash.end());

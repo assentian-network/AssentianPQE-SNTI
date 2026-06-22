@@ -196,6 +196,14 @@ bool CXMSSSigner::SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubk
     return success;
 }
 
+uint32_t CXMSSSigner::GetXMSSLeafIndex(const std::vector<uint8_t>& pubkey) const
+{
+    LOCK(cs_xmss_signer);
+    auto it = xmss_keys.find(pubkey);
+    if (it == xmss_keys.end()) return 0;
+    return it->second.leaf_index;
+}
+
 bool CXMSSSigner::IsXMSSKeyRetired(const std::vector<uint8_t>& pubkey) const
 {
     LOCK(cs_xmss_signer);

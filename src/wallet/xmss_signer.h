@@ -108,6 +108,7 @@ public:
     bool SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubkey, std::vector<uint8_t>& sig) const override;
     bool HaveXMSSKey(const std::vector<uint8_t>& pubkey) const override;
     std::vector<uint8_t> GetXMSSPubKey(const CKeyID& address) const override;
+    uint32_t GetXMSSLeafIndex(const std::vector<uint8_t>& pubkey) const override;
 
     // QNT: State persistence — save/load all key states to/from a blob
     // Returns serialized state for all keys (QXMSS format from xmss_state.h)

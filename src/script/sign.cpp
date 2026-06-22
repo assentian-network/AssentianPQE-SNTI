@@ -170,6 +170,23 @@ static bool CreateXMSSSig(const BaseSignatureCreator& creator, SignatureData& si
         return false;
     }
 
+    // QNT FIX (sighash-v2, 21/Jun/2026): include leaf_index in sighash
+    // to prevent cross-index recombination. We sign a modified hash:
+    // sighash_v2 = SHA256(sighash_v1 || leaf_index_4_bytes_BE)
+    // The leaf_index is the CURRENT index before signing (same value
+    // that will be embedded as the first 4 bytes of the resulting XMSS
+    // signature per RFC 8391, allowing the verifier to reconstruct
+    // sighash_v2 without wallet access).
+    {
+        uint32_t leaf_idx = provider.GetXMSSLeafIndex(pubkey);
+        std::vector<uint8_t> preimage(sighash.begin(), sighash.end());
+        preimage.push_back((leaf_idx >> 24) & 0xFF);
+        preimage.push_back((leaf_idx >> 16) & 0xFF);
+        preimage.push_back((leaf_idx >> 8)  & 0xFF);
+        preimage.push_back(leaf_idx & 0xFF);
+        CSHA256().Write(preimage.data(), preimage.size()).Finalize(sighash.begin());
+    }
+
     // Sign via provider's XMSS capability
     if (provider.SignXMSS(sighash, pubkey, sig_out)) {
         sigdata.xmss_signatures[pubkey] = sig_out;
