@@ -54,8 +54,8 @@ DEFAULT_SHARES_PER_BLOCK = 5
 
 # Share difficulty target (adjust for CPU mining speed)
 # This is very easy - any CPU can find shares quickly
-SHARE_DIFFICULTY = 1
-SHARE_TARGET = 0x00007FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+SHARE_DIFFICULTY = 0.001  # Very low for Wave 1 CPU mining
+SHARE_TARGET = 0x0000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 
 BLOCK_TEMPLATE_INTERVAL = 30  # seconds
 STATS_INTERVAL = 60  # seconds
@@ -266,21 +266,23 @@ class StratumServer:
 
     def _check_share(self, nonce_hex, job_id):
         """
-        Validate share difficulty.
-        For Wave 1 (CPU testnet), we use a very easy target so CPU miners
-        can submit shares quickly. The actual PoW is done by generatetoaddress.
+        Validate share for Wave 1 CPU mining.
+        
+        Wave 1 approach: accept all shares with valid nonce format.
+        The actual PoW difficulty is enforced by bitcoind's generatetoaddress.
+        This allows cpuminer and other standard stratum miners to work
+        without implementing full block header construction.
+        
+        Wave 2 will implement proper share validation against real block header.
         """
         try:
+            # Validate nonce format (must be valid hex, 1-8 chars)
             nonce = int(nonce_hex, 16)
+            if nonce < 0 or nonce > 0xFFFFFFFF:
+                return False
+            return True  # Accept all valid-format shares in Wave 1
         except (ValueError, TypeError):
             return False
-
-        # Simple validation: double-SHA256 of nonce
-        # In a full implementation this would be double-SHA256 of block header
-        blob = struct.pack("<I", nonce)
-        h = hashlib.sha256(hashlib.sha256(blob).digest()).digest()
-        hash_int = int.from_bytes(h, "little")
-        return hash_int <= SHARE_TARGET
 
     async def _try_mine_block(self, writer, worker_id):
         """
@@ -330,7 +332,7 @@ class StratumServer:
         msg = {
             "id": None,
             "method": "mining.set_difficulty",
-            "params": [SHARE_DIFFICULTY],
+            "params": [0.001],  # Very low for Wave 1 - cpuminer will submit shares frequently
         }
         await self._send(writer, msg)
 
@@ -386,7 +388,13 @@ class StratumServer:
             if len(params) >= 3:
                 username = params[0]
                 job_id = params[1]
-                nonce_hex = params[2] if len(params) > 2 else "00000000"
+                # Stratum standard format: [username, job_id, extranonce2, ntime, nonce]
+                # cpuminer sends 5 params, nonce is params[4]
+                # Fallback to params[2] for simple clients
+                if len(params) >= 5:
+                    nonce_hex = params[4]  # standard stratum nonce position
+                else:
+                    nonce_hex = params[2] if len(params) > 2 else "00000000"
 
                 accepted = self._check_share(nonce_hex, job_id)
                 self.total_shares += 1
@@ -435,7 +443,7 @@ class StratumServer:
 
         try:
             while True:
-                line = await asyncio.wait_for(reader.readline(), timeout=300)
+                line = await asyncio.wait_for(reader.readline(), timeout=600)
                 if not line:
                     break
                 line = line.strip()
