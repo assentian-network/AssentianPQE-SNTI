@@ -649,19 +649,36 @@ function doSearch() {
 // ==================== STATUS ====================
 async function loadStatus() {
   try {
-    const r = await fetch(`${API}/status`);
-    const d = await r.json();
+    const [rNode, rMining, rStratum] = await Promise.all([
+      fetch(`${API}/status`).then(r => r.json()).catch(() => ({})),
+      fetch(`${API}/mining/status`).then(r => r.json()).catch(() => ({})),
+      fetch(`${API}/stratum/stats`).then(r => r.json()).catch(() => ({})),
+    ]);
+    const d = rNode, m = rMining, s = rStratum;
     if (d.error) {
       document.getElementById('statsGrid').innerHTML = `<div class="stat-item"><div class="stat-label">Error</div><div class="stat-value" style="color:var(--accent3);font-size:12px;">${escHtml(d.error)}</div></div>`;
       return;
     }
+    const pouwBadge = m.pouw_enabled
+      ? `<span style="color:var(--green);font-size:11px;font-weight:700">✅ ACTIVE</span>`
+      : `<span style="color:var(--accent3);font-size:11px">INACTIVE</span>`;
+    const workerCount = s.connected_workers ?? '—';
+    const acceptedShares = s.accepted != null ? s.accepted.toLocaleString() : '—';
+    const blocksFound = s.blocks_found ?? m.blocks_mined ?? '—';
+    const avgBlockTime = m.avg_block_time != null ? m.avg_block_time.toFixed(1) + 's' : '—';
     document.getElementById('statsGrid').innerHTML = `
       <div class="stat-item"><div class="stat-label">Chain</div><div class="stat-value">${escHtml(d.chain||'—')}</div></div>
       <div class="stat-item"><div class="stat-label">Block Height</div><div class="stat-value">${escHtml(String(d.blocks??'—'))}</div></div>
       <div class="stat-item"><div class="stat-label">Difficulty</div><div class="stat-value">${fmtDifficulty(d.difficulty)}</div></div>
+      <div class="stat-item"><div class="stat-label">Network Hash/s</div><div class="stat-value">${fmtHashps(d.networkhashps)}</div></div>
       <div class="stat-item"><div class="stat-label">Connections</div><div class="stat-value">${escHtml(String(d.connections??'—'))}</div></div>
       <div class="stat-item"><div class="stat-label">Mempool</div><div class="stat-value">${escHtml(String(d.mempool_txs??0))} txs</div></div>
-      <div class="stat-item"><div class="stat-label">Version</div><div class="stat-value">${escHtml(String(d.version??'—'))}</div></div>
+      <div class="stat-item"><div class="stat-label">PoUW Status</div><div class="stat-value">${pouwBadge}</div></div>
+      <div class="stat-item"><div class="stat-label">Blocks Mined</div><div class="stat-value">${escHtml(String(blocksFound))}</div></div>
+      <div class="stat-item"><div class="stat-label">Avg Block Time</div><div class="stat-value">${avgBlockTime}</div></div>
+      <div class="stat-item"><div class="stat-label">Active Workers</div><div class="stat-value">${escHtml(String(workerCount))}</div></div>
+      <div class="stat-item"><div class="stat-label">Shares Accepted</div><div class="stat-value">${acceptedShares}</div></div>
+      <div class="stat-item"><div class="stat-label">Node Version</div><div class="stat-value">${escHtml(String(d.version??'—'))}</div></div>
     `;
   } catch(e) {
     document.getElementById('statsGrid').innerHTML = `<div class="stat-item"><div class="stat-label">Error</div><div class="stat-value" style="color:var(--accent3);font-size:12px;">${escHtml(e.message)}</div></div>`;
