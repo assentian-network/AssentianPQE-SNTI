@@ -2038,6 +2038,26 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
 
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
+// QNT Fix2: PoUW leaf index tracking helpers
+static const uint8_t DB_POUW_LEAF = 'L';
+
+static uint256 MakePoUWLeafKey(const std::vector<uint8_t>& pubkey64, uint32_t leaf_idx)
+{
+    uint8_t idx_be[4];
+    idx_be[0] = (leaf_idx >> 24) & 0xFF;
+    idx_be[1] = (leaf_idx >> 16) & 0xFF;
+    idx_be[2] = (leaf_idx >>  8) & 0xFF;
+    idx_be[3] =  leaf_idx        & 0xFF;
+    CHash256 hasher;
+    hasher.Write(pubkey64);
+    hasher.Write({idx_be, 4});
+    uint256 result;
+    hasher.Finalize(result);
+    return result;
+}
+
+
+
 DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view)
 {
     AssertLockHeld(::cs_main);
@@ -2052,6 +2072,33 @@ DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIn
     if (blockUndo.vtxundo.size() + 1 != block.vtx.size()) {
         error("DisconnectBlock(): block and undo data inconsistent");
         return DISCONNECT_FAILED;
+    }
+
+    // QNT Fix2: unmark PoUW leaf index on reorg
+    {
+        const Consensus::Params& cp = m_chainman.GetParams().GetConsensus();
+        if (cp.fPoUW) {
+            const CTransaction& cbTx = *block.vtx[0];
+            std::vector<uint8_t> cb_pk, cb_sig;
+            for (const auto& out : cbTx.vout) {
+                const CScript& s = out.scriptPubKey;
+                CScript::const_iterator pc = s.begin();
+                opcodetype opc; std::vector<uint8_t> d;
+                while (s.GetOp(pc, opc, d)) {
+                    if (opc == OP_RETURN) continue;
+                    if (d.size() == 64 && cb_pk.empty()) cb_pk = d;
+                    else if (d.size() > 64 && cb_sig.empty()) cb_sig = d;
+                }
+            }
+            if (cb_pk.size() == 64 && cb_sig.size() >= 4) {
+                uint32_t cb_leaf = ((uint32_t)cb_sig[0]<<24)|((uint32_t)cb_sig[1]<<16)|
+                                   ((uint32_t)cb_sig[2]<<8)|(uint32_t)cb_sig[3];
+                uint256 cb_key = MakePoUWLeafKey(cb_pk, cb_leaf);
+                m_chainman.m_blockman.m_block_tree_db->Erase(std::make_pair(DB_POUW_LEAF, cb_key));
+                LogPrint(BCLog::VALIDATION, "PoUW Fix2: unmarked leaf=%u reorg h=%d\n",
+                         cb_leaf, pindex->nHeight);
+            }
+        }
     }
 
     // Ignore blocks that contain transactions which are 'overwritten' by later transactions,
@@ -2508,6 +2555,30 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
 
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
+
+    // QNT Fix2: mark PoUW leaf index as used
+    if (!fJustCheck && m_chainman.GetParams().GetConsensus().fPoUW) {
+        const CTransaction& cbTx = *block.vtx[0];
+        std::vector<uint8_t> cb_pk, cb_sig;
+        for (const auto& out : cbTx.vout) {
+            const CScript& s = out.scriptPubKey;
+            CScript::const_iterator pc = s.begin();
+            opcodetype opc; std::vector<uint8_t> d;
+            while (s.GetOp(pc, opc, d)) {
+                if (opc == OP_RETURN) continue;
+                if (d.size() == 64 && cb_pk.empty()) cb_pk = d;
+                else if (d.size() > 64 && cb_sig.empty()) cb_sig = d;
+            }
+        }
+        if (cb_pk.size() == 64 && cb_sig.size() >= 4) {
+            uint32_t cb_leaf = ((uint32_t)cb_sig[0]<<24)|((uint32_t)cb_sig[1]<<16)|
+                               ((uint32_t)cb_sig[2]<<8)|(uint32_t)cb_sig[3];
+            uint256 cb_key = MakePoUWLeafKey(cb_pk, cb_leaf);
+            uint256 bh = block.GetHash();
+            m_chainman.m_blockman.m_block_tree_db->Write(std::make_pair(DB_POUW_LEAF, cb_key), bh);
+            LogPrint(BCLog::VALIDATION, "PoUW Fix2: marked leaf=%u block=%s\n", cb_leaf, bh.GetHex());
+        }
+    }
 
     const auto time_6{SteadyClock::now()};
     time_index += time_6 - time_5;
@@ -3746,8 +3817,10 @@ static bool CheckWitnessMalleation(const CBlock& block, bool expect_witness_comm
     return true;
 }
 
+
 // QNT: Forward declaration — PoUW XMSS signature verification
-static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, int nHeight = -1);
+// QNT Fix2: forward decl updated
+static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, const ChainstateManager& chainman, int nHeight = -1);
 
 bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW, bool fCheckMerkleRoot)
 {
@@ -3766,10 +3839,7 @@ bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensu
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-signet-blksig", "signet block signature validation failure");
     }
 
-    // QNT: PoUW — verify XMSS signature when PoW is being checked
-    if (fCheckPOW && !CheckPoUW(block, state, consensusParams)) {
-        return false;
-    }
+    // QNT: PoUW — verified in ContextualCheckBlock (has chainman access)
 
     // Check the merkle root.
     if (fCheckMerkleRoot && !CheckMerkleRoot(block, state)) {
@@ -3824,7 +3894,8 @@ bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensu
 //   - An OP_RETURN output with the 64-byte XMSS public key: OP_RETURN <0x40> <64-byte-pk>
 //   - The XMSS signature embedded in the coinbase scriptSig after the height + extra nonce
 // The signature signs the block header hash (which includes the merkle root).
-static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, int nHeight)
+// QNT Fix2: implementation updated
+static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, const ChainstateManager& chainman, int nHeight)
 {
     if (!consensusParams.fPoUW) return true;
 
@@ -3931,8 +4002,24 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
                              "PoUW: XMSS signature verification failed");
     }
 
-    LogPrint(BCLog::VALIDATION, "PoUW: block %s verified (pk=%s, sig_len=%d)\n",
-             block.GetHash().GetHex(), HexStr(xmss_pk).substr(0, 16), (int)xmss_sig.size());
+    // QNT Fix2: check leaf index not already used
+    if (xmss_sig.size() < 4) {
+        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-sig-too-short",
+                             "PoUW: XMSS signature too short to extract leaf index");
+    }
+    uint32_t leaf_idx = ((uint32_t)xmss_sig[0] << 24) |
+                        ((uint32_t)xmss_sig[1] << 16) |
+                        ((uint32_t)xmss_sig[2] <<  8) |
+                         (uint32_t)xmss_sig[3];
+    uint256 leaf_key = MakePoUWLeafKey(xmss_pk, leaf_idx);
+    uint256 existing_block;
+    if (chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaf_key), existing_block)) {
+        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-leaf-reuse",
+                             strprintf("PoUW: XMSS leaf index %u already used in block %s",
+                                       leaf_idx, existing_block.GetHex()));
+    }
+    LogPrint(BCLog::VALIDATION, "PoUW: block %s verified (pk=%s, leaf_idx=%u, sig_len=%d)\n",
+             block.GetHash().GetHex(), HexStr(xmss_pk).substr(0, 16), leaf_idx, (int)xmss_sig.size());
 
     return true;
 }
@@ -4143,7 +4230,8 @@ static bool ContextualCheckBlock(const CBlock& block, BlockValidationState& stat
     // (fCheckPOW=false), since the coinbase OP_RETURN/witness aren't filled
     // in until after grinding and XMSS-signing in GenerateBlock(). The real
     // enforcement happens when fCheckPOW=true, i.e. on the final submitted block.
-    if (fCheckPOW && !CheckPoUW(block, state, chainman.GetConsensus(), nHeight)) {
+    // QNT Fix2: call site 2 updated
+    if (fCheckPOW && !CheckPoUW(block, state, chainman.GetConsensus(), const_cast<ChainstateManager&>(chainman), nHeight)) {
         return false;
     }
 
