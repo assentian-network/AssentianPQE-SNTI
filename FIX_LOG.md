@@ -607,3 +607,49 @@ Jangan lupa 2FA di semua platform.
 ## LAST UPDATED: 2026-06-11
 ## CURRENT PHASE: PHASE 1 (XMSS Transaction Integration)
 ## NEXT ACTION: Create CXMSSSigner class, integrate into wallet signing flow
+
+---
+
+## SESSION: 23 Jun 2026 — Security Fixes & Infrastructure
+
+### XMSS Double-Use Prevention (Critical Security Fix)
+**Problem:** `SignXMSS()` updated `leaf_index` and `retired` flag in memory only.
+If node crashed between `Sign()` and `CommitTransaction()`, state would revert
+on restart → same leaf index could be used twice → private key reconstructible.
+
+**Fix:** Added `PersistXMSSState()` call immediately after successful `SignXMSS()`
+in `CWallet::SignTransaction()` — before tx broadcast, before `CommitTransaction()`.
+File: `src/wallet/wallet.cpp` line ~2189
+
+**Result:** Write-before-use pattern enforced. Crash between sign and commit
+no longer causes leaf index reuse.
+
+### Genesis Hash Unification (mainnet/testnet/regtest)
+**Problem:** `pszTimestamp` shortened (95→60 chars) to fix `bad-cb-length` error.
+This changed merkleRoot → changed genesis hash for ALL networks.
+Testnet chain data became incompatible with new binary.
+
+**Fix:** Recomputed correct genesis (nNonce=26, hash=00146ebb...) and applied
+to all 3 networks (mainnet, testnet, regtest) in `src/kernel/chainparams.cpp`.
+Old testnet chain data wiped, fresh genesis from new hash.
+
+**Genesis (all networks):**
+- nNonce: 26
+- nBits: 0x207fffff
+- hash: 00146ebb6e8240633c4aef06ca3afbc6c26047f9c3ae5ce1548332a8de149263
+- message: "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia"
+
+### Stratum Wave 2 (Direct Miner Payout)
+**Problem:** Wave 1 sent reward to pool address, not miner.
+**Fix:** `mining.authorize` username = miner SNTI address → `generatetoaddress(miner_addr)`
+**Result:** 4,450+ SNTI immature balance confirmed in miner wallet.
+
+### systemd Service Update
+Added `-walletcrosschain` flag to `assentian-node.service` to allow wallet
+reuse after genesis hash change.
+
+---
+## LAST UPDATED: 2026-06-23
+## CURRENT PHASE: PHASE 2 (Mainnet Ready)
+## COMPLETED: Genesis, PoUW, Stratum Wave 2, Security fixes, Whitepaper v1.0
+## NEXT ACTION: External audit, DNS seeds, exchange listings
