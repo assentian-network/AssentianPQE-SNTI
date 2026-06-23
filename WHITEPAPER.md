@@ -792,7 +792,7 @@ When a sufficiently powerful quantum computer arrives, every ECDSA blockchain fa
 ---
 ## 13. Risk Analysis
 
-### 12.1 Technical Risks
+### 13.1 Technical Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
@@ -802,7 +802,7 @@ When a sufficiently powerful quantum computer arrives, every ECDSA blockchain fa
 | XMSS superseded by better PQC | Low | Medium | Upgrade path via soft fork |
 | State management errors | Low | High | Atomic writes; backup/restore verified |
 
-### 12.2 Market Risks
+### 13.2 Market Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
@@ -811,7 +811,7 @@ When a sufficiently powerful quantum computer arrives, every ECDSA blockchain fa
 | Price volatility | High | Medium | Utility-driven demand |
 | Exchange listing delays | Medium | High | DEX-first strategy |
 
-### 12.3 Regulatory Risks
+### 13.3 Regulatory Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
@@ -820,7 +820,7 @@ When a sufficiently powerful quantum computer arrives, every ECDSA blockchain fa
 | PQC export controls | Very Low | Low | XMSS is currently unrestricted globally |
 | Exchange compliance | Medium | Medium | Legal review before listings |
 
-### 12.4 Competitive Analysis
+### 13.4 Competitive Analysis
 
 **Scenario A (35%): Bitcoin delays PQC migration**
 SNTI has clear runway to 2030+. Best case for network effect accumulation.
@@ -838,7 +838,7 @@ SNTI still operates as a sound-money, fixed-supply cryptocurrency with unique us
 
 ## 14. Team & Governance
 
-### 13.1 Core Team
+### 14.1 Core Team
 
 **Asep Mulya** — Founder & Lead Developer
 - Creator of Assentian-PQE (SNTI)
@@ -847,7 +847,7 @@ SNTI still operates as a sound-money, fixed-supply cryptocurrency with unique us
 - Sighash-v2 design and implementation
 - Contact: assentianpqe@gmail.com
 
-### 13.2 Open Source Contribution
+### 14.2 Open Source Contribution
 
 Assentian-PQE is built on the shoulders of giants:
 
@@ -857,7 +857,7 @@ Assentian-PQE is built on the shoulders of giants:
 - **Andreas Hülsing & Joost Rijneveld** — XMSS reference implementation
 - **The broader PQC research community** — 15+ years of cryptanalysis
 
-### 13.3 Governance Model
+### 14.3 Governance Model
 
 **Phase 1 (2026–2027):** Founder-led development
 - Rapid iteration and bug fixes
@@ -874,7 +874,7 @@ Assentian-PQE is built on the shoulders of giants:
 - Grant program for ecosystem development
 - SNTI Improvement Proposals (SIPs)
 
-### 13.4 Legal
+### 14.4 Legal
 
 - **Copyright**: Asep Mulya, 2026
 - **License**: Business Source License 1.1 (BSL-1.1)
