@@ -51,7 +51,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
 // Genesis output uses P2PK-like script with 64-byte XMSS public key
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
-    const char* pszTimestamp = "Assentian-PQE Genesis 21/Jun/2026 - NIST SP 800-208 XMSS - Post Quantum Era Begins";
+    const char* pszTimestamp = "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia";
     // QNT Genesis XMSS public key (64 bytes root||PUB_SEED)
     // Generated: 2026-06-11
     // Algorithm: XMSS-SHA2_10_256 (NIST SP 800-208)
@@ -103,7 +103,7 @@ public:
         consensus.SegwitHeight = 0; // No Segwit in Quant v1 — XMSS keys are 64 bytes
         consensus.MinBIP9WarningHeight = 0;
         // PoW: Low difficulty for fair launch, will adjust
-        consensus.powLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         // 60 second target (whitepaper section 6.3)
         consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
         consensus.nPowTargetSpacing = 60;  // 60 SECONDS (whitepaper)
@@ -143,8 +143,8 @@ public:
         // For now, use a recent timestamp placeholder
         // REAL GENESIS TIMESTAMP will be set at official launch (Q4 2026)
         // This is a PLACEHOLDER — do not use for mainnet launch
-        genesis = CreateGenesisBlock(1781545300, 0, 0x1d00ffff, 1, 50 * COIN);
-        consensus.hashGenesisBlock = uint256S("743c2849738436a7c96451e5bbe51be98fb676fde212abf56c9d7a7a727f1efc");
+        genesis = CreateGenesisBlock(1782026818, 26, 0x207fffff, 1, 50 * COIN);
+        consensus.hashGenesisBlock = uint256S("00146ebb6e8240633c4aef06ca3afbc6c26047f9c3ae5ce1548332a8de149263");
 
         vSeeds.clear();
         // QNT DNS seeds (to be registered at launch)
@@ -236,15 +236,7 @@ public:
         m_assumed_chain_state_size = 2;
 
         genesis = CreateGenesisBlock(1782026818, 1, 0x207fffff, 1, 50 * COIN);
-        // TEMP-GENESIS-SEARCH: hapus setelah dapat nonce valid
-        {
-            arith_uint256 hashTarget = arith_uint256().SetCompact(genesis.nBits);
-            while (UintToArith256(genesis.GetHash()) > hashTarget) {
-                ++genesis.nNonce;
-            }
-            LogPrintf("QNT-GENESIS-FOUND: nNonce=%u hash=%s\n", genesis.nNonce, genesis.GetHash().ToString());
-        }
-        consensus.hashGenesisBlock = uint256S("2d858f51fc4af7926bee59c82d06d58a3f260647145aaf6f89263bcb3643b66d");
+        consensus.hashGenesisBlock = uint256S("216e5f693110b9c347530c749c8277692afb2954da83d5c806ae676a11d4ec07");
 
         vFixedSeeds.clear();
         vSeeds.clear();
