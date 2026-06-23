@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assentian-PQE (SNTI) Whitepaper v1.0</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:860px;margin:40px auto;padding:0 20px;line-height:1.7;color:#1a1a1a}
+h1{color:#1a1a2e;border-bottom:3px solid #6c63ff;padding-bottom:12px}
+h2{color:#16213e;margin-top:40px}
+h3{color:#0f3460}
+code{background:#f4f4f4;padding:2px 6px;border-radius:4px;font-size:0.9em}
+pre{background:#1a1a2e;color:#e0e0e0;padding:20px;border-radius:8px;overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+td,th{border:1px solid #ddd;padding:10px}
+th{background:#6c63ff;color:white}
+tr:nth-child(even){background:#f9f9f9}
+nav{margin-bottom:20px}
+nav a{margin-right:16px;text-decoration:none;color:#6c63ff;font-weight:500}
+.top{text-align:center;padding:40px;background:linear-gradient(135deg,#1a1a2e,#16213e);color:white;border-radius:12px;margin-bottom:40px}
+blockquote{border-left:4px solid #6c63ff;margin:0;padding:10px 20px;background:#f8f8ff;color:#444;font-style:italic}
+.security-badge{display:inline-block;background:#28a745;color:white;padding:2px 8px;border-radius:4px;font-size:0.85em;font-weight:bold}
+</style>
+</head>
+<body>
+<nav><a href="/">Dashboard</a><a href="/changelog.html">Changelog</a><a href="/mining/">Mining</a></nav>
+<div class="top">
+<h1 style="color:white;border:none">Assentian-PQE (SNTI) Whitepaper</h1>
+<p>World's First Mineable Post-Quantum Cryptocurrency | v1.0 | June 2026</p>
+<p><em>For Sentia &amp; Bebeb 💙</em></p>
+</div>
+<h1 id="assentian-pqe-snti">Assentian-PQE (SNTI)</h1>
+<h2 id="the-first-mineable-post-quantum-cryptocurrency">The First Mineable Post-Quantum Cryptocurrency</h2>
+<h3 id="whitepaper-v10-june-2026">Whitepaper v1.0 | June 2026</h3>
+<hr />
+<blockquote>
+<p><em>"The question is not whether quantum computers will break existing cryptography. The question is whether the world will be ready when they do."</em>
+— NIST Post-Quantum Cryptography Team, 2024</p>
+</blockquote>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#1-executive-summary">Executive Summary</a></li>
+<li><a href="#2-investment-thesis">Investment Thesis</a></li>
+<li><a href="#3-the-quantum-threat">The Quantum Threat</a></li>
+<li><a href="#4-why-xmss">Why XMSS</a></li>
+<li><a href="#5-competitive-landscape">Competitive Landscape</a></li>
+<li><a href="#6-architecture">Architecture</a></li>
+<li><a href="#7-proof-of-useful-work">Proof-of-Useful-Work</a></li>
+<li><a href="#8-security-model">Security Model</a></li>
+<li><a href="#9-tokenomics">Tokenomics</a></li>
+<li><a href="#10-roadmap">Roadmap</a></li>
+<li><a href="#11-technical-specifications">Technical Specifications</a></li>
+<li><a href="#12-blockchain-scalability--the-xmss-size-trade-off">Blockchain Scalability &amp; The XMSS Size Trade-off</a></li>
+<li><a href="#13-risk-analysis">Risk Analysis</a></li>
+<li><a href="#14-team--governance">Team &amp; Governance</a></li>
+<li><a href="#15-conclusion">Conclusion</a></li>
+</ol>
+<hr />
+<h2 id="1-executive-summary">1. Executive Summary</h2>
+<p>Assentian-PQE (SNTI) is the <strong>world's first mineable post-quantum cryptocurrency</strong> — a fully operational blockchain that replaces classical ECDSA signatures with XMSS (eXtended Merkle Signature Scheme), the signature standard mandated by NIST SP 800-208.</p>
+<p>Unlike theoretical proposals or migration promises, Assentian-PQE is <strong>already running</strong>:</p>
+<ul>
+<li>✅ Mainnet genesis block mined — June 22, 2026</li>
+<li>✅ Testnet live with 50+ blocks confirmed</li>
+<li>✅ CPU mining operational (Wave 2: direct miner payout)</li>
+<li>✅ Block explorer live at 104.234.26.7</li>
+<li>✅ Stratum mining pool with XMSS-signed blocks</li>
+<li>✅ NIST SP 800-208 compliant from genesis</li>
+</ul>
+<p><strong>The quantum era is not coming. For Assentian-PQE, it has already begun.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ticker</strong></td>
+<td>SNTI</td>
+</tr>
+<tr>
+<td><strong>Consensus</strong></td>
+<td>Proof-of-Useful-Work (PoUW) via XMSS</td>
+</tr>
+<tr>
+<td><strong>Signature Scheme</strong></td>
+<td>XMSS-SHA2_10_256 (NIST SP 800-208)</td>
+</tr>
+<tr>
+<td><strong>Block Time</strong></td>
+<td>60 seconds</td>
+</tr>
+<tr>
+<td><strong>Max Supply</strong></td>
+<td>21,000,000 SNTI</td>
+</tr>
+<tr>
+<td><strong>Halving Interval</strong></td>
+<td>Every 210,000 blocks (~4 years)</td>
+</tr>
+<tr>
+<td><strong>Genesis Date</strong></td>
+<td>June 22, 2026</td>
+</tr>
+<tr>
+<td><strong>Codebase</strong></td>
+<td>Bitcoin Core fork (C++)</td>
+</tr>
+<tr>
+<td><strong>License</strong></td>
+<td>BSL-1.1 → GPL-2.0 (2030)</td>
+</tr>
+<tr>
+<td><strong>Magic Bytes</strong></td>
+<td>SNTI (0x53, 0x4E, 0x54, 0x49)</td>
+</tr>
+<tr>
+<td><strong>Contact</strong></td>
+<td>assentianpqe@gmail.com</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-investment-thesis">2. Investment Thesis</h2>
+<h3 id="21-the-core-proposition">2.1 The Core Proposition</h3>
+<p>Assentian-PQE is positioned at the intersection of three converging forces:</p>
+<p><strong>Force 1: The Quantum Threat is Real</strong>
+NIST has finalized post-quantum cryptography standards (FIPS 203, 204, 205, SP 800-208). The US federal government mandates PQC migration by 2030. This is not speculation — it is policy.</p>
+<p><strong>Force 2: Existing Blockchains Are Vulnerable</strong>
+Bitcoin, Ethereum, Solana — every major blockchain uses ECDSA or Ed25519. Both are broken by Shor's algorithm on a sufficiently powerful quantum computer. Migration is technically complex, politically contentious, and economically disruptive.</p>
+<p><strong>Force 3: First-Mover Advantage is Unclaimed</strong>
+No working, mineable, NIST-compliant post-quantum blockchain exists today. Assentian-PQE claims that position on June 22, 2026.</p>
+<h3 id="22-why-now">2.2 Why Now</h3>
+<p>2024: NIST finalizes PQC standards</p>
+<p>2025: Enterprise PQC migration begins</p>
+<p>2026: SNTI mainnet launches ◄── WE ARE HERE</p>
+<p>2027: "Harvest now, decrypt later" attacks surface publicly</p>
+<p>2028: First cryptographically relevant quantum computer (IBM/Google estimates)</p>
+<p>2029: NIST mandates PQC for all federal systems</p>
+<p>2030: Mass migration begins — SNTI is already there</p>
+<h3 id="23-total-addressable-market">2.3 Total Addressable Market</h3>
+<table>
+<thead>
+<tr>
+<th>Market</th>
+<th>Size (2026)</th>
+<th>SNTI Relevance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cryptocurrency market cap</td>
+<td>~$3.5 trillion</td>
+<td>Direct — quantum-safe store of value</td>
+</tr>
+<tr>
+<td>PQC security market</td>
+<td>~$400M → $7B by 2030</td>
+<td>Direct — XMSS mining as useful work</td>
+</tr>
+<tr>
+<td>Enterprise blockchain</td>
+<td>~$12B</td>
+<td>Indirect — PQC infrastructure</td>
+</tr>
+<tr>
+<td>Government IT security</td>
+<td>~$80B</td>
+<td>Indirect — regulatory tailwind</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Conservative scenario:</strong> If SNTI captures 0.1% of crypto market cap at quantum inflection point → $3.5B market cap.</p>
+<hr />
+<h2 id="3-the-quantum-threat">3. The Quantum Threat</h2>
+<h3 id="31-what-breaks">3.1 What Breaks</h3>
+<p>Current blockchain cryptography relies on two mathematical problems:</p>
+<p><strong>ECDSA / Ed25519 (used by Bitcoin, Ethereum, Solana):</strong>
+- Security assumption: Discrete logarithm problem is hard
+- Broken by: Shor's algorithm on quantum computer
+- Timeline to break 256-bit ECDSA: ~4,000 logical qubits</p>
+<p><strong>SHA-256 (used in Bitcoin PoW):</strong>
+- Security assumption: Preimage resistance
+- Weakened by: Grover's algorithm (reduces to 128-bit effective security)
+- Timeline to meaningfully weaken: ~10,000+ logical qubits</p>
+<h3 id="32-the-timeline">3.2 The Timeline</h3>
+<table>
+<thead>
+<tr>
+<th>Year</th>
+<th>Event</th>
+<th>Implication</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2019</td>
+<td>Google achieves quantum supremacy (53 qubits)</td>
+<td>Proof of concept</td>
+</tr>
+<tr>
+<td>2023</td>
+<td>IBM reaches 1,000+ qubit processor</td>
+<td>Engineering milestone</td>
+</tr>
+<tr>
+<td>2024</td>
+<td>NIST finalizes PQC standards</td>
+<td>Policy signal</td>
+</tr>
+<tr>
+<td>2025</td>
+<td>Microsoft, Google, IBM racing to error correction</td>
+<td>Commercial viability</td>
+</tr>
+<tr>
+<td>2026–2028</td>
+<td>Cryptographically relevant QC estimated</td>
+<td>ECDSA at risk</td>
+</tr>
+<tr>
+<td>2029</td>
+<td>NIST PQC mandate for US federal systems</td>
+<td>Regulatory force</td>
+</tr>
+<tr>
+<td>2030+</td>
+<td>Mass PQC migration</td>
+<td>SNTI first-mover advantage</td>
+</tr>
+</tbody>
+</table>
+<h3 id="33-harvest-now-decrypt-later">3.3 "Harvest Now, Decrypt Later"</h3>
+<p>The most immediate threat is not breaking encryption in real-time — it is <strong>retroactive decryption</strong>. Nation-state actors are harvesting encrypted blockchain transactions today, storing them for future decryption when quantum computers become powerful enough.</p>
+<p>For Bitcoin holders: <strong>every transaction you have ever made is permanently recorded on a public ledger, and every signature will eventually be forgeable.</strong></p>
+<p>Assentian-PQE addresses this by making XMSS signatures — quantum-resistant by design — the only valid signature from block zero.</p>
+<h3 id="34-the-28-trillion-problem">3.4 The $2.8 Trillion Problem</h3>
+<p>Bitcoin alone holds approximately $2.8 trillion in value (peak 2024). All of it is protected by ECDSA. When quantum computers break ECDSA:</p>
+<ul>
+<li>Addresses with exposed public keys become drainable</li>
+<li>P2PK outputs (Satoshi's coins) are immediately vulnerable</li>
+<li>Exchange hot wallets become high-value targets</li>
+<li>The entire trust model of "not your keys, not your coins" collapses</li>
+</ul>
+<p><strong>Assentian-PQE is immune to this attack from genesis.</strong></p>
+<hr />
+<h2 id="4-why-xmss">4. Why XMSS</h2>
+<h3 id="41-the-nist-selection">4.1 The NIST Selection</h3>
+<p>NIST spent 8 years (2016–2024) evaluating post-quantum cryptographic algorithms. The result:</p>
+<ul>
+<li><strong>FIPS 203</strong>: CRYSTALS-Kyber (key encapsulation)</li>
+<li><strong>FIPS 204</strong>: CRYSTALS-Dilithium (signatures)</li>
+<li><strong>FIPS 205</strong>: SPHINCS+ (signatures)</li>
+<li><strong>SP 800-208</strong>: XMSS and LMS (stateful hash-based signatures)</li>
+</ul>
+<p>Assentian-PQE chose <strong>XMSS from SP 800-208</strong> — the only standard specifically designed for high-security, long-term applications where key state can be managed.</p>
+<h3 id="42-xmss-vs-other-pqc-schemes">4.2 XMSS vs Other PQC Schemes</h3>
+<table>
+<thead>
+<tr>
+<th>Scheme</th>
+<th>Standard</th>
+<th>Quantum-Safe</th>
+<th>Key Size</th>
+<th>Sig Size</th>
+<th>Security Assumption</th>
+<th>SNTI Choice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>XMSS</strong></td>
+<td>NIST SP 800-208</td>
+<td>✅ Yes</td>
+<td>64 B</td>
+<td>2,500 B</td>
+<td>Hash only</td>
+<td><strong>✅ Selected</strong></td>
+</tr>
+<tr>
+<td>SPHINCS+</td>
+<td>NIST FIPS 205</td>
+<td>✅ Yes</td>
+<td>32 B</td>
+<td>8,000 B</td>
+<td>Hash only</td>
+<td>Too large</td>
+</tr>
+<tr>
+<td>FALCON</td>
+<td>NIST FIPS 206</td>
+<td>✅ Yes</td>
+<td>897 B</td>
+<td>666 B</td>
+<td>Lattice</td>
+<td>Lattice risk</td>
+</tr>
+<tr>
+<td>CRYSTALS-Dilithium</td>
+<td>NIST FIPS 204</td>
+<td>✅ Yes</td>
+<td>1,312 B</td>
+<td>2,420 B</td>
+<td>Lattice</td>
+<td>Lattice risk</td>
+</tr>
+<tr>
+<td>LMS</td>
+<td>NIST SP 800-208</td>
+<td>✅ Yes</td>
+<td>64 B</td>
+<td>~4,000 B</td>
+<td>Hash only</td>
+<td>Less efficient</td>
+</tr>
+<tr>
+<td>ECDSA</td>
+<td>None (broken)</td>
+<td>❌ No</td>
+<td>33 B</td>
+<td>72 B</td>
+<td>Discrete log</td>
+<td>Bitcoin/ETH use this</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why XMSS wins for SNTI:</strong></p>
+<ol>
+<li><strong>Hash-only security</strong>: No new mathematical assumptions. Security relies entirely on SHA-256, which has 50+ years of analysis.</li>
+<li><strong>Smallest quantum-safe public key</strong>: 64 bytes — enabling efficient on-chain storage.</li>
+<li><strong>NIST-approved</strong>: Regulatory compliance from day one.</li>
+<li><strong>Production-proven</strong>: Used in real deployments (IETF RFC 8391).</li>
+<li><strong>Stateful advantage</strong>: Key state enables efficient verification and mining integration.</li>
+</ol>
+<h3 id="43-the-innovation-proof-of-useful-work">4.3 The Innovation: Proof-of-Useful-Work</h3>
+<p>Traditional Proof-of-Work produces <strong>nothing of value</strong>:
+Traditional Mining:</p>
+<p>Electricity → SHA-256 hashing → Heat + CO₂ + Block reward</p>
+<p>(The hashes are thrown away. They have no use outside mining.)
+Assentian-PQE Proof-of-Useful-Work produces <strong>real cryptographic infrastructure</strong>:
+SNTI Mining:</p>
+<p>Electricity → XMSS key generation → Quantum-safe signatures → Block reward</p>
+<p>(The XMSS operations actively secure the network against quantum attacks.)
+Every block mined on Assentian-PQE contributes a verified XMSS key pair and signature to the blockchain's security infrastructure. Mining IS security.</p>
+<hr />
+<h2 id="5-competitive-landscape">5. Competitive Landscape</h2>
+<h3 id="51-the-honest-picture">5.1 The Honest Picture</h3>
+<p>Assentian-PQE acknowledges the work that came before it. We do not exist in a vacuum.</p>
+<h4 id="qrl-quantum-resistant-ledger">QRL (Quantum Resistant Ledger)</h4>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>QRL</th>
+<th>SNTI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Launch</td>
+<td>June 2018</td>
+<td>June 2026</td>
+</tr>
+<tr>
+<td>Consensus</td>
+<td>Proof of Stake</td>
+<td>Proof-of-Useful-Work</td>
+</tr>
+<tr>
+<td>Signature</td>
+<td>XMSS-SHA2_10_256</td>
+<td>XMSS-SHA2_10_256</td>
+</tr>
+<tr>
+<td>Mineable</td>
+<td>❌ No</td>
+<td>✅ Yes</td>
+</tr>
+<tr>
+<td>Bitcoin Core base</td>
+<td>❌ No</td>
+<td>✅ Yes</td>
+</tr>
+<tr>
+<td>Useful work</td>
+<td>❌ No</td>
+<td>✅ Yes</td>
+</tr>
+<tr>
+<td>DeFi roadmap</td>
+<td>Limited</td>
+<td>Full</td>
+</tr>
+</tbody>
+</table>
+<p>QRL proved XMSS works in production blockchain. SNTI adds mining, useful work, and a Bitcoin Core foundation.</p>
+<h4 id="iota">IOTA</h4>
+<p>IOTA uses Winternitz OTS (a simpler hash-based scheme) in a DAG architecture. Not mineable, not NIST-standardized, different security model. Not a direct competitor.</p>
+<h4 id="bitcoin-ethereum-pqc-migration">Bitcoin / Ethereum PQC Migration</h4>
+<p>The most common question: "What if Bitcoin just migrates to PQC?"</p>
+<p>The honest answer: Bitcoin migration is <strong>not technically straightforward</strong>. It requires:
+- Consensus among thousands of node operators
+- Migration of ~4 million exposed addresses
+- Hard fork coordination across exchanges, wallets, miners
+- 5–10 year transition period minimum</p>
+<p>Ethereum faces similar challenges. Even optimistic timelines suggest 2030+ for completion.</p>
+<p><strong>By the time Bitcoin completes PQC migration, SNTI will have 4+ years of battle-tested operation.</strong></p>
+<h3 id="52-competitive-position">5.2 Competitive Position</h3>
+<p>POST-QUANTUM BLOCKCHAIN LANDSCAPE (2026)</p>
+<p>Theoretical ◄──────────────────────────────────────────► Operational</p>
+<p>MatRiCT+    SPHINCS+    Dilithium-    IOTA        QRL         SNTI ★
+(paper)     (theory)    Ethereum      (DAG,       (PoS,       (PoUW,
+                        (EIP draft)   W-OTS)      XMSS)       mineable,
+                                                              BTC Core,
+                                                              LIVE)</p>
+<p>◄── Not mineable ──────────────────────────────────── Mineable ──►
+◄── Single purpose ────────────────────────────── Full ecosystem ─►
+◄── Unproven ──────────────────────────────────── Production ──►</p>
+<h3 id="53-feature-matrix">5.3 Feature Matrix</h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Bitcoin</th>
+<th>Ethereum</th>
+<th>QRL</th>
+<th>SNTI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Quantum-safe signatures</td>
+<td>❌ ECDSA</td>
+<td>❌ ECDSA</td>
+<td>✅ XMSS</td>
+<td>✅ XMSS</td>
+</tr>
+<tr>
+<td>NIST-standardized</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>✅ SP 800-208</td>
+<td>✅ SP 800-208</td>
+</tr>
+<tr>
+<td>Mineable</td>
+<td>✅ PoW</td>
+<td>❌ PoS</td>
+<td>❌ PoS</td>
+<td>✅ PoUW</td>
+</tr>
+<tr>
+<td>Useful mining work</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Bitcoin Core base</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Live mainnet (2026)</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>No pre-mine</td>
+<td>✅</td>
+<td>❌</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Fair launch</td>
+<td>✅</td>
+<td>❌</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DeFi ecosystem</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌</td>
+<td>✅ Planned</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-architecture">6. Architecture</h2>
+<h3 id="61-system-overview">6.1 System Overview</h3>
+<p>┌─────────────────────────────────────────────────────────────┐</p>
+<p>│                    ASSENTIAN-PQE NETWORK                     │</p>
+<p>│                                                             │</p>
+<p>│  ┌──────────┐    ┌──────────────┐    ┌──────────────┐      │</p>
+<p>│  │  Miner   │───▶│ Stratum Pool │───▶│  Full Node   │      │</p>
+<p>│  │(CPU/GPU) │    │  (Wave 2)    │    │  (bitcoind)  │      │</p>
+<p>│  └──────────┘    └──────────────┘    └──────────────┘      │</p>
+<p>│       │                                     │               │</p>
+<p>│       ▼                                     ▼               │</p>
+<p>│  ┌──────────┐                      ┌──────────────┐        │</p>
+<p>│  │ XMSS Key │                      │  Block       │        │</p>
+<p>│  │ Gen+Sign │                      │  Explorer    │        │</p>
+<p>│  └──────────┘                      └──────────────┘        │</p>
+<p>│                                                             │</p>
+<p>│  ┌───────────────────────────────────────────────────┐     │</p>
+<p>│  │              Blockchain Layer                      │     │</p>
+<p>│  │  Bitcoin Core 27.0 • UTXO • SegWit • P2WPKH      │     │</p>
+<p>│  │  XMSS-SHA2_10_256 • PoUW • Sighash-v2            │     │</p>
+<p>│  └───────────────────────────────────────────────────┘     │</p>
+<p>└─────────────────────────────────────────────────────────────┘</p>
+<h3 id="62-block-structure">6.2 Block Structure</h3>
+<p>┌────────────────────────────────────────┐</p>
+<p>│             SNTI BLOCK                  │</p>
+<p>├────────────────────────────────────────┤</p>
+<p>│  Block Header (80 bytes)               │</p>
+<p>│  ├── nVersion    (4 bytes)             │</p>
+<p>│  ├── hashPrevBlock (32 bytes)          │</p>
+<p>│  ├── hashMerkleRoot (32 bytes)         │</p>
+<p>│  ├── nTime       (4 bytes)             │</p>
+<p>│  ├── nBits       (4 bytes)             │</p>
+<p>│  └── nNonce      (4 bytes)             │</p>
+<p>├────────────────────────────────────────┤</p>
+<p>│  Coinbase Transaction                  │</p>
+<p>│  ├── vout[0]: Mining reward (SNTI)     │</p>
+<p>│  ├── vout[1]: Witness commitment       │</p>
+<p>│  ├── vout[2]: XMSS pubkey (64 bytes)  │</p>
+<p>│  └── vout[3]: XMSS signature (2,500B) │</p>
+<p>├────────────────────────────────────────┤</p>
+<p>│  Transactions (standard UTXO)          │</p>
+<p>│  └── XMSS-signed inputs               │</p>
+<p>└────────────────────────────────────────┘</p>
+<h3 id="63-key-security-features">6.3 Key Security Features</h3>
+<p><strong>Sighash-v2 (Cross-Index Attack Prevention)</strong></p>
+<p>Assentian-PQE implements a hardened sighash scheme:</p>
+<h2 id="7-proof-of-useful-work">7. Proof-of-Useful-Work</h2>
+<h3 id="71-how-pouw-works">7.1 How PoUW Works</h3>
+<p>Step 1: Miner generates XMSS key pair (one-time setup)</p>
+<p>└── XMSS-SHA2_10_256: 64-byte pubkey, 2,500-byte sig capacity
+Step 2: Miner requests block template from node (getblocktemplate)</p>
+<p>└── Receives: prev_hash, transactions, target, height
+Step 3: Miner constructs coinbase with their XMSS pubkey</p>
+<p>└── vout[2] = OP_RETURN || XMSS_pubkey (64 bytes)
+Step 4: Miner signs block header with XMSS private key</p>
+<p>└── signature = XMSS_sign(sighash_v2(block_header), leaf_index)
+Step 5: Miner embeds signature in coinbase</p>
+<p>└── vout[3] = OP_RETURN || XMSS_signature (2,500 bytes)
+Step 6: Miner finds valid nonce (SHA-256 PoW on header)</p>
+<p>└── hash(header || nonce) &lt; target
+Step 7: Block submitted — network validates XMSS signature</p>
+<p>└── CheckPoUW() verifies pubkey + signature + leaf_index</p>
+<h3 id="72-mining-stack-wave-2">7.2 Mining Stack (Wave 2)</h3>
+<p>Assentian-PQE operates a production Stratum mining server with <strong>Wave 2 direct miner payout</strong>:
+Miner connects:   cpuminer -u <SNTI_ADDRESS> -o stratum+tcp://104.234.26.7:3333</p>
+<p>Authorization:    Username = miner's SNTI address (reward destination)</p>
+<p>Share accepted:   Every N shares triggers generatetoaddress(miner_address)</p>
+<p>Reward:           Mining reward goes DIRECTLY to miner — no pool cut
+Wave 2 key improvement over Wave 1:
+- <strong>Wave 1</strong>: Reward to pool address (centralized)
+- <strong>Wave 2</strong>: Reward directly to miner address from <code>mining.authorize</code> username</p>
+<h3 id="73-mining-performance">7.3 Mining Performance</h3>
+<p>Current testnet stats (June 23, 2026):
+- Chain height: 57+ blocks
+- Accepted shares: 48/48 (100% acceptance rate)
+- Blocks found: 15+ via Wave 2 direct payout
+- Immature miner balance: 4,450+ SNTI accumulated
+- Mining software: cpuminer-multi (standard stratum)</p>
+<h3 id="74-difficulty-adjustment">7.4 Difficulty Adjustment</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Target block time</td>
+<td>60 seconds</td>
+</tr>
+<tr>
+<td>Adjustment window</td>
+<td>2,016 blocks (~14 days)</td>
+</tr>
+<tr>
+<td>Max adjustment per window</td>
+<td>4x up / 4x down</td>
+</tr>
+<tr>
+<td>Initial difficulty</td>
+<td>0x207fffff (CPU-friendly)</td>
+</tr>
+<tr>
+<td>powLimit (mainnet)</td>
+<td>7fffffff... (permissive for launch)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="8-security-model">8. Security Model</h2>
+<h3 id="81-threat-model">8.1 Threat Model</h3>
+<table>
+<thead>
+<tr>
+<th>Threat</th>
+<th>Classical</th>
+<th>Quantum</th>
+<th>SNTI Defense</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Signature forgery</td>
+<td>Infeasible (ECDSA)</td>
+<td><strong>Trivial (Shor's)</strong></td>
+<td>XMSS: hash-based, quantum-safe</td>
+</tr>
+<tr>
+<td>Key recovery</td>
+<td>Infeasible</td>
+<td><strong>Trivial</strong></td>
+<td>XMSS: no private key exposure</td>
+</tr>
+<tr>
+<td>51% attack</td>
+<td>Expensive</td>
+<td>Same cost</td>
+<td>PoUW: requires XMSS keygen</td>
+</tr>
+<tr>
+<td>Replay attack</td>
+<td>Prevented by nonce</td>
+<td>Same</td>
+<td>Sighash-v2 + leaf_index</td>
+</tr>
+<tr>
+<td>Cross-index attack</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>Sighash-v2 prevents it</td>
+</tr>
+<tr>
+<td>Key exhaustion</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>Key retirement protocol</td>
+</tr>
+<tr>
+<td>Wallet compromise</td>
+<td>Physical security</td>
+<td>Same</td>
+<td>Encryption at rest</td>
+</tr>
+</tbody>
+</table>
+<h3 id="82-security-audits">8.2 Security Audits</h3>
+<p>Current status:
+- Internal security review: ✅ Complete
+- Sighash-v2 design review: ✅ Complete
+- Key retirement protocol: ✅ Implemented
+- External audit (Trail of Bits / Halborn): 🔜 Planned Q4 2026</p>
+<p>Assentian-PQE is actively seeking funding for a professional security audit. Budget requirement: $20,000–$100,000.</p>
+<h3 id="83-known-limitations">8.3 Known Limitations</h3>
+<p><strong>XMSS is stateful.</strong> Unlike ECDSA, XMSS requires tracking which leaf indices have been used. If a miner uses the same leaf index twice, the security guarantee is void (though no coins are stolen — it simply weakens the signature scheme).</p>
+<p>Assentian-PQE mitigates this through:
+- Enforced leaf-index tracking in wallet state
+- Write-before-use atomic state updates
+- Deterministic leaf index assignment from node consensus</p>
+<hr />
+<h2 id="9-tokenomics">9. Tokenomics</h2>
+<h3 id="91-supply-schedule">9.1 Supply Schedule</h3>
+<p>Total Supply: 21,000,000 SNTI (hard cap, identical to Bitcoin)
+Emission:</p>
+<p>├── Block 0–210,000:       50 SNTI/block   (~4 years)</p>
+<p>├── Block 210,000–420,000: 25 SNTI/block   (~4 years)</p>
+<p>├── Block 420,000–630,000: 12.5 SNTI/block (~4 years)</p>
+<p>└── ... halvings continue until ~2140</p>
+<h3 id="92-distribution">9.2 Distribution</h3>
+<table>
+<thead>
+<tr>
+<th>Allocation</th>
+<th>%</th>
+<th>Amount</th>
+<th>Vesting</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mining rewards</td>
+<td>85%</td>
+<td>17,850,000 SNTI</td>
+<td>Block by block</td>
+</tr>
+<tr>
+<td>Development fund</td>
+<td>10%</td>
+<td>2,100,000 SNTI</td>
+<td>4-year linear vest</td>
+</tr>
+<tr>
+<td>Community &amp; airdrop</td>
+<td>3%</td>
+<td>630,000 SNTI</td>
+<td>TGE + 12 months</td>
+</tr>
+<tr>
+<td>Bug bounty / security</td>
+<td>2%</td>
+<td>420,000 SNTI</td>
+<td>On-demand</td>
+</tr>
+</tbody>
+</table>
+<p><strong>No pre-mine. No VC allocation. No insider rounds.</strong></p>
+<p>The development fund is controlled by a multisig wallet. All transactions will be publicly auditable on-chain.</p>
+<h3 id="93-emission-schedule">9.3 Emission Schedule</h3>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Blocks</th>
+<th>Reward</th>
+<th>SNTI/Day</th>
+<th>Era</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Genesis</td>
+<td>0–210k</td>
+<td>50 SNTI</td>
+<td>~720</td>
+<td>2026–2030</td>
+</tr>
+<tr>
+<td>Halving 1</td>
+<td>210k–420k</td>
+<td>25 SNTI</td>
+<td>~360</td>
+<td>2030–2034</td>
+</tr>
+<tr>
+<td>Halving 2</td>
+<td>420k–630k</td>
+<td>12.5 SNTI</td>
+<td>~180</td>
+<td>2034–2038</td>
+</tr>
+<tr>
+<td>Halving 3</td>
+<td>630k–840k</td>
+<td>6.25 SNTI</td>
+<td>~90</td>
+<td>2038–2042</td>
+</tr>
+</tbody>
+</table>
+<h3 id="94-value-drivers">9.4 Value Drivers</h3>
+<ol>
+<li><strong>Scarcity</strong>: Fixed 21M supply — same model as Bitcoin</li>
+<li><strong>Utility</strong>: Only quantum-safe mineable chain — unique use case</li>
+<li><strong>Regulatory</strong>: NIST-compliant = institutional-grade</li>
+<li><strong>Network effect</strong>: Miners → hashrate → security → value</li>
+<li><strong>Quantum inflection</strong>: Value accelerates as quantum threat materializes</li>
+<li><strong>Deflationary</strong>: 50% of transaction fees burned</li>
+</ol>
+<hr />
+<h2 id="10-roadmap">10. Roadmap</h2>
+<h3 id="phase-0-foundation-complete-june-2026">✅ Phase 0: Foundation (Complete — June 2026)</h3>
+<ul>
+<li>✅ XMSS-SHA2_10_256 integrated into Bitcoin Core 27.0</li>
+<li>✅ Proof-of-Useful-Work (PoUW) consensus implemented</li>
+<li>✅ Sighash-v2 (cross-index attack prevention)</li>
+<li>✅ Key retirement protocol (one-time XMSS addresses)</li>
+<li>✅ Encryption at rest for XMSS wallet state</li>
+<li>✅ Wallet backup/restore with XMSS state verification</li>
+<li>✅ Testnet live (genesis: <code>2d858f51...</code>)</li>
+<li>✅ Mainnet genesis mined (June 22, 2026 — <code>00146ebb...</code>)</li>
+<li>✅ Block explorer operational</li>
+<li>✅ Stratum mining server Wave 1 + Wave 2</li>
+<li>✅ cpuminer-multi verified (48/48 shares, 15+ blocks)</li>
+<li>✅ Direct miner payout (Wave 2)</li>
+</ul>
+<h3 id="phase-1-mainnet-launch-q3q4-2026">🔜 Phase 1: Mainnet Launch (Q3–Q4 2026)</h3>
+<ul>
+<li>[ ] External security audit (Trail of Bits / Halborn)</li>
+<li>[ ] Mainnet node deployment (3+ geographic regions)</li>
+<li>[ ] DNS seeds registration</li>
+<li>[ ] CLI wallet v1.0 release</li>
+<li>[ ] Mining guide &amp; documentation portal</li>
+<li>[ ] Whitepaper HTML version</li>
+<li>[ ] Community launch (Discord, Telegram, Twitter)</li>
+<li>[ ] First external miners onboarded</li>
+</ul>
+<h3 id="phase-2-exchange-wallet-q1q2-2027">🔜 Phase 2: Exchange &amp; Wallet (Q1–Q2 2027)</h3>
+<ul>
+<li>[ ] Desktop wallet (Qt GUI)</li>
+<li>[ ] Hardware wallet support (Ledger/Trezor research)</li>
+<li>[ ] First exchange listing (DEX priority)</li>
+<li>[ ] Mobile wallet (Android first)</li>
+<li>[ ] Payment API v1.0</li>
+<li>[ ] Merchant SDK</li>
+</ul>
+<h3 id="phase-3-ecosystem-q3q4-2027">🔜 Phase 3: Ecosystem (Q3–Q4 2027)</h3>
+<ul>
+<li>[ ] Layer-2 payment channels (Lightning-compatible)</li>
+<li>[ ] Atomic swaps (SNTI ↔ BTC)</li>
+<li>[ ] DeFi bridge</li>
+<li>[ ] Governance system (on-chain voting)</li>
+<li>[ ] SNTI Grant Program ($500k equivalent)</li>
+<li>[ ] iOS wallet</li>
+</ul>
+<h3 id="phase-4-enterprise-2028">🔜 Phase 4: Enterprise (2028+)</h3>
+<ul>
+<li>[ ] Enterprise node solutions</li>
+<li>[ ] Government partnership program</li>
+<li>[ ] Post-quantum TLS certificate integration</li>
+<li>[ ] IoT security use cases</li>
+<li>[ ] Cross-chain interoperability</li>
+<li>[ ] Academic research partnerships</li>
+</ul>
+<hr />
+<h2 id="11-technical-specifications">11. Technical Specifications</h2>
+<h3 id="111-xmss-parameters">11.1 XMSS Parameters</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Scheme</td>
+<td>XMSS-SHA2_10_256</td>
+<td>SHA-256, tree height 10</td>
+</tr>
+<tr>
+<td>OID</td>
+<td>0x00000001</td>
+<td>RFC 8391 identifier</td>
+</tr>
+<tr>
+<td>n</td>
+<td>32 bytes</td>
+<td>Hash output size</td>
+</tr>
+<tr>
+<td>w</td>
+<td>16</td>
+<td>Winternitz parameter</td>
+</tr>
+<tr>
+<td>h</td>
+<td>10</td>
+<td>Merkle tree height</td>
+</tr>
+<tr>
+<td>Public key</td>
+<td>64 bytes</td>
+<td>root (32B) + PUB_SEED (32B)</td>
+</tr>
+<tr>
+<td>Signature</td>
+<td>2,500 bytes</td>
+<td>Full XMSS signature</td>
+</tr>
+<tr>
+<td>Sigs per key</td>
+<td>1,024</td>
+<td>2^10 leaf nodes</td>
+</tr>
+<tr>
+<td>Security level</td>
+<td>128-bit</td>
+<td>NIST Level 1</td>
+</tr>
+</tbody>
+</table>
+<h3 id="112-network-parameters">11.2 Network Parameters</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Mainnet</th>
+<th>Testnet</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Magic bytes</td>
+<td>SNTI (0x53,0x4E,0x54,0x49)</td>
+<td>sTST (0x73,0x54,0x53,0x54)</td>
+</tr>
+<tr>
+<td>P2P port</td>
+<td>9333</td>
+<td>39333</td>
+</tr>
+<tr>
+<td>RPC port</td>
+<td>9332</td>
+<td>39332</td>
+</tr>
+<tr>
+<td>Address prefix (P2PKH)</td>
+<td>Q (0x51)</td>
+<td>t (0x6F)</td>
+</tr>
+<tr>
+<td>Bech32 HRP</td>
+<td>qn</td>
+<td>tq</td>
+</tr>
+<tr>
+<td>Genesis hash</td>
+<td>00146ebb6e8240...</td>
+<td>2d858f51fc4af7...</td>
+</tr>
+<tr>
+<td>Genesis nNonce</td>
+<td>26</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Genesis nBits</td>
+<td>0x207fffff</td>
+<td>0x207fffff</td>
+</tr>
+<tr>
+<td>Max block size</td>
+<td>4 MB</td>
+<td>4 MB</td>
+</tr>
+<tr>
+<td>Block weight limit</td>
+<td>4,000,000</td>
+<td>4,000,000</td>
+</tr>
+</tbody>
+</table>
+<h3 id="113-sighash-v2-specification">11.3 Sighash-v2 Specification</h3>
+<p>Standard sighash (v1):</p>
+<p>sighash = SHA256(serialized_tx_data)
+Assentian-PQE sighash (v2):</p>
+<p>sighash_v2 = SHA256(sighash_v1 || leaf_index_BE)
+Where:</p>
+<p>leaf_index_BE = 4-byte big-endian XMSS leaf index
+Security benefit:</p>
+<p>A signature valid at leaf index N cannot be replayed at index M.</p>
+<p>Prevents cross-index forgery attacks on XMSS-signed transactions.</p>
+<h3 id="114-checkpouw-validation">11.4 CheckPoUW Validation</h3>
+<p>Every block is validated by <code>CheckPoUW()</code>:</p>
+<pre><code class="language-cpp">bool CheckPoUW(const CBlock&amp; block, const Consensus::Params&amp; params) {
+    // 1. Extract XMSS pubkey from coinbase vout[2]
+    // 2. Extract XMSS signature from coinbase vout[3]
+    // 3. Verify pubkey is exactly 64 bytes
+    // 4. Verify signature is exactly 2,500 bytes
+    // 5. Verify XMSS_verify(pubkey, sighash_v2, signature) == true
+    // 6. Verify leaf index has not been used before
+    return valid;
+}
+</code></pre>
+<hr />
+<hr />
+<h2 id="12-blockchain-scalability-the-xmss-size-trade-off">12. Blockchain Scalability &amp; The XMSS Size Trade-off</h2>
+<h3 id="121-the-honest-question">12.1 The Honest Question</h3>
+<p>Institutional investors will ask: <em>"XMSS signatures are 2,500 bytes. ECDSA is 72 bytes. Won't this bloat the blockchain?"</em></p>
+<p>This is the right question. This section answers it directly.</p>
+<h3 id="122-the-size-reality">12.2 The Size Reality</h3>
+<table>
+<thead>
+<tr>
+<th>Signature Scheme</th>
+<th>Sig Size</th>
+<th>Pubkey</th>
+<th>Total</th>
+<th>Quantum-Safe</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ECDSA (Bitcoin)</td>
+<td>72 bytes</td>
+<td>33 bytes</td>
+<td>~105 bytes</td>
+<td>❌ No</td>
+</tr>
+<tr>
+<td>Ed25519 (Solana)</td>
+<td>64 bytes</td>
+<td>32 bytes</td>
+<td>~96 bytes</td>
+<td>❌ No</td>
+</tr>
+<tr>
+<td><strong>XMSS (SNTI)</strong></td>
+<td><strong>2,500 bytes</strong></td>
+<td><strong>64 bytes</strong></td>
+<td><strong>~2,564 bytes</strong></td>
+<td><strong>✅ Yes</strong></td>
+</tr>
+<tr>
+<td>FALCON (lattice)</td>
+<td>666 bytes</td>
+<td>897 bytes</td>
+<td>~1,563 bytes</td>
+<td>✅ Yes</td>
+</tr>
+<tr>
+<td>SPHINCS+</td>
+<td>8,000 bytes</td>
+<td>32 bytes</td>
+<td>~8,032 bytes</td>
+<td>✅ Yes</td>
+</tr>
+</tbody>
+</table>
+<p>XMSS signatures are <strong>34x larger</strong> than ECDSA. This is a deliberate engineering trade-off — not an oversight.</p>
+<h3 id="123-current-impact-minimal">12.3 Current Impact: Minimal</h3>
+<p>In Assentian-PQE's current architecture, XMSS signatures appear <strong>only in the coinbase transaction</strong> (one per block). Standard user-to-user transactions use P2WPKH (standard SegWit), which is identical in size to Bitcoin transactions.
+Current SNTI block anatomy:</p>
+<p>├── Coinbase tx:     ~2,800 bytes  (XMSS pubkey + signature)</p>
+<p>└── User txs:        ~220 bytes each (standard SegWit — same as Bitcoin)
+Block size overhead vs Bitcoin: +2,500 bytes per block</p>
+<p>With 4MB max block size:        0.06% overhead — negligible
+<strong>Today, SNTI block size is virtually identical to Bitcoin.</strong></p>
+<h3 id="124-segwit-witness-discount">12.4 SegWit Witness Discount</h3>
+<p>XMSS signatures are stored in the <strong>witness</strong> portion of the coinbase transaction. Bitcoin's SegWit protocol applies a <strong>75% discount</strong> to witness data weight:
+XMSS signature weight calculation:</p>
+<p>Raw size:        2,500 bytes</p>
+<p>Witness weight:  2,500 × 0.25 = 625 weight units
+ECDSA equivalent:</p>
+<p>Raw size:        72 bytes</p>
+<p>Witness weight:  72 × 0.25 = 18 weight units
+Effective ratio after SegWit discount: ~35x → ~8-9x
+The SegWit discount significantly reduces the fee premium for XMSS-signed inputs.</p>
+<h3 id="125-projected-chain-growth">12.5 Projected Chain Growth</h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Tx/Day</th>
+<th>Chain Growth/Year</th>
+<th>10-Year Size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bitcoin (current)</td>
+<td>~500,000</td>
+<td>~50 GB</td>
+<td>~600 GB</td>
+</tr>
+<tr>
+<td>SNTI (coinbase only)</td>
+<td>~1,440</td>
+<td>~1.5 GB</td>
+<td>~15 GB</td>
+</tr>
+<tr>
+<td>SNTI (all tx XMSS)</td>
+<td>~50,000</td>
+<td>~45 GB</td>
+<td>~450 GB</td>
+</tr>
+<tr>
+<td>SNTI (L2 + settlement)</td>
+<td>~1,440</td>
+<td>~1.5 GB</td>
+<td>~15 GB</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key insight:</strong> With Layer-2 adoption (Lightning-style payment channels), SNTI's on-chain footprint remains comparable to Bitcoin. The XMSS overhead is absorbed at the settlement layer, not every micro-transaction.</p>
+<h3 id="126-the-five-mitigations">12.6 The Five Mitigations</h3>
+<p><strong>Mitigation 1: Pruning (Available Now)</strong></p>
+<p>Bitcoin Core's pruning mode allows nodes to discard historical block data while retaining the full UTXO set. SNTI inherits this capability. A pruned SNTI node requires only ~10 GB regardless of chain age — making full node operation accessible to anyone with a consumer laptop.</p>
+<p><strong>Mitigation 2: SegWit Witness Discount (Active)</strong></p>
+<p>All XMSS signatures are stored in witness data, receiving the 75% weight discount built into the SegWit protocol. This reduces effective block space consumption by 4x compared to naive implementation.</p>
+<p><strong>Mitigation 3: Layer-2 Payment Channels (Roadmap Q3 2027)</strong></p>
+<p>The most powerful mitigation. Lightning Network-style payment channels move the vast majority of transactions off-chain:
+Without L2:  1,000 transactions = 1,000 on-chain XMSS signatures</p>
+<p>With L2:     1,000 transactions = 2 on-chain settlements (open + close)
+Result: 500x reduction in on-chain XMSS overhead for high-frequency payments
+<strong>Mitigation 4: Archival vs. Light Nodes</strong></p>
+<p>SNTI supports three node modes:
+- <strong>Full archival node</strong>: Complete chain history (~15 GB/year)
+- <strong>Pruned full node</strong>: UTXO set only (~10 GB total, any age)
+- <strong>SPV light node</strong>: Headers only (~50 MB) — sufficient for wallet use</p>
+<p>Institutional infrastructure uses archival nodes. Consumer wallets use SPV. The economics remain favorable at both ends.</p>
+<p><strong>Mitigation 5: Future Signature Upgrade Path</strong></p>
+<p>SNTI's architecture supports signature scheme upgrades via soft fork. If a more compact quantum-safe scheme achieves sufficient security confidence, migration is possible without chain restart:
+Potential future schemes:</p>
+<p>FALCON-512:  666 bytes  (9x smaller than XMSS, lattice-based)</p>
+<p>Dilithium2:  2,420 bytes (similar to XMSS, lattice-based)
+SNTI position: XMSS today (hash-based, zero new assumptions)</p>
+<p>→ upgrade path open as PQC landscape matures</p>
+<h3 id="127-the-fundamental-trade-off">12.7 The Fundamental Trade-off</h3>
+<p>This is not a flaw to hide. It is a trade-off to understand:
+┌─────────────────────────────────────────────────────────┐</p>
+<p>│              THE XMSS TRADE-OFF                          │</p>
+<p>│                                                         │</p>
+<p>│  WHAT YOU GIVE UP:                                      │</p>
+<p>│  └── Signature size: 2,500 bytes vs 72 bytes (ECDSA)   │</p>
+<p>│                                                         │</p>
+<p>│  WHAT YOU GET:                                          │</p>
+<p>│  └── Immunity to Shor's algorithm                       │</p>
+<p>│  └── NIST SP 800-208 compliance                         │</p>
+<p>│  └── Zero new cryptographic assumptions                 │</p>
+<p>│  └── 15+ years of security analysis                     │</p>
+<p>│  └── No migration needed when quantum computers arrive  │</p>
+<p>│                                                         │</p>
+<p>│  CONTEXT:                                               │</p>
+<p>│  └── Storage costs fall 30-40% per year (Moore's Law)  │</p>
+<p>│  └── 10-year SNTI chain ≈ 15 GB (pruned: ~10 GB)      │</p>
+<p>│  └── A 4TB SSD costs $80 today                         │</p>
+<p>│  └── ECDSA will be broken. XMSS will not.             │</p>
+<p>└─────────────────────────────────────────────────────────┘</p>
+<h3 id="128-comparison-qrls-8-year-track-record">12.8 Comparison: QRL's 8-Year Track Record</h3>
+<p>QRL (Quantum Resistant Ledger) has operated an XMSS blockchain since June 2018 — 8 years of production data.</p>
+<p>QRL chain size after 8 years: <strong>~50 GB</strong> (with moderate transaction volume).</p>
+<p>For context: Bitcoin's chain is ~600 GB after 15 years with significantly higher transaction volume. XMSS bloat in practice, with low-to-moderate volume, is entirely manageable.</p>
+<p><strong>SNTI's projection, assuming similar growth trajectory to QRL: ~15-30 GB after 10 years.</strong></p>
+<h3 id="129-the-institutional-perspective">12.9 The Institutional Perspective</h3>
+<p>For institutional investors evaluating blockchain infrastructure:</p>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Reality</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"2,500 byte signatures will bloat the chain"</td>
+<td>With pruning + L2, 10-year chain ≈ 15 GB</td>
+</tr>
+<tr>
+<td>"Storage costs will be prohibitive"</td>
+<td>4TB SSD = $80 today, falling 35%/year</td>
+</tr>
+<tr>
+<td>"Transaction fees will be too high"</td>
+<td>SegWit discount + L2 keeps fees competitive</td>
+</tr>
+<tr>
+<td>"Throughput will be too low"</td>
+<td>L2 channels handle 1M+ tx/sec off-chain</td>
+</tr>
+<tr>
+<td>"Can't compete with ECDSA chains"</td>
+<td>ECDSA chains will be quantum-broken by 2030</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The question is not "Is XMSS perfectly efficient?" — it is not.</strong>
+<strong>The question is "Is the trade-off worth making?" — unambiguously yes.</strong></p>
+<p>When a sufficiently powerful quantum computer arrives, every ECDSA blockchain faces an existential crisis. Storage optimization can be engineered. Quantum resistance cannot be retrofitted cheaply.</p>
+<p><strong>Assentian-PQE made the right trade-off on day one.</strong></p>
+<hr />
+<h2 id="13-risk-analysis">13. Risk Analysis</h2>
+<h3 id="121-technical-risks">12.1 Technical Risks</h3>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Likelihood</th>
+<th>Impact</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>XMSS key exhaustion</td>
+<td>Low</td>
+<td>Medium</td>
+<td>1,024 sigs/key; rotation enforced</td>
+</tr>
+<tr>
+<td>Implementation bugs</td>
+<td>Medium</td>
+<td>High</td>
+<td>External audit planned; bug bounty</td>
+</tr>
+<tr>
+<td>Quantum faster than expected</td>
+<td>Low</td>
+<td>Positive</td>
+<td>SNTI already quantum-safe</td>
+</tr>
+<tr>
+<td>XMSS superseded by better PQC</td>
+<td>Low</td>
+<td>Medium</td>
+<td>Upgrade path via soft fork</td>
+</tr>
+<tr>
+<td>State management errors</td>
+<td>Low</td>
+<td>High</td>
+<td>Atomic writes; backup/restore verified</td>
+</tr>
+</tbody>
+</table>
+<h3 id="122-market-risks">12.2 Market Risks</h3>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Likelihood</th>
+<th>Impact</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bitcoin adopts PQC (by 2030)</td>
+<td>15%</td>
+<td>High</td>
+<td>4+ year head start; network effect</td>
+</tr>
+<tr>
+<td>Low initial hashrate</td>
+<td>High</td>
+<td>Medium</td>
+<td>CPU-friendly launch; no ASIC advantage</td>
+</tr>
+<tr>
+<td>Price volatility</td>
+<td>High</td>
+<td>Medium</td>
+<td>Utility-driven demand</td>
+</tr>
+<tr>
+<td>Exchange listing delays</td>
+<td>Medium</td>
+<td>High</td>
+<td>DEX-first strategy</td>
+</tr>
+</tbody>
+</table>
+<h3 id="123-regulatory-risks">12.3 Regulatory Risks</h3>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Likelihood</th>
+<th>Impact</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mining regulation</td>
+<td>Medium</td>
+<td>Medium</td>
+<td>Useful-work narrative; green energy</td>
+</tr>
+<tr>
+<td>Securities classification</td>
+<td>Low</td>
+<td>High</td>
+<td>Fair launch; no pre-mine; utility token</td>
+</tr>
+<tr>
+<td>PQC export controls</td>
+<td>Very Low</td>
+<td>Low</td>
+<td>XMSS is currently unrestricted globally</td>
+</tr>
+<tr>
+<td>Exchange compliance</td>
+<td>Medium</td>
+<td>Medium</td>
+<td>Legal review before listings</td>
+</tr>
+</tbody>
+</table>
+<h3 id="124-competitive-analysis">12.4 Competitive Analysis</h3>
+<p><strong>Scenario A (35%): Bitcoin delays PQC migration</strong>
+SNTI has clear runway to 2030+. Best case for network effect accumulation.</p>
+<p><strong>Scenario B (35%): Bitcoin begins PQC migration (2028–2030)</strong>
+Migration takes 5–10 years. SNTI maintains quantum-safe advantage throughout transition. Value proposition: "Migration risk-free from day one."</p>
+<p><strong>Scenario C (20%): New PQC chain launches with better tech</strong>
+SNTI's Bitcoin Core foundation, first-mover status, and established mining network provide competitive moat.</p>
+<p><strong>Scenario D (10%): Quantum threat overstated, mass adoption delayed</strong>
+SNTI still operates as a sound-money, fixed-supply cryptocurrency with unique useful-work narrative. Downside protection from Bitcoin-model tokenomics.</p>
+<hr />
+<h2 id="14-team-governance">14. Team &amp; Governance</h2>
+<h3 id="131-core-team">13.1 Core Team</h3>
+<p><strong>Asep Mulya</strong> — Founder &amp; Lead Developer
+- Creator of Assentian-PQE (SNTI)
+- Designed and implemented PoUW consensus
+- Implemented XMSS integration into Bitcoin Core
+- Sighash-v2 design and implementation
+- Contact: assentianpqe@gmail.com</p>
+<h3 id="132-open-source-contribution">13.2 Open Source Contribution</h3>
+<p>Assentian-PQE is built on the shoulders of giants:</p>
+<ul>
+<li><strong>Bitcoin Core developers</strong> — 15+ years of battle-tested codebase</li>
+<li><strong>QRL team</strong> — First production XMSS blockchain (2018)</li>
+<li><strong>NIST PQC team</strong> — XMSS standardization (SP 800-208)</li>
+<li><strong>Andreas Hülsing &amp; Joost Rijneveld</strong> — XMSS reference implementation</li>
+<li><strong>The broader PQC research community</strong> — 15+ years of cryptanalysis</li>
+</ul>
+<h3 id="133-governance-model">13.3 Governance Model</h3>
+<p><strong>Phase 1 (2026–2027):</strong> Founder-led development
+- Rapid iteration and bug fixes
+- Community input via GitHub issues
+- Transparent changelog and commit history</p>
+<p><strong>Phase 2 (2027–2028):</strong> Community governance introduction
+- On-chain proposal system
+- SNTI token voting (1 SNTI = 1 vote)
+- Core developer multisig for emergency fixes</p>
+<p><strong>Phase 3 (2028+):</strong> Fully decentralized governance
+- Foundation established
+- Grant program for ecosystem development
+- SNTI Improvement Proposals (SIPs)</p>
+<h3 id="134-legal">13.4 Legal</h3>
+<ul>
+<li><strong>Copyright</strong>: Asep Mulya, 2026</li>
+<li><strong>License</strong>: Business Source License 1.1 (BSL-1.1)</li>
+<li><strong>License conversion</strong>: Automatically converts to GPL-2.0 on January 1, 2030</li>
+<li><strong>GitHub</strong>: https://github.com/asepganzu-svg/AssentianPQE-SNTI</li>
+</ul>
+<hr />
+<h2 id="15-conclusion">15. Conclusion</h2>
+<p>The quantum threat to existing blockchain infrastructure is not hypothetical. It is a mathematically certain outcome of quantum computing progress — the only uncertainty is timing.</p>
+<p>Assentian-PQE (SNTI) does not wait for the threat to materialize. It is <strong>built for the post-quantum world from genesis</strong> — June 22, 2026.</p>
+<p><strong>What sets SNTI apart:</strong></p>
+<ol>
+<li><strong>Operational, not theoretical</strong> — Mainnet live, mining working, blocks confirmed</li>
+<li><strong>NIST-compliant</strong> — XMSS from SP 800-208, the gold standard for stateful PQC</li>
+<li><strong>Bitcoin DNA</strong> — 15 years of battle-tested code as the foundation</li>
+<li><strong>Useful work</strong> — Mining produces real cryptographic value, not wasted hashes</li>
+<li><strong>Fair launch</strong> — No pre-mine, no VC allocation, no insider advantage</li>
+<li><strong>First mover</strong> — The only working, mineable, post-quantum blockchain</li>
+</ol>
+<p>The question investors should ask is not "Will quantum computers threaten ECDSA?" — they will. The question is: <strong>"When the quantum inflection point arrives, which blockchain will already be ready?"</strong></p>
+<p>The answer is Assentian-PQE.</p>
+<hr />
+<h2 id="references">References</h2>
+<ol>
+<li>NIST SP 800-208 — Recommendation for Stateful Hash-Based Signature Schemes (2020)</li>
+<li>IETF RFC 8391 — XMSS: eXtended Merkle Signature Scheme (2018)</li>
+<li>NIST FIPS 204 — Module-Lattice-Based Digital Signature Standard (2024)</li>
+<li>NIST FIPS 205 — Stateless Hash-Based Digital Signature Standard (2024)</li>
+<li>Bitcoin Core — Reference implementation, MIT License</li>
+<li>Hülsing, A. &amp; Rijneveld, J. — XMSS Reference Implementation</li>
+<li>IBM Quantum — Quantum computing roadmap 2023–2033</li>
+<li>Google Quantum AI — Beyond Classical Computing (2019)</li>
+</ol>
+<hr />
+<p><em>Assentian-PQE Whitepaper v1.0 | June 22, 2026</em>
+<em>Genesis: "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia"</em>
+<em>Contact: assentianpqe@gmail.com</em>
+<em>GitHub: https://github.com/asepganzu-svg/AssentianPQE-SNTI</em></p>
+</body>
+</html>
