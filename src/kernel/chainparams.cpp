@@ -235,8 +235,8 @@ public:
         m_assumed_blockchain_size = 10;
         m_assumed_chain_state_size = 2;
 
-        genesis = CreateGenesisBlock(1782026818, 1, 0x207fffff, 1, 50 * COIN);
-        consensus.hashGenesisBlock = uint256S("2d858f51fc4af7926bee59c82d06d58a3f260647145aaf6f89263bcb3643b66d");
+        genesis = CreateGenesisBlock(1782026818, 26, 0x207fffff, 1, 50 * COIN);
+        consensus.hashGenesisBlock = uint256S("00146ebb6e8240633c4aef06ca3afbc6c26047f9c3ae5ce1548332a8de149263");
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -441,8 +441,8 @@ public:
             consensus.vDeployments[deployment_pos].min_activation_height = version_bits_params.min_activation_height;
         }
 
-        genesis = CreateGenesisBlock(1782026818, 1, 0x207fffff, 1, 50 * COIN);
-        consensus.hashGenesisBlock = uint256S("2d858f51fc4af7926bee59c82d06d58a3f260647145aaf6f89263bcb3643b66d");
+        genesis = CreateGenesisBlock(1782026818, 26, 0x207fffff, 1, 50 * COIN);
+        consensus.hashGenesisBlock = uint256S("00146ebb6e8240633c4aef06ca3afbc6c26047f9c3ae5ce1548332a8de149263");
 
         // QNT: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;

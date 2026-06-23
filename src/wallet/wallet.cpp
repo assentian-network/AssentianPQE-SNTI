@@ -2187,6 +2187,12 @@ bool CWallet::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint,
     // The generic path below uses the corrected chunked signing logic in
     // script/sign.cpp's SignStep()/CreateXMSSSig() instead.
     if (m_xmss_signer && ::SignTransaction(tx, m_xmss_signer.get(), coins, sighash, input_errors)) {
+        // QNT FIX (write-before-use, 23/Jun/2026): persist XMSS state
+        // immediately after signing — before the tx is broadcast or committed.
+        // If we crash between Sign() and CommitTransaction(), the leaf index
+        // and retired flag are already on disk, preventing double-use of the
+        // same leaf index on restart.
+        const_cast<CWallet*>(this)->PersistXMSSState();
         return true;
     }
     // At this point, one input was not fully signed otherwise we would have exited already
