@@ -42,7 +42,9 @@
 #include <validationinterface.h>
 #include <warnings.h>
 
-// QNT: PoUW mining
+// SNTI: PoUW mining
+// SNTI PoUW v2 include
+#include <pouw_v2.h>
 #include <xmss_bridge.h>
 #include <logging.h>
 
@@ -132,7 +134,7 @@ static RPCHelpMan getnetworkhashps()
     };
 }
 
-// QNT FIX (17/Jun/2026): Compute the PoUW signing preimage — a hash that
+// SNTI FIX (17/Jun/2026): Compute the PoUW signing preimage — a hash that
 // commits to the chain position, timing/difficulty, the coinbase content
 // EXCLUDING the not-yet-attached signature output, and the signer's public
 // key. This is deliberately NOT block.GetHash(): embedding the signature
@@ -163,124 +165,86 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
     block_out.reset();
     block.hashMerkleRoot = BlockMerkleRoot(block);
 
-    // QNT: PoUW — Generate XMSS key pair for this block
-    // The "useful work" is generating an XMSS key pair (~1-2 seconds on CPU)
-    XMSS::CXMSSKey miner_key;
-    std::vector<uint8_t> xmss_pk;
-    bool pouw_active = chainman.GetConsensus().fPoUW;
-
-    if (pouw_active) {
-        LogPrintf("PoUW: Generating XMSS key pair for block mining...\n");
-        if (!miner_key.Generate()) {
-            LogPrintf("PoUW: ERROR — XMSS key generation failed\n");
-            return false;
+    // SNTI PoUW v2: XMSS tree search mining loop
+    // Miner searches SK_SEED (96 bytes) until XMSS root < target
+    // No SHA-256 nonce — XMSS tree building IS the proof of work
+    {
+        // Initialize seed from block fields for determinism
+        uint8_t seed[PoUWv2::SEED_BYTES];
+        {
+            // seed = SHA256(hashPrevBlock || nTime || nBits || counter)
+            // We use GetRandBytes for initial seed, then increment counter
+            // GetRandBytes max 32 bytes — fill 96 bytes in 3 calls
+            GetRandBytes({seed,      32});
+            GetRandBytes({seed + 32, 32});
+            GetRandBytes({seed + 64, 32});
         }
-        xmss_pk = miner_key.GetPubKey();
-        if (xmss_pk.size() != 64) {
-            LogPrintf("PoUW: ERROR — Invalid XMSS public key size (%d)\n", (int)xmss_pk.size());
-            return false;
-        }
-        LogPrintf("PoUW: XMSS key generated, pk=%s...\n", HexStr(xmss_pk).substr(0, 16));
 
-        // Add XMSS pubkey OP_RETURN to coinbase if not already present.
-        // This is safe to do before signing: the pubkey doesn't depend on
-        // the signature, so adding it doesn't create the circular problem
-        // the signature itself would.
-        bool has_pouw_output = false;
-        for (const auto& txout : block.vtx[0]->vout) {
-            if (txout.scriptPubKey.size() == 66 && txout.scriptPubKey[0] == OP_RETURN) {
-                has_pouw_output = true;
+        uint64_t attempt = 0;
+        PoUWv2::PoUWv2Proof proof;
+
+        // Preimage = data that XMSS signs (block header fields without xmssRoot)
+        uint256 preimage_hash;
+        {
+            // SNTI PoUW v2: preimage excludes hashMerkleRoot
+            // because merkle root changes after proof is embedded
+            HashWriter hw{};
+            hw << block.nVersion << block.hashPrevBlock
+               << block.nTime << block.nBits;
+            preimage_hash = hw.GetHash();
+        }
+
+        arith_uint256 target;
+        target.SetCompact(block.nBits);
+
+        LogPrintf("PoUW v2: starting XMSS tree search (target=%s)\n",
+                  ArithToUint256(target).GetHex().substr(0, 16));
+
+        while (max_tries > 0 && !chainman.m_interrupt) {
+            // Build XMSS tree from current seed
+            if (!PoUWv2::BuildAndSign(seed, preimage_hash.begin(), proof)) {
+                LogPrintf("PoUW v2: BuildAndSign failed at attempt %llu\n", attempt);
                 break;
             }
-        }
-        if (!has_pouw_output) {
-            CMutableTransaction coinbase(*block.vtx[0]);
-            CScript op_return_script;
-            op_return_script << OP_RETURN << xmss_pk;
-            coinbase.vout.push_back(CTxOut(0, op_return_script));
-            block.vtx[0] = MakeTransactionRef(std::move(coinbase));
-            block.hashMerkleRoot = BlockMerkleRoot(block);
-        }
 
-        // QNT FIX: sign the stable preimage BEFORE attaching the signature
-        // anywhere in the block. At this point the coinbase contains the
-        // reward output and the pubkey OP_RETURN only — exactly the
-        // "coinbase without signature" content the preimage commits to.
-        uint256 coinbase_txid_no_sig = block.vtx[0]->GetHash();
-        uint256 preimage = ComputePoUWPreimage(block.nVersion, block.hashPrevBlock,
-                                               block.nTime, block.nBits,
-                                               coinbase_txid_no_sig, xmss_pk);
-        std::vector<uint8_t> preimage_vec(preimage.begin(), preimage.end());
-        std::vector<uint8_t> xmss_sig;
+            // Check if root < target
+            uint256 root = proof.GetRoot();
+            if (UintToArith256(root) <= target) {
+                // Found valid block!
+                block.xmssRoot = root;
+                block.nNonce   = 0; // nNonce unused in PoUW v2
 
-        if (!miner_key.Sign(preimage_vec, xmss_sig)) {
-            LogPrintf("PoUW: WARNING — XMSS sign failed (key index exhausted?), regenerating key\n");
-            if (!miner_key.Generate()) {
-                return false;
+                // Embed PoUW v2 proof into coinbase OP_RETURN
+                std::vector<uint8_t> proof_bytes = proof.Serialize();
+                CMutableTransaction coinbase(*block.vtx[0]);
+                CScript proof_script;
+                proof_script << OP_RETURN << proof_bytes;
+                coinbase.vout.push_back(CTxOut(0, proof_script));
+                block.vtx[0] = MakeTransactionRef(std::move(coinbase));
+                block.hashMerkleRoot = BlockMerkleRoot(block);
+
+                LogPrintf("PoUW v2: found valid block! root=%s attempt=%llu\n",
+                          root.GetHex().substr(0, 16), attempt);
+                break;
             }
-            xmss_pk = miner_key.GetPubKey();
-            if (xmss_pk.size() != 64) return false;
 
-            CMutableTransaction coinbase(*block.vtx[0]);
-            std::vector<CTxOut> new_vout;
-            for (const auto& txout : coinbase.vout) {
-                if (!(txout.scriptPubKey.size() == 66 && txout.scriptPubKey[0] == OP_RETURN)) {
-                    new_vout.push_back(txout);
-                }
+            // Increment seed (treat as 96-byte big integer, increment byte 95)
+            for (int i = PoUWv2::SEED_BYTES - 1; i >= 0; i--) {
+                if (++seed[i] != 0) break;
             }
-            CScript op_return_script;
-            op_return_script << OP_RETURN << xmss_pk;
-            new_vout.push_back(CTxOut(0, op_return_script));
-            coinbase.vout = new_vout;
-            block.vtx[0] = MakeTransactionRef(std::move(coinbase));
-            block.hashMerkleRoot = BlockMerkleRoot(block);
+            ++attempt;
+            --max_tries;
 
-            coinbase_txid_no_sig = block.vtx[0]->GetHash();
-            preimage = ComputePoUWPreimage(block.nVersion, block.hashPrevBlock,
-                                           block.nTime, block.nBits,
-                                           coinbase_txid_no_sig, xmss_pk);
-            preimage_vec.assign(preimage.begin(), preimage.end());
-
-            if (!miner_key.Sign(preimage_vec, xmss_sig)) {
-                return false;
+            if (attempt % 10 == 0) {
+                LogPrintf("PoUW v2: attempt %llu, last_root=%s\n",
+                          attempt, proof.GetRoot().GetHex().substr(0, 16));
             }
         }
 
-        if (xmss_sig.empty()) {
-            return false;
+        if (block.xmssRoot.IsNull()) {
+            // No valid block found
+            return (chainman.m_interrupt ? false : false);
         }
-
-        // Attach the signature as its own OP_RETURN output, alongside the
-        // pubkey output. The preimage signed above deliberately excludes
-        // this output's content, so adding it now — and the merkle root
-        // change that causes — does not invalidate the signature.
-        CMutableTransaction coinbase(*block.vtx[0]);
-        CScript sig_op_return_script;
-        sig_op_return_script << OP_RETURN << xmss_sig;
-        coinbase.vout.push_back(CTxOut(0, sig_op_return_script));
-        block.vtx[0] = MakeTransactionRef(std::move(coinbase));
-        block.hashMerkleRoot = BlockMerkleRoot(block);
-
-        LogPrintf("PoUW: signed preimage %s (sig_len=%d), coinbase finalized\n",
-                 preimage.GetHex(), (int)xmss_sig.size());
-    }
-
-    // QNT: pure SHA-256 nonce grinding. The coinbase — and therefore the
-    // merkle root — is now final: PoUW signing happened above, before
-    // grinding starts, so no further coinbase changes occur here and no
-    // re-verification/retry loop is needed for that reason anymore.
-    while (max_tries > 0 && block.nNonce < std::numeric_limits<uint32_t>::max()
-           && !CheckProofOfWork(block.GetHash(), block.nBits, chainman.GetConsensus())
-           && !chainman.m_interrupt) {
-        ++block.nNonce;
-        --max_tries;
-    }
-
-    if (max_tries == 0 || chainman.m_interrupt) {
-        return false;
-    }
-    if (block.nNonce == std::numeric_limits<uint32_t>::max()) {
-        return true;
     }
 
     block_out = std::make_shared<const CBlock>(block);
@@ -589,7 +553,7 @@ static RPCHelpMan getmininginfo()
     obj.pushKV("pooledtx",         (uint64_t)mempool.size());
     obj.pushKV("chain", chainman.GetParams().GetChainTypeString());
     obj.pushKV("warnings",         GetWarnings(false).original);
-    // QNT: PoUW status
+    // SNTI: PoUW status
     obj.pushKV("pouw_enabled",     chainman.GetConsensus().fPoUW);
     return obj;
 },

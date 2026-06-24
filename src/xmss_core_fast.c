@@ -986,3 +986,45 @@ int xmssmt_core_sign(const xmss_params *params,
 
     return 0;
 }
+
+/*
+ * SNTI PoUW v2: Derives a XMSSMT key pair from explicit seed.
+
+/*
+ * SNTI PoUW v2: Derives a XMSS key pair from explicit seed.
+ * Seed must be 3*n long: [SK_SEED(n) | SK_PRF(n) | PUB_SEED(n)]
+ * Uses treehash_init (BDS fast traversal version).
+ */
+int xmssmt_core_seed_keypair(const xmss_params *params,
+                             unsigned char *pk, unsigned char *sk,
+                             unsigned char *seed)
+{
+    uint32_t addr[8] = {0};
+    bds_state state;
+    treehash_inst treehash[params->tree_height - params->bds_k];
+    state.treehash = treehash;
+    xmss_deserialize_state(params, &state, sk);
+    state.stackoffset = 0;
+    state.next_leaf = 0;
+
+    /* Set idx = 0 */
+    for (unsigned int i = 0; i < params->index_bytes; i++) sk[i] = 0;
+
+    /* Copy SK_SEED and SK_PRF from seed */
+    memcpy(sk + params->index_bytes, seed, 2 * params->n);
+
+    /* Copy PUB_SEED from seed */
+    memcpy(sk + params->index_bytes + 3*params->n, seed + 2*params->n, params->n);
+
+    /* Copy PUB_SEED to pk */
+    memcpy(pk + params->n, sk + params->index_bytes + 3*params->n, params->n);
+
+    /* Build tree */
+    treehash_init(params, pk, params->tree_height, 0, &state,
+                  sk + params->index_bytes, pk + params->n, addr);
+
+    /* Copy root to sk */
+    memcpy(sk + params->index_bytes + 2*params->n, pk, params->n);
+    xmss_serialize_state(params, sk, &state);
+    return 0;
+}

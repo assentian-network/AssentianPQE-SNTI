@@ -27,14 +27,19 @@ public:
     uint256 hashMerkleRoot;
     uint32_t nTime;
     uint32_t nBits;
-    uint32_t nNonce;
+    uint32_t nNonce;     // legacy field — set to 0 in PoUW v2
+    // SNTI PoUW v2: xmssRoot field
+    // XMSS tree root hash — this IS the proof of work.
+    // Miner searches SK_SEED until xmssRoot < target.
+    uint256 xmssRoot;
 
     CBlockHeader()
     {
         SetNull();
     }
 
-    SERIALIZE_METHODS(CBlockHeader, obj) { READWRITE(obj.nVersion, obj.hashPrevBlock, obj.hashMerkleRoot, obj.nTime, obj.nBits, obj.nNonce); }
+    // SNTI PoUW v2: xmssRoot included in serialization
+    SERIALIZE_METHODS(CBlockHeader, obj) { READWRITE(obj.nVersion, obj.hashPrevBlock, obj.hashMerkleRoot, obj.nTime, obj.nBits, obj.nNonce, obj.xmssRoot); }
 
     void SetNull()
     {
@@ -44,6 +49,7 @@ public:
         nTime = 0;
         nBits = 0;
         nNonce = 0;
+        xmssRoot.SetNull();
     }
 
     bool IsNull() const
@@ -110,6 +116,8 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
+        // SNTI PoUW v2: copy xmssRoot
+        block.xmssRoot       = xmssRoot;
         return block;
     }
 

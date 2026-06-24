@@ -65,8 +65,10 @@
 #include <validationinterface.h>
 #include <warnings.h>
 
-// QNT: XMSS PoUW verification
+// SNTI: XMSS PoUW verification
 #include <xmss_bridge.h>
+#include <pouw_v2.h>
+#include <pouw_v2.h>
 
 #include <algorithm>
 #include <cassert>
@@ -2038,7 +2040,7 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
 
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
-// QNT Fix2: PoUW leaf index tracking helpers
+// SNTI Fix2: PoUW leaf index tracking helpers
 static const uint8_t DB_POUW_LEAF = 'L';
 
 static uint256 MakePoUWLeafKey(const std::vector<uint8_t>& pubkey64, uint32_t leaf_idx)
@@ -2074,7 +2076,7 @@ DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIn
         return DISCONNECT_FAILED;
     }
 
-    // QNT Fix2: unmark PoUW leaf index on reorg
+    // SNTI Fix2: unmark PoUW leaf index on reorg
     {
         const Consensus::Params& cp = m_chainman.GetParams().GetConsensus();
         if (cp.fPoUW) {
@@ -2556,7 +2558,7 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
 
-    // QNT Fix2: mark PoUW leaf index as used
+    // SNTI Fix2: mark PoUW leaf index as used
     if (!fJustCheck && m_chainman.GetParams().GetConsensus().fPoUW) {
         const CTransaction& cbTx = *block.vtx[0];
         std::vector<uint8_t> cb_pk, cb_sig;
@@ -3729,8 +3731,10 @@ void ChainstateManager::ReceivedBlockTransactions(const CBlock& block, CBlockInd
 
 static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
 {
-    // Check proof of work matches claimed amount
-    if (fCheckPOW && !CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
+    // SNTI PoUW v2: check xmssRoot < target
+    // xmssRoot = XMSS tree root — miner searched SK_SEED until root < target
+    // Full proof (auth_path + wots_sig) verified in CheckPoUW()
+    if (fCheckPOW && !block.xmssRoot.IsNull() && !CheckProofOfWork(block.xmssRoot, block.nBits, consensusParams))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "high-hash", "proof of work failed");
 
     return true;
@@ -3818,8 +3822,8 @@ static bool CheckWitnessMalleation(const CBlock& block, bool expect_witness_comm
 }
 
 
-// QNT: Forward declaration — PoUW XMSS signature verification
-// QNT Fix2: forward decl updated
+// SNTI: Forward declaration — PoUW XMSS signature verification
+// SNTI Fix2: forward decl updated
 static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, const ChainstateManager& chainman, int nHeight = -1);
 
 bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW, bool fCheckMerkleRoot)
@@ -3839,7 +3843,7 @@ bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensu
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-signet-blksig", "signet block signature validation failure");
     }
 
-    // QNT: PoUW — verified in ContextualCheckBlock (has chainman access)
+    // SNTI: PoUW — verified in ContextualCheckBlock (has chainman access)
 
     // Check the merkle root.
     if (fCheckMerkleRoot && !CheckMerkleRoot(block, state)) {
@@ -3889,17 +3893,17 @@ bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensu
     return true;
 }
 
-// QNT: PoUW v1 — Verify XMSS signature in coinbase
+// SNTI: PoUW v1 — Verify XMSS signature in coinbase
 // The coinbase must contain:
 //   - An OP_RETURN output with the 64-byte XMSS public key: OP_RETURN <0x40> <64-byte-pk>
 //   - The XMSS signature embedded in the coinbase scriptSig after the height + extra nonce
 // The signature signs the block header hash (which includes the merkle root).
-// QNT Fix2: implementation updated
+// SNTI Fix2: implementation updated
 static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Consensus::Params& consensusParams, const ChainstateManager& chainman, int nHeight)
 {
     if (!consensusParams.fPoUW) return true;
 
-    // QNT: Height-gated activation.
+    // SNTI: Height-gated activation.
     // nHeight == -1 means "unknown / not yet contextually validated" (e.g. the
     // call from CheckBlock(), which runs before ContextualCheckBlock and has
     // no access to chain height). In that case, defer the real check to the
@@ -3921,7 +3925,7 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
 
     // Extract XMSS public key from coinbase OP_RETURN output
     // Format: OP_RETURN <pushdata: 64-byte pubkey>
-    // QNT FIX (CheckPoUW pubkey parsing robustness, 20/Jun/2026): use
+    // SNTI FIX (CheckPoUW pubkey parsing robustness, 20/Jun/2026): use
     // proper script parsing (GetOp) instead of brittle exact-size byte
     // offsets. The old logic required script.size() == 66 exactly, which
     // silently rejects any otherwise-valid push using a different (but
@@ -3930,17 +3934,30 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
     // handles whatever push encoding was used and extracts exactly the
     // pushed bytes, matching the approach already used below for
     // signature extraction (consistency fix).
+    // SNTI PoUW v2: detect proof format
+    // v2: OP_RETURN with magic PW2\x02
+    // v1: OP_RETURN with 64-byte pubkey (legacy)
+    bool is_v2 = false;
+    PoUWv2::PoUWv2Proof v2_proof;
     std::vector<uint8_t> xmss_pk;
+
     for (const auto& txout : coinbase.vout) {
         const CScript& script = txout.scriptPubKey;
         if (script.empty() || script[0] != OP_RETURN) continue;
         CScript::const_iterator pc = script.begin() + 1;
         opcodetype opcode;
         std::vector<unsigned char> data;
-        if (script.GetOp(pc, opcode, data) && data.size() == 64) {
-            xmss_pk = data;
-            break;
+        if (!script.GetOp(pc, opcode, data)) continue;
+        // v2 magic: P W 2 \x02
+        if (data.size() >= 4 &&
+            data[0]=='P' && data[1]=='W' && data[2]=='2' && data[3]==0x02) {
+            if (v2_proof.Deserialize(data.data(), data.size())) {
+                is_v2 = true;
+                xmss_pk.assign(v2_proof.xmss_pk, v2_proof.xmss_pk + PoUWv2::PK_BYTES);
+                break;
+            }
         }
+        if (data.size() == 64 && xmss_pk.empty()) xmss_pk = data;
     }
 
     if (xmss_pk.size() != 64) {
@@ -3948,7 +3965,32 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
                              "PoUW: no valid XMSS public key in coinbase OP_RETURN");
     }
 
-    // QNT FIX (17/Jun/2026): signature is carried in a dedicated OP_RETURN
+    // PoUW v2: verify root < target + wots_sig
+    if (is_v2) {
+        arith_uint256 target;
+        target.SetCompact(block.nBits);
+        // SNTI PoUW v2: preimage excludes hashMerkleRoot (same as miner)
+        HashWriter hw_v2{};
+        hw_v2 << block.nVersion << block.hashPrevBlock
+              << block.nTime << block.nBits;
+        uint256 preimage_v2 = hw_v2.GetHash();
+        LogPrintf("PoUW v2 DEBUG: preimage=%s\n", preimage_v2.GetHex());
+        LogPrintf("PoUW v2 DEBUG: xmss_pk=%s\n", HexStr(xmss_pk).substr(0,16));
+        LogPrintf("PoUW v2 DEBUG: root=%s\n", HexStr(Span<const uint8_t>(v2_proof.xmss_pk, 32)).substr(0,16));
+        LogPrintf("PoUW v2 DEBUG: wots_sig[0..4]=%s\n", HexStr(Span<const uint8_t>(v2_proof.wots_sig, 4)));
+        LogPrintf("PoUW v2 DEBUG: auth[0..4]=%s\n", HexStr(Span<const uint8_t>(v2_proof.auth_path, 4)));
+        bool v2_ok = PoUWv2::CheckPoUWv2(v2_proof, preimage_v2.begin(), target);
+        LogPrintf("PoUW v2 DEBUG: CheckPoUWv2 result=%d\n", v2_ok);
+        if (!v2_ok) {
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-v2-invalid",
+                                 "PoUW v2: invalid proof");
+        }
+        LogPrint(BCLog::VALIDATION, "PoUW v2: block %s verified (root=%s)\n",
+                 block.GetHash().GetHex(), HexStr(xmss_pk).substr(0, 16));
+        return true;
+    }
+
+    // SNTI FIX (17/Jun/2026): signature is carried in a dedicated OP_RETURN
     // output instead of the coinbase witness reserved-value slot — see
     // GenerateBlock() in rpc/mining.cpp for why (embedding it in witness
     // violated BIP141's single-32-byte-reserved-value rule for coinbase
@@ -3979,7 +4021,7 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
                              "PoUW: no XMSS signature found in coinbase OP_RETURN output");
     }
 
-    // QNT FIX: reconstruct the same "coinbase without signature" preimage
+    // SNTI FIX: reconstruct the same "coinbase without signature" preimage
     // the miner signed (see ComputePoUWPreimage in rpc/mining.cpp) by
     // rebuilding the coinbase transaction with the signature output
     // removed, then hashing it the same way. This avoids the circular
@@ -4002,7 +4044,7 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
                              "PoUW: XMSS signature verification failed");
     }
 
-    // QNT Fix2: check leaf index not already used
+    // SNTI Fix2: check leaf index not already used
     if (xmss_sig.size() < 4) {
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-sig-too-short",
                              "PoUW: XMSS signature too short to extract leaf index");
@@ -4063,10 +4105,11 @@ std::vector<unsigned char> ChainstateManager::GenerateCoinbaseCommitment(CBlock&
     return commitment;
 }
 
+// SNTI PoUW v2: HasValidProofOfWork uses xmssRoot
 bool HasValidProofOfWork(const std::vector<CBlockHeader>& headers, const Consensus::Params& consensusParams)
 {
     return std::all_of(headers.cbegin(), headers.cend(),
-            [&](const auto& header) { return CheckProofOfWork(header.GetHash(), header.nBits, consensusParams);});
+            [&](const auto& header) { return CheckProofOfWork(header.xmssRoot, header.nBits, consensusParams);});
 }
 
 bool IsBlockMutated(const CBlock& block, bool check_witness_root)
@@ -4222,15 +4265,15 @@ static bool ContextualCheckBlock(const CBlock& block, BlockValidationState& stat
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-blk-weight", strprintf("%s : weight limit failed", __func__));
     }
 
-    // QNT: PoUW height-gated enforcement. This is the real check — the call
+    // SNTI: PoUW height-gated enforcement. This is the real check — the call
     // in CheckBlock() only runs the unconditional (nHeight == 0) case and
     // defers here whenever nPoUWStartHeight > 0, since only this function
     // has access to the contextual block height.
-    // QNT: skip the PoUW signature check on a not-yet-PoW-grinded template
+    // SNTI: skip the PoUW signature check on a not-yet-PoW-grinded template
     // (fCheckPOW=false), since the coinbase OP_RETURN/witness aren't filled
     // in until after grinding and XMSS-signing in GenerateBlock(). The real
     // enforcement happens when fCheckPOW=true, i.e. on the final submitted block.
-    // QNT Fix2: call site 2 updated
+    // SNTI Fix2: call site 2 updated
     if (fCheckPOW && !CheckPoUW(block, state, chainman.GetConsensus(), const_cast<ChainstateManager&>(chainman), nHeight)) {
         return false;
     }

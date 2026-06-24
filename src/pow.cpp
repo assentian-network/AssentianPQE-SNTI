@@ -9,66 +9,53 @@
 #include <chain.h>
 #include <primitives/block.h>
 #include <uint256.h>
+// SNTI PoUW v2 include
+#include <pouw_v2.h>
 
+
+// SNTI PoUW v2: EMA per-block difficulty adjustment
+// Replaces Bitcoin 2016-block retarget with per-block EMA (alpha=0.1)
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
 {
     assert(pindexLast != nullptr);
-    unsigned int nProofOfWorkLimit = UintToArith256(params.powLimit).GetCompact();
+    const arith_uint256 pow_limit = UintToArith256(params.powLimit);
+    unsigned int nProofOfWorkLimit = pow_limit.GetCompact();
 
-    // Only change once per difficulty adjustment interval
-    if ((pindexLast->nHeight+1) % params.DifficultyAdjustmentInterval() != 0)
-    {
-        if (params.fPowAllowMinDifficultyBlocks)
-        {
-            // Special difficulty rule for testnet:
-            // If the new block's timestamp is more than 2* 10 minutes
-            // then allow mining of a min-difficulty block.
-            if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing*2)
-                return nProofOfWorkLimit;
-            else
-            {
-                // Return the last non-special-min-difficulty-rules-block
-                const CBlockIndex* pindex = pindexLast;
-                while (pindex->pprev && pindex->nHeight % params.DifficultyAdjustmentInterval() != 0 && pindex->nBits == nProofOfWorkLimit)
-                    pindex = pindex->pprev;
-                return pindex->nBits;
-            }
-        }
-        return pindexLast->nBits;
+    // Genesis block
+    if (pindexLast->pprev == nullptr) return nProofOfWorkLimit;
+
+    // fPowNoRetargeting: regtest
+    if (params.fPowNoRetargeting) return pindexLast->nBits;
+
+    // Testnet: allow min difficulty if block is too slow
+    if (params.fPowAllowMinDifficultyBlocks) {
+        if (pblock->GetBlockTime() > pindexLast->GetBlockTime() + params.nPowTargetSpacing * 2)
+            return nProofOfWorkLimit;
     }
 
-    // Go back by what we want to be 14 days worth of blocks
-    int nHeightFirst = pindexLast->nHeight - (params.DifficultyAdjustmentInterval()-1);
-    assert(nHeightFirst >= 0);
-    const CBlockIndex* pindexFirst = pindexLast->GetAncestor(nHeightFirst);
-    assert(pindexFirst);
-
-    return CalculateNextWorkRequired(pindexLast, pindexFirst->GetBlockTime(), params);
+    return CalculateNextWorkRequired(pindexLast, pindexLast->pprev->GetBlockTime(), params);
 }
 
+// SNTI PoUW v2: EMA implementation
+// nFirstBlockTime = pindexLast->pprev->GetBlockTime() (previous block time)
 unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime, const Consensus::Params& params)
 {
     if (params.fPowNoRetargeting)
         return pindexLast->nBits;
 
-    // Limit adjustment step
-    int64_t nActualTimespan = pindexLast->GetBlockTime() - nFirstBlockTime;
-    if (nActualTimespan < params.nPowTargetTimespan/4)
-        nActualTimespan = params.nPowTargetTimespan/4;
-    if (nActualTimespan > params.nPowTargetTimespan*4)
-        nActualTimespan = params.nPowTargetTimespan*4;
+    // Actual spacing = time between last two blocks
+    int64_t actual_spacing = pindexLast->GetBlockTime() - nFirstBlockTime;
 
-    // Retarget
-    const arith_uint256 bnPowLimit = UintToArith256(params.powLimit);
-    arith_uint256 bnNew;
-    bnNew.SetCompact(pindexLast->nBits);
-    bnNew *= nActualTimespan;
-    bnNew /= params.nPowTargetTimespan;
+    // Get current target
+    arith_uint256 old_target;
+    old_target.SetCompact(pindexLast->nBits);
 
-    if (bnNew > bnPowLimit)
-        bnNew = bnPowLimit;
+    // EMA adjustment via pouw_v2
+    const arith_uint256 pow_limit = UintToArith256(params.powLimit);
+    arith_uint256 new_target = PoUWv2::CalcNextTargetEMA(
+        old_target, actual_spacing, params.nPowTargetSpacing, pow_limit);
 
-    return bnNew.GetCompact();
+    return new_target.GetCompact();
 }
 
 // Check that on difficulty adjustments, the new difficulty does not increase
@@ -122,6 +109,9 @@ bool PermittedDifficultyTransition(const Consensus::Params& params, int64_t heig
     return true;
 }
 
+// SNTI PoUW v2: root < target check
+// 'hash' parameter = XMSS root hash (first 32 bytes of xmss_pk)
+// Full XMSS proof verification happens in CheckPoUW() in validation.cpp
 bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params& params)
 {
     bool fNegative;
@@ -134,7 +124,8 @@ bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params&
     if (fNegative || bnTarget == 0 || fOverflow || bnTarget > UintToArith256(params.powLimit))
         return false;
 
-    // Check proof of work matches claimed amount
+    // SNTI PoUW v2: check XMSS root < target
+    // root = hash (passed from block header's hashMerkleRoot or dedicated field)
     if (UintToArith256(hash) > bnTarget)
         return false;
 

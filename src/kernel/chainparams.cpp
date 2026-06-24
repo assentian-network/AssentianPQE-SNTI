@@ -52,7 +52,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
     const char* pszTimestamp = "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia";
-    // QNT Genesis XMSS public key (64 bytes root||PUB_SEED)
+    // SNTI Genesis XMSS public key (64 bytes root||PUB_SEED)
     // Generated: 2026-06-11
     // Algorithm: XMSS-SHA2_10_256 (NIST SP 800-208)
     const CScript genesisOutputScript = CScript() << ParseHex(
@@ -63,23 +63,23 @@ static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits
 }
 
 /**
- * Quant Mainnet — post-quantum XMSS signatures, SHA-256 PoW
+ * Assentian-PQE Mainnet — Pure Post-Quantum Proof-of-Useful-Work
  *
- * Aligned with WHITEPAPER v0.2 Section 9.2 Technical Specifications:
- *   - P2P Port:      9333  (QNT-specific port)
- *   - Genesis:       Dynamic on launch (see nTime below)
- *   - Block Time:    ~60 seconds (target)
- *   - Halving:       Every 210,000 blocks (~2 years at 60s/block)
- *   - Max Supply:    21,000,000 QNT
- *   - Address:       Base58 prefix Q/V, bech32m "qn"
- *   - Magic Bytes:   0x5155414E ("QUAN")
- *   - PoW:           SHA-256 with XMSS-signed blocks (PoUW v1)
+ * SNTI PoUW v2: Pure XMSS Tree Building
+ *   - P2P Port:      39333
+ *   - Genesis:       Jun 24, 2026
+ *   - Block Time:    ~60 seconds (EMA difficulty adjustment)
+ *   - Halving:       Every 2,100,000 blocks (~4 years at 60s/block)
+ *   - Max Supply:    21,000,000 SNTI
+ *   - Address:       bech32m prefix "qn"
+ *   - PoW:           Pure XMSS tree building (NO SHA-256 nonce)
  *
- * PoUW v1 approach:
- *   Miners do standard SHA-256 hash grinding (like Bitcoin).
- *   But block template includes XMSS public key, and the valid block
- *   must be signed by the miner's XMSS key. The signing IS the useful
- *   work that produces cryptographic material.
+ * PoUW v2 approach:
+ *   Miner searches SK_SEED (96 bytes) until XMSS root < target.
+ *   Building the full XMSS tree (h=10, 1024 leaves) IS the work.
+ *   block.xmssRoot = XMSS root hash, block.nNonce = 0 (unused).
+ *   Difficulty adjusted per-block via EMA (alpha=0.1).
+ *   powLimit = 2^256/156 (target: 156 attempts per block, 4 cores).
  */
 class CMainParams : public CChainParams {
 public:
@@ -87,7 +87,7 @@ public:
         m_chain_type = ChainType::MAIN;
         consensus.signet_blocks = false;
         consensus.signet_challenge.clear();
-        // QNT FIX (18/Jun/2026): was 210,000 (Bitcoin's value, unscaled), which
+        // SNTI FIX (18/Jun/2026): was 210,000 (Bitcoin's value, unscaled), which
         // at 60s/block gives ~146 days between halvings, not the "~4 years"
         // the whitepaper promises (and not even the "~2 years" the old
         // comment here claimed -- both were wrong, and disagreed with each
@@ -103,10 +103,12 @@ public:
         consensus.SegwitHeight = 0; // No Segwit in Quant v1 — XMSS keys are 64 bytes
         consensus.MinBIP9WarningHeight = 0;
         // PoW: Low difficulty for fair launch, will adjust
-        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        // 60 second target (whitepaper section 6.3)
-        consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
-        consensus.nPowTargetSpacing = 60;  // 60 SECONDS (whitepaper)
+        // SNTI PoUW v2: powLimit = 2^256/156
+        // Target: 1 of 156 XMSS trees valid per block (4 cores, 6.17s/tree, 60s block)
+        consensus.powLimit = uint256S("01a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a4");
+        // SNTI PoUW v2: EMA per-block — nPowTargetTimespan = nPowTargetSpacing
+        consensus.nPowTargetTimespan = 60; // EMA uses per-block spacing
+        consensus.nPowTargetSpacing = 60;  // 60 seconds target block time
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1815;  // ~90% of 2016
@@ -123,7 +125,7 @@ public:
         consensus.nMinimumChainWork = uint256{};
         consensus.defaultAssumeValid = uint256{};
 
-        // QNT: PoUW — enable on all Quant chains from genesis
+        // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
         consensus.nPoUWMaxSigSize = 4096;
@@ -143,15 +145,19 @@ public:
         // For now, use a recent timestamp placeholder
         // REAL GENESIS TIMESTAMP will be set at official launch (Q4 2026)
         // This is a PLACEHOLDER — do not use for mainnet launch
-        genesis = CreateGenesisBlock(1782026818, 26, 0x207fffff, 1, 50 * COIN);
-        consensus.hashGenesisBlock = uint256S("00146ebb6e8240633c4aef06ca3afbc6c26047f9c3ae5ce1548332a8de149263");
+        // SNTI PoUW v2: genesis
+        // nNonce=0 (unused in PoUW v2), nBits=0x2001a41a
+        // xmssRoot will be computed by first miner — genesis is special case
+        genesis = CreateGenesisBlock(1782275807, 0, 0x2001a41a, 1, 50 * COIN);
+        // hashGenesisBlock will be updated after first mine
+        consensus.hashGenesisBlock = genesis.GetHash();
 
         vSeeds.clear();
-        // QNT DNS seeds (to be registered at launch)
+        // SNTI DNS seeds (to be registered at launch)
         // vSeeds.emplace_back("seed.qnt.io.");
         // vSeeds.emplace_back("testnet-seed.qnt.io.");
 
-        // QNT hardcoded seed nodes (104.234.26.7)
+        // SNTI hardcoded seed nodes (104.234.26.7)
         vFixedSeeds = std::vector<uint8_t>(chainparams_seed_main, chainparams_seed_main + sizeof(chainparams_seed_main));
 
         // Quant address prefixes — different from Bitcoin
@@ -174,8 +180,9 @@ public:
             }
         };
 
+        // SNTI PoUW v2: chainTxData
         chainTxData = ChainTxData{
-            .nTime    = 1781545300,
+            .nTime    = 1782275807,
             .nTxCount = 1,
             .dTxRate  = 0,
         };
@@ -191,7 +198,7 @@ public:
         m_chain_type = ChainType::TESTNET;
         consensus.signet_blocks = false;
         consensus.signet_challenge.clear();
-        consensus.nSubsidyHalvingInterval = 2100000;  // QNT FIX 18/Jun/2026: scaled 10x for 60s blocks, see mainnet comment
+        consensus.nSubsidyHalvingInterval = 2100000;  // SNTI FIX 18/Jun/2026: scaled 10x for 60s blocks, see mainnet comment
         consensus.BIP34Height = 1;
         consensus.BIP34Hash = uint256();
         consensus.BIP65Height = 1;
@@ -220,7 +227,7 @@ public:
         consensus.nMinimumChainWork = uint256{};
         consensus.defaultAssumeValid = uint256{};
 
-        // QNT: PoUW — enable on all Quant chains from genesis
+        // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
         consensus.nPoUWMaxSigSize = 4096;
@@ -235,16 +242,20 @@ public:
         m_assumed_blockchain_size = 10;
         m_assumed_chain_state_size = 2;
 
-        genesis = CreateGenesisBlock(1782026818, 26, 0x207fffff, 1, 50 * COIN);
-        consensus.hashGenesisBlock = uint256S("00146ebb6e8240633c4aef06ca3afbc6c26047f9c3ae5ce1548332a8de149263");
+        // SNTI PoUW v2: genesis
+        // nNonce=0 (unused in PoUW v2), nBits=0x2001a41a
+        // xmssRoot will be computed by first miner — genesis is special case
+        genesis = CreateGenesisBlock(1782275807, 0, 0x2001a41a, 1, 50 * COIN);
+        // hashGenesisBlock will be updated after first mine
+        consensus.hashGenesisBlock = genesis.GetHash();
 
         vFixedSeeds.clear();
         vSeeds.clear();
 
-        // QNT testnet hardcoded seed nodes (104.234.26.7)
+        // SNTI testnet hardcoded seed nodes (104.234.26.7)
         vFixedSeeds = std::vector<uint8_t>(chainparams_seed_test, chainparams_seed_test + sizeof(chainparams_seed_test));
 
-        // QNT testnet DNS seeds (to be registered)
+        // SNTI testnet DNS seeds (to be registered)
         // vSeeds.emplace_back("testnet-seed.qnt.io.");
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
@@ -264,8 +275,9 @@ public:
             }
         };
 
+        // SNTI PoUW v2: chainTxData
         chainTxData = ChainTxData{
-            .nTime    = 1781545300,
+            .nTime    = 1782275807,
             .nTxCount = 1,
             .dTxRate  = 0,
         };
@@ -298,7 +310,7 @@ public:
             chainTxData = ChainTxData{.nTime = 0, .nTxCount = 0, .dTxRate = 0};
         }
 
-        // QNT: PoUW — enable on all Quant chains from genesis
+        // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
         consensus.nPoUWMaxSigSize = 4096;
@@ -310,7 +322,7 @@ public:
         m_chain_type = ChainType::SIGNET;
         consensus.signet_blocks = true;
         consensus.signet_challenge.assign(bin.begin(), bin.end());
-        consensus.nSubsidyHalvingInterval = 2100000;  // QNT FIX 18/Jun/2026: scaled 10x for 60s blocks, see mainnet comment
+        consensus.nSubsidyHalvingInterval = 2100000;  // SNTI FIX 18/Jun/2026: scaled 10x for 60s blocks, see mainnet comment
         consensus.BIP34Height = 1;
         consensus.BIP34Hash = uint256{};
         consensus.BIP65Height = 1;
@@ -441,10 +453,14 @@ public:
             consensus.vDeployments[deployment_pos].min_activation_height = version_bits_params.min_activation_height;
         }
 
-        genesis = CreateGenesisBlock(1782026818, 26, 0x207fffff, 1, 50 * COIN);
-        consensus.hashGenesisBlock = uint256S("00146ebb6e8240633c4aef06ca3afbc6c26047f9c3ae5ce1548332a8de149263");
+        // SNTI PoUW v2: genesis
+        // nNonce=0 (unused in PoUW v2), nBits=0x2001a41a
+        // xmssRoot will be computed by first miner — genesis is special case
+        genesis = CreateGenesisBlock(1782275807, 0, 0x2001a41a, 1, 50 * COIN);
+        // hashGenesisBlock will be updated after first mine
+        consensus.hashGenesisBlock = genesis.GetHash();
 
-        // QNT: PoUW — enable on all Quant chains from genesis
+        // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
         consensus.nPoUWMaxSigSize = 4096;
@@ -453,7 +469,7 @@ public:
         vSeeds.clear();
         vSeeds.emplace_back("dummySeed.invalid.");
 
-        // QNT regtest hardcoded seed (104.234.26.7)
+        // SNTI regtest hardcoded seed (104.234.26.7)
         vFixedSeeds = std::vector<uint8_t>(chainparams_seed_reg, chainparams_seed_reg + sizeof(chainparams_seed_reg));
 
         fDefaultConsistencyChecks = true;
