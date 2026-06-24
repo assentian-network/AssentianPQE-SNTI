@@ -544,38 +544,32 @@ Every block mined on Assentian-PQE contributes a verified XMSS key pair and sign
 <p><strong>Sighash-v2 (Cross-Index Attack Prevention)</strong></p>
 <p>Assentian-PQE implements a hardened sighash scheme:</p>
 <h2 id="7-proof-of-useful-work">7. Proof-of-Useful-Work</h2>
-<h3 id="71-how-pouw-works">7.1 How PoUW Works</h3>
-<p>Step 1: Miner generates XMSS key pair (one-time setup)</p>
-<p>└── XMSS-SHA2_10_256: 64-byte pubkey, 2,500-byte sig capacity
-Step 2: Miner requests block template from node (getblocktemplate)</p>
-<p>└── Receives: prev_hash, transactions, target, height
-Step 3: Miner constructs coinbase with their XMSS pubkey</p>
-<p>└── vout[2] = OP_RETURN || XMSS_pubkey (64 bytes)
-Step 4: Miner signs block header with XMSS private key</p>
-<p>└── signature = XMSS_sign(sighash_v2(block_header), leaf_index)
-Step 5: Miner embeds signature in coinbase</p>
-<p>└── vout[3] = OP_RETURN || XMSS_signature (2,500 bytes)
-Step 6: Miner finds valid nonce (SHA-256 PoW on header)</p>
-<p>└── hash(header || nonce) &lt; target
-Step 7: Block submitted — network validates XMSS signature</p>
-<p>└── CheckPoUW() verifies pubkey + signature + leaf_index</p>
-<h3 id="72-mining-stack-wave-2">7.2 Mining Stack (Wave 2)</h3>
-<p>Assentian-PQE operates a production Stratum mining server with <strong>Wave 2 direct miner payout</strong>:
-Miner connects:   cpuminer -u <SNTI_ADDRESS> -o stratum+tcp://104.234.26.7:3333</p>
-<p>Authorization:    Username = miner's SNTI address (reward destination)</p>
-<p>Share accepted:   Every N shares triggers generatetoaddress(miner_address)</p>
-<p>Reward:           Mining reward goes DIRECTLY to miner — no pool cut
-Wave 2 key improvement over Wave 1:
-- <strong>Wave 1</strong>: Reward to pool address (centralized)
-- <strong>Wave 2</strong>: Reward directly to miner address from <code>mining.authorize</code> username</p>
-<h3 id="73-mining-performance">7.3 Mining Performance</h3>
-<p>Current testnet stats (June 23, 2026):
-- Chain height: 57+ blocks
-- Accepted shares: 48/48 (100% acceptance rate)
-- Blocks found: 15+ via Wave 2 direct payout
-- Immature miner balance: 4,450+ SNTI accumulated
-- Mining software: cpuminer-multi (standard stratum)</p>
-<h3 id="74-difficulty-adjustment">7.4 Difficulty Adjustment</h3>
+<h3 id="71-pouw-v2-pure-xmss-tree-building-live-since-jun-24-2026">7.1 PoUW v2 — Pure XMSS Tree Building (Live since Jun 24, 2026)</h3>
+<p><strong>SHA-256 nonce search has been completely removed.</strong> Building the XMSS Merkle tree IS the proof of work.</p>
+<h4 id="how-pouw-v2-works">How PoUW v2 Works</h4>
+<p>Step 1: Miner generates random SK_SEED (96 bytes) — this is the "nonce"</p>
+<p>Step 2: Miner builds full XMSS tree (height=10, 1024 leaves)
+- Uses <code>xmssmt_core_seed_keypair(SK_SEED)</code> — deterministic tree build
+- Cost: ~6 seconds per attempt on Intel Xeon @ 2.5GHz
+- Output: <code>xmssRoot</code> = Merkle root hash (32 bytes)</p>
+<p>Step 3: Check if <code>xmssRoot &lt; target</code>
+- YES → valid block! Sign and submit
+- NO → increment SK_SEED, rebuild tree</p>
+<p>Step 4: Sign block preimage with WOTS+ (leaf 0)
+- <code>preimage = SHA256(nVersion || hashPrevBlock || nTime || nBits)</code>
+- Embed <code>PoUWv2Proof</code> in coinbase OP_RETURN (2,660 bytes total)</p>
+<p>Step 5: Submit block — node verifies:
+- <code>block.xmssRoot &lt; target</code> (PoW check)
+- <code>PoUWv2Proof.Deserialize()</code> — extract proof components
+- <code>CheckPoUWv2()</code> — verify root matches proof</p>
+<h4 id="why-this-is-useful-work">Why This IS "Useful Work"</h4>
+<p>Every mining attempt produces a complete XMSS keypair with 1024 one-time signatures — directly useful post-quantum cryptographic material. Unlike SHA-256 which produces nothing of value, XMSS tree building:</p>
+<ul>
+<li>Generates quantum-resistant key material</li>
+<li>Advances global post-quantum cryptographic infrastructure</li>
+<li>Proves the miner performed real cryptographic computation</li>
+</ul>
+<h4 id="difficulty-performance">Difficulty &amp; Performance</h4>
 <table>
 <thead>
 <tr>
@@ -585,28 +579,77 @@ Wave 2 key improvement over Wave 1:
 </thead>
 <tbody>
 <tr>
+<td>Tree height</td>
+<td>10 (1024 leaves)</td>
+</tr>
+<tr>
+<td>Build time (1 core)</td>
+<td>~6.17 seconds</td>
+</tr>
+<tr>
+<td>Target attempts/block</td>
+<td>156 (4 cores × 39/core)</td>
+</tr>
+<tr>
+<td>Difficulty algorithm</td>
+<td>EMA per-block (α=0.1)</td>
+</tr>
+<tr>
+<td>powLimit</td>
+<td>2²⁵⁶ / 156</td>
+</tr>
+<tr>
 <td>Target block time</td>
 <td>60 seconds</td>
 </tr>
 <tr>
-<td>Adjustment window</td>
-<td>2,016 blocks (~14 days)</td>
-</tr>
-<tr>
-<td>Max adjustment per window</td>
-<td>4x up / 4x down</td>
-</tr>
-<tr>
-<td>Initial difficulty</td>
-<td>0x207fffff (CPU-friendly)</td>
-</tr>
-<tr>
-<td>powLimit (mainnet)</td>
-<td>7fffffff... (permissive for launch)</td>
+<td>Genesis nBits</td>
+<td>0x2001a41a</td>
 </tr>
 </tbody>
 </table>
-<hr />
+<h4 id="pouw-v2-proof-format-coinbase-op_return-2660-bytes">PoUW v2 Proof Format (coinbase OP_RETURN, 2,660 bytes)</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Magic</td>
+<td>4 bytes</td>
+<td><code>PW2\x02</code></td>
+</tr>
+<tr>
+<td>SK_SEED</td>
+<td>96 bytes</td>
+<td>SK_SEED + SK_PRF + PUB_SEED</td>
+</tr>
+<tr>
+<td>xmss_pk</td>
+<td>64 bytes</td>
+<td>root + PUB_SEED</td>
+</tr>
+<tr>
+<td>auth_path</td>
+<td>320 bytes</td>
+<td>10 × 32 bytes node hashes</td>
+</tr>
+<tr>
+<td>wots_sig</td>
+<td>2144 bytes</td>
+<td>WOTS+ signature</td>
+</tr>
+<tr>
+<td>r</td>
+<td>32 bytes</td>
+<td>signature randomness</td>
+</tr>
+</tbody>
+</table>
 <h2 id="8-security-model">8. Security Model</h2>
 <h3 id="81-threat-model">8.1 Threat Model</h3>
 <table>
@@ -1172,7 +1215,7 @@ SNTI position: XMSS today (hash-based, zero new assumptions)</p>
 <p><strong>Assentian-PQE made the right trade-off on day one.</strong></p>
 <hr />
 <h2 id="13-risk-analysis">13. Risk Analysis</h2>
-<h3 id="121-technical-risks">12.1 Technical Risks</h3>
+<h3 id="131-technical-risks">13.1 Technical Risks</h3>
 <table>
 <thead>
 <tr>
@@ -1215,7 +1258,7 @@ SNTI position: XMSS today (hash-based, zero new assumptions)</p>
 </tr>
 </tbody>
 </table>
-<h3 id="122-market-risks">12.2 Market Risks</h3>
+<h3 id="132-market-risks">13.2 Market Risks</h3>
 <table>
 <thead>
 <tr>
@@ -1252,7 +1295,7 @@ SNTI position: XMSS today (hash-based, zero new assumptions)</p>
 </tr>
 </tbody>
 </table>
-<h3 id="123-regulatory-risks">12.3 Regulatory Risks</h3>
+<h3 id="133-regulatory-risks">13.3 Regulatory Risks</h3>
 <table>
 <thead>
 <tr>
@@ -1289,7 +1332,7 @@ SNTI position: XMSS today (hash-based, zero new assumptions)</p>
 </tr>
 </tbody>
 </table>
-<h3 id="124-competitive-analysis">12.4 Competitive Analysis</h3>
+<h3 id="134-competitive-analysis">13.4 Competitive Analysis</h3>
 <p><strong>Scenario A (35%): Bitcoin delays PQC migration</strong>
 SNTI has clear runway to 2030+. Best case for network effect accumulation.</p>
 <p><strong>Scenario B (35%): Bitcoin begins PQC migration (2028–2030)</strong>
@@ -1300,14 +1343,14 @@ SNTI's Bitcoin Core foundation, first-mover status, and established mining netwo
 SNTI still operates as a sound-money, fixed-supply cryptocurrency with unique useful-work narrative. Downside protection from Bitcoin-model tokenomics.</p>
 <hr />
 <h2 id="14-team-governance">14. Team &amp; Governance</h2>
-<h3 id="131-core-team">13.1 Core Team</h3>
+<h3 id="141-core-team">14.1 Core Team</h3>
 <p><strong>Asep Mulya</strong> — Founder &amp; Lead Developer
 - Creator of Assentian-PQE (SNTI)
 - Designed and implemented PoUW consensus
 - Implemented XMSS integration into Bitcoin Core
 - Sighash-v2 design and implementation
 - Contact: assentianpqe@gmail.com</p>
-<h3 id="132-open-source-contribution">13.2 Open Source Contribution</h3>
+<h3 id="142-open-source-contribution">14.2 Open Source Contribution</h3>
 <p>Assentian-PQE is built on the shoulders of giants:</p>
 <ul>
 <li><strong>Bitcoin Core developers</strong> — 15+ years of battle-tested codebase</li>
@@ -1316,7 +1359,7 @@ SNTI still operates as a sound-money, fixed-supply cryptocurrency with unique us
 <li><strong>Andreas Hülsing &amp; Joost Rijneveld</strong> — XMSS reference implementation</li>
 <li><strong>The broader PQC research community</strong> — 15+ years of cryptanalysis</li>
 </ul>
-<h3 id="133-governance-model">13.3 Governance Model</h3>
+<h3 id="143-governance-model">14.3 Governance Model</h3>
 <p><strong>Phase 1 (2026–2027):</strong> Founder-led development
 - Rapid iteration and bug fixes
 - Community input via GitHub issues
@@ -1329,7 +1372,7 @@ SNTI still operates as a sound-money, fixed-supply cryptocurrency with unique us
 - Foundation established
 - Grant program for ecosystem development
 - SNTI Improvement Proposals (SIPs)</p>
-<h3 id="134-legal">13.4 Legal</h3>
+<h3 id="144-legal">14.4 Legal</h3>
 <ul>
 <li><strong>Copyright</strong>: Asep Mulya, 2026</li>
 <li><strong>License</strong>: Business Source License 1.1 (BSL-1.1)</li>
