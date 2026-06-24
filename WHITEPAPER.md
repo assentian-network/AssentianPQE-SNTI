@@ -359,77 +359,62 @@ Assentian-PQE implements a hardened sighash scheme:
 
 
 ## 7. Proof-of-Useful-Work
+### 7.1 PoUW v2 — Pure XMSS Tree Building (Live since Jun 24, 2026)
 
-### 7.1 How PoUW Works
+**SHA-256 nonce search has been completely removed.** Building the XMSS Merkle tree IS the proof of work.
 
-Step 1: Miner generates XMSS key pair (one-time setup)
+#### How PoUW v2 Works
 
-└── XMSS-SHA2_10_256: 64-byte pubkey, 2,500-byte sig capacity
-Step 2: Miner requests block template from node (getblocktemplate)
+Step 1: Miner generates random SK_SEED (96 bytes) — this is the "nonce"
 
-└── Receives: prev_hash, transactions, target, height
-Step 3: Miner constructs coinbase with their XMSS pubkey
+Step 2: Miner builds full XMSS tree (height=10, 1024 leaves)
+- Uses `xmssmt_core_seed_keypair(SK_SEED)` — deterministic tree build
+- Cost: ~6 seconds per attempt on Intel Xeon @ 2.5GHz
+- Output: `xmssRoot` = Merkle root hash (32 bytes)
 
-└── vout[2] = OP_RETURN || XMSS_pubkey (64 bytes)
-Step 4: Miner signs block header with XMSS private key
+Step 3: Check if `xmssRoot < target`
+- YES → valid block! Sign and submit
+- NO → increment SK_SEED, rebuild tree
 
-└── signature = XMSS_sign(sighash_v2(block_header), leaf_index)
-Step 5: Miner embeds signature in coinbase
+Step 4: Sign block preimage with WOTS+ (leaf 0)
+- `preimage = SHA256(nVersion || hashPrevBlock || nTime || nBits)`
+- Embed `PoUWv2Proof` in coinbase OP_RETURN (2,660 bytes total)
 
-└── vout[3] = OP_RETURN || XMSS_signature (2,500 bytes)
-Step 6: Miner finds valid nonce (SHA-256 PoW on header)
+Step 5: Submit block — node verifies:
+- `block.xmssRoot < target` (PoW check)
+- `PoUWv2Proof.Deserialize()` — extract proof components
+- `CheckPoUWv2()` — verify root matches proof
 
-└── hash(header || nonce) < target
-└── **Design note:** SHA-256 nonce search retained in PoUW v1 intentionally:
-    - (a) Nakamoto consensus security during bootstrap phase
-    - (b) Block finality independent of XMSS implementation bugs
-    - (c) Dual-layer security: attacker must break SHA-256 AND forge XMSS
-    - (d) PoUW v2 (roadmap) will replace SHA-256 with pure XMSS work
+#### Why This IS "Useful Work"
 
-Step 7: Block submitted — network validates BOTH layers
+Every mining attempt produces a complete XMSS keypair with 1024 one-time signatures — directly useful post-quantum cryptographic material. Unlike SHA-256 which produces nothing of value, XMSS tree building:
 
-└── CheckProofOfWork() verifies SHA-256 nonce < target
-└── CheckPoUW() verifies XMSS pubkey + signature + leaf_index (on-chain tracked)
-└── Block rejected if EITHER check fails — both are mandatory
+- Generates quantum-resistant key material
+- Advances global post-quantum cryptographic infrastructure
+- Proves the miner performed real cryptographic computation
 
-> **On the "just PoW with extra steps" critique:** PoUW v1 is deliberately
-> conservative. XMSS signature adds quantum resistance and useful cryptographic
-> work to every block. Replacing SHA-256 entirely (PoUW v2) is planned once
-> XMSS implementation is battle-tested on mainnet. Security-first, then optimization.
-### 7.2 Mining Stack (Wave 2)
-
-Assentian-PQE operates a production Stratum mining server with **Wave 2 direct miner payout**:
-Miner connects:   cpuminer -u <SNTI_ADDRESS> -o stratum+tcp://104.234.26.7:3333
-
-Authorization:    Username = miner's SNTI address (reward destination)
-
-Share accepted:   Every N shares triggers generatetoaddress(miner_address)
-
-Reward:           Mining reward goes DIRECTLY to miner — no pool cut
-Wave 2 key improvement over Wave 1:
-- **Wave 1**: Reward to pool address (centralized)
-- **Wave 2**: Reward directly to miner address from `mining.authorize` username
-
-### 7.3 Mining Performance
-
-Current testnet stats (June 23, 2026):
-- Chain height: 57+ blocks
-- Accepted shares: 48/48 (100% acceptance rate)
-- Blocks found: 15+ via Wave 2 direct payout
-- Immature miner balance: 4,450+ SNTI accumulated
-- Mining software: cpuminer-multi (standard stratum)
-
-### 7.4 Difficulty Adjustment
+#### Difficulty & Performance
 
 | Parameter | Value |
 |---|---|
+| Tree height | 10 (1024 leaves) |
+| Build time (1 core) | ~6.17 seconds |
+| Target attempts/block | 156 (4 cores × 39/core) |
+| Difficulty algorithm | EMA per-block (α=0.1) |
+| powLimit | 2²⁵⁶ / 156 |
 | Target block time | 60 seconds |
-| Adjustment window | 2,016 blocks (~14 days) |
-| Max adjustment per window | 4x up / 4x down |
-| Initial difficulty | 0x207fffff (CPU-friendly) |
-| powLimit (mainnet) | 7fffffff... (permissive for launch) |
+| Genesis nBits | 0x2001a41a |
 
----
+#### PoUW v2 Proof Format (coinbase OP_RETURN, 2,660 bytes)
+
+| Field | Size | Description |
+|---|---|---|
+| Magic | 4 bytes | `PW2\x02` |
+| SK_SEED | 96 bytes | SK_SEED + SK_PRF + PUB_SEED |
+| xmss_pk | 64 bytes | root + PUB_SEED |
+| auth_path | 320 bytes | 10 × 32 bytes node hashes |
+| wots_sig | 2144 bytes | WOTS+ signature |
+| r | 32 bytes | signature randomness |
 
 ## 8. Security Model
 
