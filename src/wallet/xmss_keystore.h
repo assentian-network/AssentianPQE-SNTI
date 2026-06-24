@@ -15,7 +15,7 @@
 #include <string>
 #include <mutex>
 
-// QNT: XMSS wallet key entry
+// SNTI: XMSS wallet key entry
 // Stores an XMSS keypair with metadata
 struct CXMSSKeyEntry {
     std::vector<uint8_t> pubkey;   // 64-byte XMSS public key (root || PUB_SEED)

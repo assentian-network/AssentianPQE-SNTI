@@ -149,7 +149,7 @@ std::string GetOpName(opcodetype opcode)
     // Opcode added by BIP 342 (Tapscript)
     case OP_CHECKSIGADD            : return "OP_CHECKSIGADD";
 
-    // QNT: XMSS post-quantum signature opcodes
+    // SNTI: XMSS post-quantum signature opcodes
     case OP_XMSS_CHECKSIG          : return "OP_XMSS_CHECKSIG";
     case OP_XMSS_CHECKSIGVERIFY    : return "OP_XMSS_CHECKSIGVERIFY";
 

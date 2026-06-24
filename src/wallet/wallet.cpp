@@ -1574,7 +1574,7 @@ isminetype CWallet::IsMine(const CScript& script) const
 {
     AssertLockHeld(cs_wallet);
 
-    // QNT FIX (18/Jun/2026): XMSS keys are managed independently via
+    // SNTI FIX (18/Jun/2026): XMSS keys are managed independently via
     // CXMSSSigner rather than derived from a wallet descriptor — there is
     // no HD derivation path for XMSS the way there is for ECDSA/Schnorr,
     // so a P2XMSS script is never registered into m_cached_spks by the
@@ -1599,7 +1599,7 @@ isminetype CWallet::IsMine(const CScript& script) const
                 }
             }
         } else if (type == TxoutType::P2XMSSHASH && solutions.size() == 1 && solutions[0].size() == 20) {
-            // QNT: hash-committed form -- solutions[0] IS the address hash
+            // SNTI: hash-committed form -- solutions[0] IS the address hash
             // directly already, no need to re-derive it from a pubkey.
             uint160 addr_hash(solutions[0]);
             wallet::CXMSSSigner* signer = GetXMSSSigner();
@@ -2173,7 +2173,7 @@ bool CWallet::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint,
         }
     }
 
-    // QNT: Try to sign any remaining (XMSS) inputs with the wallet's XMSS
+    // SNTI: Try to sign any remaining (XMSS) inputs with the wallet's XMSS
     // signer. None of the ScriptPubKeyMans above know about P2XMSS scripts
     // (no Descriptor representation for XMSS -- see DEVDOCS.md), so an
     // XMSS-spending input is still unsigned at this point. Reuse the generic
@@ -2187,7 +2187,7 @@ bool CWallet::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint,
     // The generic path below uses the corrected chunked signing logic in
     // script/sign.cpp's SignStep()/CreateXMSSSig() instead.
     if (m_xmss_signer && ::SignTransaction(tx, m_xmss_signer.get(), coins, sighash, input_errors)) {
-        // QNT FIX (write-before-use, 23/Jun/2026): persist XMSS state
+        // SNTI FIX (write-before-use, 23/Jun/2026): persist XMSS state
         // immediately after signing — before the tx is broadcast or committed.
         // If we crash between Sign() and CommitTransaction(), the leaf index
         // and retired flag are already on disk, preventing double-use of the
@@ -2199,7 +2199,7 @@ bool CWallet::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint,
     return false;
 }
 
-// QNT: CWallet::SignTransactionXMSS() removed (20/Jun/2026) -- confirmed
+// SNTI: CWallet::SignTransactionXMSS() removed (20/Jun/2026) -- confirmed
 // 100% dead code with zero call sites across two separate sessions. Real
 // XMSS signing happens via the generic ::SignTransaction() free function
 // (script/sign.cpp) with m_xmss_signer as the SigningProvider -- see
@@ -2367,7 +2367,7 @@ void CWallet::CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::ve
         return;
     }
 
-    // QNT: Persist XMSS key state after transaction commit
+    // SNTI: Persist XMSS key state after transaction commit
     PersistXMSSState();
 
     std::string err_string;
@@ -2994,10 +2994,10 @@ std::shared_ptr<CWallet> CWallet::Create(WalletContext& context, const std::stri
     // should be possible to use std::allocate_shared.
     std::shared_ptr<CWallet> walletInstance(new CWallet(chain, name, std::move(database)), ReleaseWallet);
 
-    // QNT: Initialize XMSS keystore
+    // SNTI: Initialize XMSS keystore
     walletInstance->xmss_keystore = std::make_unique<CXMSSKeyStore>();
 
-    // QNT: Initialize XMSS signer
+    // SNTI: Initialize XMSS signer
     walletInstance->m_xmss_signer = std::make_unique<wallet::CXMSSSigner>();
 
     walletInstance->m_keypool_size = std::max(args.GetIntArg("-keypool", DEFAULT_KEYPOOL_SIZE), int64_t{1});
@@ -3007,7 +3007,7 @@ std::shared_ptr<CWallet> CWallet::Create(WalletContext& context, const std::stri
     bool rescan_required = false;
     DBErrors nLoadWalletRet = walletInstance->LoadWallet();
 
-    // QNT: Load XMSS key state after wallet loaded (handles encrypted
+    // SNTI: Load XMSS key state after wallet loaded (handles encrypted
     // state transparently -- see LoadXMSSStateIfPossible(); if the wallet
     // is encrypted and locked, this becomes a no-op until Unlock() succeeds)
     if (nLoadWalletRet == DBErrors::LOAD_OK) {
@@ -3533,7 +3533,7 @@ bool CWallet::Unlock(const CKeyingMaterial& vMasterKeyIn)
         }
         vMasterKey = vMasterKeyIn;
     }
-    // QNT FIX (encryption at rest, 20/Jun/2026): XMSS state may have been
+    // SNTI FIX (encryption at rest, 20/Jun/2026): XMSS state may have been
     // encrypted and therefore skipped at wallet load time (vMasterKey
     // wasn't available yet) -- now that we're unlocked, try loading it.
     LoadXMSSStateIfPossible();
@@ -4562,7 +4562,7 @@ void CWallet::TopUpCallback(const std::set<CScript>& spks, ScriptPubKeyMan* spkm
 
 void CWallet::PersistXMSSState()
 {
-    // QNT FIX (18/Jun/2026): save XMSS signer state to wallet DB immediately.
+    // SNTI FIX (18/Jun/2026): save XMSS signer state to wallet DB immediately.
     // Originally the only call site was CommitTransaction(), which meant that
     // a key generated via getnewxmssaddress but never yet spent from had its
     // private key in memory only — a node crash or restart before the first
@@ -4571,7 +4571,7 @@ void CWallet::PersistXMSSState()
     // (to persist index advances after signing) and in getnewxmssaddress (to
     // persist the key itself the moment it is created).
     //
-    // QNT FIX (encryption at rest, 20/Jun/2026): if the wallet is encrypted,
+    // SNTI FIX (encryption at rest, 20/Jun/2026): if the wallet is encrypted,
     // encrypt this blob with the same master key used for regular private
     // keys before writing it to disk -- previously XMSS secret keys were
     // always stored in plaintext regardless of whether the user had set a
@@ -4613,7 +4613,7 @@ void CWallet::PersistXMSSState()
 
 void CWallet::LoadXMSSStateIfPossible()
 {
-    // QNT FIX (encryption at rest, 20/Jun/2026): shared load path used both
+    // SNTI FIX (encryption at rest, 20/Jun/2026): shared load path used both
     // at wallet startup (CWallet::Create) and after Unlock() succeeds, since
     // encrypted XMSS state can only be decrypted once vMasterKey is
     // available. See PersistXMSSState() for the corresponding write side.
@@ -4658,9 +4658,9 @@ void CWallet::LoadXMSSStateIfPossible()
     }
 }
 
-// QNT: XMSS wallet key management implementations
+// SNTI: XMSS wallet key management implementations
 //
-// QNT FIX (18/Jun/2026): this was a no-op stub (added earlier only to fix
+// SNTI FIX (18/Jun/2026): this was a no-op stub (added earlier only to fix
 // a linker error for exportxmsskey) and never actually registered the key
 // anywhere. The consequence: CXMSSSigner (used by getnewxmssaddress,
 // getxmssaddressinfo, etc.) and LegacyScriptPubKeyMan::m_xmss_keys (used by

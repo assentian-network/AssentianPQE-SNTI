@@ -1323,7 +1323,7 @@ bool WalletBatch::WriteWalletFlags(const uint64_t flags)
     return WriteIC(DBKeys::FLAGS, flags);
 }
 
-// QNT: XMSS state persistence
+// SNTI: XMSS state persistence
 bool WalletBatch::WriteXmssState(const std::vector<uint8_t>& state)
 {
     std::string value(state.begin(), state.end());

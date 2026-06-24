@@ -90,12 +90,12 @@ RPCHelpMan getnewxmssaddress()
             }
         }
 
-        // QNT FIX (18/Jun/2026): register this key with the ScriptPubKeyMan-level
+        // SNTI FIX (18/Jun/2026): register this key with the ScriptPubKeyMan-level
         // XMSS key map (via AddXMSSKeyToKeystore), not just CXMSSSigner. Without
         // this, IsMine() never recognizes funds sent here as spendable.
         uint160 new_addr_hash = XMSSAddr::Hash(pubkey);
         pwallet->AddXMSSKeyToKeystore(new_addr_hash, pubkey);
-        // QNT FIX (18/Jun/2026): persist immediately so the private key
+        // SNTI FIX (18/Jun/2026): persist immediately so the private key
         // survives a node crash or restart before any spending occurs.
         pwallet->PersistXMSSState();
         std::string addr = XMSSAddr::Encode(pubkey, Params().IsTestChain());
@@ -331,7 +331,7 @@ RPCHelpMan sendtoxmssaddress()
             CRecipient recipient{xmss_dest, nAmount, fSubtractFeeFromAmount};
             recipients.push_back(recipient);
         } else {
-            // QNT: pubkey unknown to this wallet (paying someone else's
+            // SNTI: pubkey unknown to this wallet (paying someone else's
             // XMSS address) -- use the real hash-committed P2XMSSHASH form
             // now that it's properly supported (OP_DUP OP_HASH160 <hash>
             // OP_EQUALVERIFY OP_XMSS_CHECKSIG), instead of the old fake-P2PKH
@@ -471,7 +471,7 @@ RPCHelpMan sendfromxmssaddress()
         CCoinControl coin_control;
         EnsureWalletIsUnlocked(*pwallet);
 
-        // QNT FIX (18/Jun/2026): from_hash was decoded above purely to
+        // SNTI FIX (18/Jun/2026): from_hash was decoded above purely to
         // validate the address format, then never used again — the empty
         // CCoinControl left automatic coin selection completely free to
         // pick ANY spendable UTXO in the wallet, silently ignoring the
@@ -481,7 +481,7 @@ RPCHelpMan sendfromxmssaddress()
         // UTXO whose scriptPubKey is a P2XMSS output matching this exact
         // address's pubkey hash, and disallow pulling in unrelated inputs.
         {
-            // QNT FIX (per Design Decision Record): AvailableCoinsListUnspent()
+            // SNTI FIX (per Design Decision Record): AvailableCoinsListUnspent()
             // filters through IsMine(), which does not recognize P2XMSS outputs
             // for descriptor wallets (the LegacyScriptPubKeyMan bridge is inert
             // here -- see DEVDOCS.md). Bypass it with a manual mapWallet scan,
@@ -491,7 +491,7 @@ RPCHelpMan sendfromxmssaddress()
                 if (pwallet->GetTxDepthInMainChain(wtx) < 1) continue; // require >=1 confirmation
                 const CTransactionRef& wtx_tx = wtx.tx;
                 for (unsigned int n = 0; n < wtx_tx->vout.size(); n++) {
-                    COutPoint outpoint(wtx.GetHash(), n); // QNT FIX: wtx.GetHash() returns properly-typed Txid; raw map key is uint256
+                    COutPoint outpoint(wtx.GetHash(), n); // SNTI FIX: wtx.GetHash() returns properly-typed Txid; raw map key is uint256
                     if (pwallet->IsSpent(outpoint)) continue;
                     const CTxOut& txout = wtx_tx->vout[n];
                     std::vector<std::vector<unsigned char>> solutions;
@@ -503,7 +503,7 @@ RPCHelpMan sendfromxmssaddress()
                             found_input = true;
                         }
                     } else if (type == TxoutType::P2XMSSHASH && solutions.size() == 1 && solutions[0].size() == 20) {
-                        // QNT: hash-committed funding (e.g. via generic sendtoaddress,
+                        // SNTI: hash-committed funding (e.g. via generic sendtoaddress,
                         // now that DecodeDestination/GetScriptForDestination correctly
                         // resolve XMSS addresses to P2XMSSHASH instead of a zero-pubkey
                         // placeholder). vSolutions[0] IS the address hash directly here.
@@ -579,7 +579,7 @@ RPCHelpMan importxmsskey()
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid XMSS secret key: empty");
         }
 
-        // QNT FIX (importxmsskey default-parameter bug, 21/Jun/2026): the
+        // SNTI FIX (importxmsskey default-parameter bug, 21/Jun/2026): the
         // original code called .get_str()/.get_bool() directly on
         // request.params[2]/[3] without checking isNull() first, even
         // though both are declared as optional with defaults above. Any

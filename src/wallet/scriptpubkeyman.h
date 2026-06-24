@@ -377,7 +377,7 @@ private:
 
     bool TopUpChain(WalletBatch& batch, CHDChain& chain, unsigned int size);
 
-    // QNT: XMSS key storage
+    // SNTI: XMSS key storage
     // Maps address hash (RIPEMD160(SHA256(xmss_pubkey))) to full 64-byte pubkey
     std::map<uint160, std::vector<uint8_t>> m_xmss_keys GUARDED_BY(cs_KeyStore);
 
@@ -481,7 +481,7 @@ public:
     bool AddCScript(const CScript& redeemScript) override;
     bool GetKeyOrigin(const CKeyID& keyid, KeyOriginInfo& info) const override;
 
-    // QNT: XMSS post-quantum key management
+    // SNTI: XMSS post-quantum key management
     bool HaveXMSSKey(const uint160& addr_hash) const;
     bool AddXMSSKey(const std::vector<uint8_t>& pubkey, const std::vector<uint8_t>& seckey);
     bool GetXMSSPubKey(const uint160& addr_hash, std::vector<uint8_t>& pubkey_out) const;

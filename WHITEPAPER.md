@@ -380,9 +380,22 @@ Step 5: Miner embeds signature in coinbase
 Step 6: Miner finds valid nonce (SHA-256 PoW on header)
 
 └── hash(header || nonce) < target
-Step 7: Block submitted — network validates XMSS signature
+└── **Design note:** SHA-256 nonce search retained in PoUW v1 intentionally:
+    - (a) Nakamoto consensus security during bootstrap phase
+    - (b) Block finality independent of XMSS implementation bugs
+    - (c) Dual-layer security: attacker must break SHA-256 AND forge XMSS
+    - (d) PoUW v2 (roadmap) will replace SHA-256 with pure XMSS work
 
-└── CheckPoUW() verifies pubkey + signature + leaf_index
+Step 7: Block submitted — network validates BOTH layers
+
+└── CheckProofOfWork() verifies SHA-256 nonce < target
+└── CheckPoUW() verifies XMSS pubkey + signature + leaf_index (on-chain tracked)
+└── Block rejected if EITHER check fails — both are mandatory
+
+> **On the "just PoW with extra steps" critique:** PoUW v1 is deliberately
+> conservative. XMSS signature adds quantum resistance and useful cryptographic
+> work to every block. Replacing SHA-256 entirely (PoUW v2) is planned once
+> XMSS implementation is battle-tested on mainnet. Security-first, then optimization.
 ### 7.2 Mining Stack (Wave 2)
 
 Assentian-PQE operates a production Stratum mining server with **Wave 2 direct miner payout**:

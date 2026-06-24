@@ -9,7 +9,7 @@
 
 namespace wallet {
 
-// QNT XMSS RPC commands
+// SNTI XMSS RPC commands
 RPCHelpMan getnewxmssaddress();
 RPCHelpMan listxmsskeys();
 RPCHelpMan getxmssaddressinfo();

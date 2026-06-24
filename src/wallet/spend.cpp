@@ -80,7 +80,7 @@ static std::optional<int64_t> MaxInputWeight(const Descriptor& desc, const std::
 
 int CalculateMaximumSignedInputSize(const CTxOut& txout, const COutPoint outpoint, const SigningProvider* provider, bool can_grind_r, const CCoinControl* coin_control)
 {
-    // QNT: P2XMSS has no Descriptor representation (InferDescriptor() has no
+    // SNTI: P2XMSS has no Descriptor representation (InferDescriptor() has no
     // XMSS support -- same CPubKey-based incompatibility documented in
     // DEVDOCS.md), so the generic path below always returns -1 for it,
     // regardless of whether a SigningProvider was found. Checked BEFORE the
@@ -153,7 +153,7 @@ static std::optional<int64_t> GetSignedTxinWeight(const CWallet* wallet, const C
         return weight.value();
     }
 
-    // QNT: P2XMSS/P2XMSSHASH have no Descriptor representation (GetDescriptor()
+    // SNTI: P2XMSS/P2XMSSHASH have no Descriptor representation (GetDescriptor()
     // has no XMSS support, same gap as CalculateMaximumSignedInputSize()
     // above), so the generic path below always returns nullopt for them.
     // Hardcode the weight using the deterministic XMSS chunked scriptSig

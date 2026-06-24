@@ -177,7 +177,7 @@ IsMineResult IsMineInner(const LegacyScriptPubKeyMan& keystore, const CScript& s
         }
         break;
     }
-    // QNT: P2XMSS — check if wallet has XMSS key for this pubkey hash
+    // SNTI: P2XMSS — check if wallet has XMSS key for this pubkey hash
     case TxoutType::P2XMSS:
     {
         if (sigversion != IsMineSigVersion::TOP) break;
@@ -189,7 +189,7 @@ IsMineResult IsMineInner(const LegacyScriptPubKeyMan& keystore, const CScript& s
         }
         break;
     }
-    // QNT: P2XMSSHASH — hash-committed form; vSolutions[0] IS the address
+    // SNTI: P2XMSSHASH — hash-committed form; vSolutions[0] IS the address
     // hash directly already, no need to re-derive it from a pubkey.
     case TxoutType::P2XMSSHASH:
     {
@@ -251,7 +251,7 @@ isminetype LegacyScriptPubKeyMan::IsMine(const CScript& script) const
     assert(false);
 }
 
-// QNT: XMSS key management
+// SNTI: XMSS key management
 bool LegacyScriptPubKeyMan::HaveXMSSKey(const uint160& addr_hash) const
 {
     LOCK(cs_KeyStore);

@@ -13,7 +13,7 @@
 #include <vector>
 
 //
-// QNT XMSS Address Encoding
+// SNTI XMSS Address Encoding
 //
 // XMSS public keys are 64 bytes (root || PUB_SEED), which is fundamentally
 // different from ECDSA (33/65 bytes) or Schnorr (32 bytes).

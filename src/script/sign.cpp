@@ -151,7 +151,7 @@ static bool CreateSig(const BaseSignatureCreator& creator, SignatureData& sigdat
     return false;
 }
 
-// QNT: Create XMSS signature
+// SNTI: Create XMSS signature
 static bool CreateXMSSSig(const BaseSignatureCreator& creator, SignatureData& sigdata, const SigningProvider& provider, std::vector<unsigned char>& sig_out, const std::vector<unsigned char>& pubkey, const CScript& scriptcode, SigVersion sigversion)
 {
     // Check if we already have a signature for this pubkey
@@ -170,7 +170,7 @@ static bool CreateXMSSSig(const BaseSignatureCreator& creator, SignatureData& si
         return false;
     }
 
-    // QNT FIX (sighash-v2, 21/Jun/2026): include leaf_index in sighash
+    // SNTI FIX (sighash-v2, 21/Jun/2026): include leaf_index in sighash
     // to prevent cross-index recombination. We sign a modified hash:
     // sighash_v2 = SHA256(sighash_v1 || leaf_index_4_bytes_BE)
     // The leaf_index is the CURRENT index before signing (same value
@@ -453,10 +453,10 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
     std::vector<valtype> vSolutions;
     whichTypeRet = Solver(scriptPubKey, vSolutions);
 
-    // QNT: Check for XMSS scripts before the standard switch
+    // SNTI: Check for XMSS scripts before the standard switch
     // XMSS scripts are currently classified as NONSTANDARD by Solver
     // We detect them by pubkey size (64 bytes) and XMSS opcode
-    // QNT: XMSS signing (both bare P2XMSS and hash-committed P2XMSSHASH).
+    // SNTI: XMSS signing (both bare P2XMSS and hash-committed P2XMSSHASH).
     // Solver() already classifies these into their own TxoutTypes (the
     // comment that used to be here claiming "XMSS scripts are currently
     // classified as NONSTANDARD by Solver" was simply wrong, confirmed via
@@ -483,7 +483,7 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
         if (!CreateXMSSSig(creator, sigdata, provider, sig, pubkey, scriptPubKey, sigversion)) {
             return false;
         }
-        // QNT: split the ~2500-byte XMSS signature into <=520-byte chunks
+        // SNTI: split the ~2500-byte XMSS signature into <=520-byte chunks
         // so no single scriptSig push trips the consensus
         // MAX_SCRIPT_ELEMENT_SIZE limit. Chunk size/count MUST match
         // XMSS_SIG_CHUNK_SIZE / XMSS_SIG_NUM_CHUNKS in script/interpreter.cpp
@@ -513,7 +513,7 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
     case TxoutType::WITNESS_UNKNOWN:
     case TxoutType::P2XMSS:
     case TxoutType::P2XMSSHASH:
-        // QNT: unreachable -- both handled and returned earlier in this
+        // SNTI: unreachable -- both handled and returned earlier in this
         // function, listed here only to silence -Wswitch.
         return false;
     case TxoutType::PUBKEY:

@@ -481,7 +481,7 @@ public:
     UniValue operator()(const WitnessV1Taproot& id) const { return UniValue(UniValue::VOBJ); }
     UniValue operator()(const WitnessUnknown& id) const { return UniValue(UniValue::VOBJ); }
 
-    // QNT: XMSS post-quantum address
+    // SNTI: XMSS post-quantum address
     UniValue operator()(const XMSSHash& xmss) const
     {
         UniValue obj(UniValue::VOBJ);

@@ -203,7 +203,7 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
                 return false;
             }
         } else if (whichType == TxoutType::P2XMSS || whichType == TxoutType::P2XMSSHASH) {
-            // QNT: P2XMSS/P2XMSSHASH spending scriptSig is a chunked XMSS
+            // SNTI: P2XMSS/P2XMSSHASH spending scriptSig is a chunked XMSS
             // signature (~2500 bytes; P2XMSSHASH additionally carries the
             // pubkey itself, ~2580 bytes), wider than the standard
             // 1650-byte cap. Allow it up to the dedicated XMSS cap, but
@@ -213,7 +213,7 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
                 return false;
             }
         } else if (tx.vin[i].scriptSig.size() > MAX_STANDARD_SCRIPTSIG_SIZE) {
-            // QNT: re-enforce the original tight cap for every other input
+            // SNTI: re-enforce the original tight cap for every other input
             // type now that IsStandardTx()'s type-blind check had to be
             // loosened to MAX_STANDARD_SCRIPTSIG_SIZE_XMSS to let P2XMSS
             // through at all.

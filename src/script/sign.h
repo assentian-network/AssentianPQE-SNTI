@@ -52,7 +52,7 @@ public:
     bool CreateSig(const SigningProvider& provider, std::vector<unsigned char>& vchSig, const CKeyID& keyid, const CScript& scriptCode, SigVersion sigversion) const override;
     bool CreateSchnorrSig(const SigningProvider& provider, std::vector<unsigned char>& sig, const XOnlyPubKey& pubkey, const uint256* leaf_hash, const uint256* merkle_root, SigVersion sigversion) const override;
 
-    // QNT: Accessors for XMSS signing
+    // SNTI: Accessors for XMSS signing
     const CMutableTransaction& GetTxTo() const { return m_txto; }
     unsigned int GetNIn() const { return nIn; }
     CAmount GetAmount() const { return amount; }
@@ -96,7 +96,7 @@ struct SignatureData {
     std::map<std::vector<uint8_t>, std::vector<uint8_t>> ripemd160_preimages; ///< Mapping from a RIPEMD160 hash to its preimage provided to solve a Script
     std::map<std::vector<uint8_t>, std::vector<uint8_t>> hash160_preimages; ///< Mapping from a HASH160 hash to its preimage provided to solve a Script
 
-    // QNT: XMSS signatures, indexed by 64-byte pubkey
+    // SNTI: XMSS signatures, indexed by 64-byte pubkey
     std::map<std::vector<uint8_t>, std::vector<uint8_t>> xmss_signatures;
 
     SignatureData() {}

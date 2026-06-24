@@ -160,11 +160,11 @@ public:
     virtual bool GetTaprootSpendData(const XOnlyPubKey& output_key, TaprootSpendData& spenddata) const { return false; }
     virtual bool GetTaprootBuilder(const XOnlyPubKey& output_key, TaprootBuilder& builder) const { return false; }
 
-    // QNT: XMSS signing support
+    // SNTI: XMSS signing support
     virtual bool SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubkey, std::vector<uint8_t>& sig) const { return false; }
     virtual bool HaveXMSSKey(const std::vector<uint8_t>& pubkey) const { return false; }
     virtual std::vector<uint8_t> GetXMSSPubKey(const CKeyID& address) const { return {}; }
-    // QNT FIX (sighash-v2, 21/Jun/2026): leaf_index needed at signing
+    // SNTI FIX (sighash-v2, 21/Jun/2026): leaf_index needed at signing
     // time to construct sighash_v2 = SHA256(sighash_v1 || leaf_index_BE)
     virtual uint32_t GetXMSSLeafIndex(const std::vector<uint8_t>& pubkey) const { return 0; }
 

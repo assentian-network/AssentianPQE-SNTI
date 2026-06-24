@@ -1,4 +1,4 @@
-// QNT Seed nodes — hardcoded IPv4 seeds for peer discovery
+// SNTI Seed nodes — hardcoded IPv4 seeds for peer discovery
 // Generated for 104.234.26.7 (primary QNT node)
 //
 // BIP155 format: 0x01 (IPv4) + 0x04 (addr_len) + 4 bytes IP + 2 bytes port (BE)

@@ -104,13 +104,13 @@ public:
     bool GetTaprootSpendData(const XOnlyPubKey& output_key, TaprootSpendData& spenddata) const override { return false; }
     bool GetTaprootBuilder(const XOnlyPubKey& output_key, TaprootBuilder& builder) const override { return false; }
 
-    // QNT: XMSS signing support
+    // SNTI: XMSS signing support
     bool SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubkey, std::vector<uint8_t>& sig) const override;
     bool HaveXMSSKey(const std::vector<uint8_t>& pubkey) const override;
     std::vector<uint8_t> GetXMSSPubKey(const CKeyID& address) const override;
     uint32_t GetXMSSLeafIndex(const std::vector<uint8_t>& pubkey) const override;
 
-    // QNT: State persistence — save/load all key states to/from a blob
+    // SNTI: State persistence — save/load all key states to/from a blob
     // Returns serialized state for all keys (QXMSS format from xmss_state.h)
     std::vector<uint8_t> SaveState() const;
     // Load key states from serialized blob
@@ -118,11 +118,11 @@ public:
     // Check if any key is near exhaustion (< 10% remaining)
     bool HasExhaustedKeys() const;
 
-    // QNT (gap #3): check if a key has already signed once and is
+    // SNTI (gap #3): check if a key has already signed once and is
     // therefore permanently retired (one-time-address enforcement).
     bool IsXMSSKeyRetired(const std::vector<uint8_t>& pubkey) const;
 
-    // QNT: Get pubkey by address hash (uint160 / CKeyID)
+    // SNTI: Get pubkey by address hash (uint160 / CKeyID)
     std::vector<uint8_t> GetPubKeyForHash(const uint160& addr_hash) const;
 
     /**
@@ -141,7 +141,7 @@ private:
         std::vector<uint8_t> pubkey;  // 64-byte pubkey (root || PUB_SEED)
         std::string label;
         uint32_t leaf_index{0};
-        // QNT (gap #3): true once this key has signed -- every XMSS
+        // SNTI (gap #3): true once this key has signed -- every XMSS
         // address is treated as one-time-use ("swept" address), so a
         // retired key must never be allowed to sign again even if leaf
         // indices remain technically available.

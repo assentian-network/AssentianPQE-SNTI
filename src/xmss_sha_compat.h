@@ -1,4 +1,4 @@
-// QNT: SHA256/SHA512 compatibility header (C-compatible)
+// SNTI: SHA256/SHA512 compatibility header (C-compatible)
 // Declares wrapper functions that replace OpenSSL SHA256/SHA512
 #ifndef BITCOIN_XMSS_SHA_COMPAT_H
 #define BITCOIN_XMSS_SHA_COMPAT_H

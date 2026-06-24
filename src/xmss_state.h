@@ -278,7 +278,7 @@ inline bool VerifySignature(const uint8_t* hash32,
     memcpy(sm.data(), sig.data(), sig.size());
     memcpy(sm.data() + sig.size(), hash32, 32);
 
-    // QNT FIX (17/Jun/2026): xmssmt_core_sign_open() writes into m at
+    // SNTI FIX (17/Jun/2026): xmssmt_core_sign_open() writes into m at
     // offset params.sig_bytes before copying the message to the front —
     // see xmss_bridge.cpp Verify() for the full explanation. m must be
     // at least params.sig_bytes + 32 bytes, not just 32.

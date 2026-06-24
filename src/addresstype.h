@@ -90,7 +90,7 @@ struct WitnessV1Taproot : public XOnlyPubKey
     explicit WitnessV1Taproot(const XOnlyPubKey& xpk) : XOnlyPubKey(xpk) {}
 };
 
-// QNT: XMSS post-quantum destination.
+// SNTI: XMSS post-quantum destination.
 // Can represent EITHER a full known pubkey (parsed directly from a bare
 // P2XMSS scriptPubKey, or constructed by code that already knows the
 // recipient's pubkey such as sendfromxmssaddress's own internal lookup)

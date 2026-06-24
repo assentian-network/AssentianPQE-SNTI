@@ -12,7 +12,7 @@
 #include <script/script.h>
 #include <uint256.h>
 
-// QNT: XMSS bridge
+// SNTI: XMSS bridge
 #include <xmss_bridge.h>
 
 typedef std::vector<unsigned char> valtype;
@@ -1083,7 +1083,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 }
                 break;
 
-                // QNT: XMSS post-quantum signature verification
+                // SNTI: XMSS post-quantum signature verification
                 case OP_XMSS_CHECKSIG:
                 case OP_XMSS_CHECKSIGVERIFY:
                 {
@@ -1110,7 +1110,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                         break;
                     }
 
-                    // QNT: Reassemble signature from chunked scriptSig pushes.
+                    // SNTI: Reassemble signature from chunked scriptSig pushes.
                     // Stack below pubkey (bottom->top): chunk1 chunk2 chunk3 chunk4 chunk5
                     // stacktop(-(N+1)) = chunk1 (pushed first) ... stacktop(-2) = chunk5 (pushed last)
                     // Each chunk is <=520 bytes so none of them trip MAX_SCRIPT_ELEMENT_SIZE.
@@ -1744,7 +1744,7 @@ bool GenericTransactionSignatureChecker<T>::CheckECDSASignature(const std::vecto
 template <class T>
 bool GenericTransactionSignatureChecker<T>::CheckXMSSSignature(const std::vector<unsigned char>& sig, const std::vector<unsigned char>& pubkey, const CScript& scriptCode, SigVersion sigversion) const
 {
-    // QNT: Verify XMSS signature using the C bridge
+    // SNTI: Verify XMSS signature using the C bridge
     // pubkey must be 64 bytes (root || PUB_SEED)
     if (pubkey.size() != 64) return false;
     if (sig.empty()) return false;
@@ -1754,7 +1754,7 @@ bool GenericTransactionSignatureChecker<T>::CheckXMSSSignature(const std::vector
     const CAmount amount_check = (sigversion == SigVersion::BASE || sigversion == SigVersion::WITNESS_V0) ? amount : 0;
     uint256 sighash = SignatureHash(scriptCode, *txTo, nIn, SIGHASH_ALL, amount_check, sigversion, nullptr);
 
-    // QNT FIX (sighash-v2, 21/Jun/2026): include leaf_index in the data
+    // SNTI FIX (sighash-v2, 21/Jun/2026): include leaf_index in the data
     // being signed to prevent cross-index recombination attacks.
     // RFC 8391 XMSS signature format embeds the OTS index as the first
     // 4 bytes of the signature -- extract it here so the verifier does

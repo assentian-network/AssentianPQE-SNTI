@@ -284,7 +284,7 @@ public:
 
     bool WriteWalletFlags(const uint64_t flags);
 
-    // QNT: XMSS state persistence
+    // SNTI: XMSS state persistence
     bool WriteXmssState(const std::vector<uint8_t>& state);
     bool ReadXmssState(std::vector<uint8_t>& state);
 

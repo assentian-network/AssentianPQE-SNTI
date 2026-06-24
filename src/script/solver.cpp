@@ -28,7 +28,7 @@ std::string GetTxnOutputType(TxoutType t)
     case TxoutType::WITNESS_V0_SCRIPTHASH: return "witness_v0_scripthash";
     case TxoutType::WITNESS_V1_TAPROOT: return "witness_v1_taproot";
     case TxoutType::WITNESS_UNKNOWN: return "witness_unknown";
-    // QNT: Post-quantum XMSS
+    // SNTI: Post-quantum XMSS
     case TxoutType::P2XMSS: return "p2xmss";
     case TxoutType::P2XMSSHASH: return "p2xmsshash";
     } // no default case, so the compiler can warn about missing cases
@@ -205,7 +205,7 @@ TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned c
         return TxoutType::MULTISIG;
     }
 
-    // QNT: Pay-to-XMSS-Hash: <64-byte-pubkey> OP_XMSS_CHECKSIG
+    // SNTI: Pay-to-XMSS-Hash: <64-byte-pubkey> OP_XMSS_CHECKSIG
     // Script pattern: PUSH64 <64 bytes> OP_XMSS_CHECKSIG (0xbb)
     {
         opcodetype opcode;
@@ -222,7 +222,7 @@ TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned c
         }
     }
 
-    // QNT: Pay-to-XMSS-Hash-committed (the XMSS analogue of P2PKH): sender
+    // SNTI: Pay-to-XMSS-Hash-committed (the XMSS analogue of P2PKH): sender
     // only needs the 20-byte HASH160(pubkey), the real pubkey is revealed
     // only when spending.
     // Script pattern: OP_DUP OP_HASH160 <20 bytes> OP_EQUALVERIFY OP_XMSS_CHECKSIG

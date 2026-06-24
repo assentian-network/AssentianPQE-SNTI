@@ -96,14 +96,14 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
         addressRet = WitnessUnknown{vSolutions[0][0], vSolutions[1]};
         return true;
     }
-    // QNT: P2XMSS
+    // SNTI: P2XMSS
     case TxoutType::P2XMSS: {
         std::array<uint8_t, 64> pubkey;
         std::copy(vSolutions[0].begin(), vSolutions[0].end(), pubkey.begin());
         addressRet = XMSSHash(pubkey);
         return true;
     }
-    // QNT: P2XMSSHASH (hash-committed; sender only ever has the hash)
+    // SNTI: P2XMSSHASH (hash-committed; sender only ever has the hash)
     case TxoutType::P2XMSSHASH: {
         addressRet = XMSSHash(uint160(vSolutions[0]));
         return true;
@@ -161,7 +161,7 @@ public:
         return CScript() << CScript::EncodeOP_N(id.GetWitnessVersion()) << id.GetWitnessProgram();
     }
 
-    // QNT: P2XMSS / P2XMSSHASH. If the destination was constructed with a
+    // SNTI: P2XMSS / P2XMSSHASH. If the destination was constructed with a
     // known full pubkey (e.g. extracted from an existing P2XMSS output, or
     // built by code with direct wallet access like sendfromxmssaddress),
     // embed it directly (bare P2XMSS). Otherwise -- the common case for a
@@ -189,7 +189,7 @@ public:
     bool operator()(const WitnessV0ScriptHash& dest) const { return true; }
     bool operator()(const WitnessV1Taproot& dest) const { return true; }
     bool operator()(const WitnessUnknown& dest) const { return true; }
-    // QNT: P2XMSS is a valid destination
+    // SNTI: P2XMSS is a valid destination
     bool operator()(const XMSSHash& dest) const { return true; }
 };
 } // namespace

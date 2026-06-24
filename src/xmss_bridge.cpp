@@ -179,7 +179,7 @@ bool CXMSSKey::Verify(const std::vector<uint8_t>& hash,
     // Default OID for verify
     uint32_t oid = XMSS_OID_SHA2_10_256;
 
-    // QNT FIX (17/Jun/2026): the reference xmssmt_core_sign_open() writes
+    // SNTI FIX (17/Jun/2026): the reference xmssmt_core_sign_open() writes
     // into m at offset params.sig_bytes (it uses the tail of the output
     // buffer as scratch space for message-hash computation), then copies
     // the actual message into the front. The output buffer m therefore

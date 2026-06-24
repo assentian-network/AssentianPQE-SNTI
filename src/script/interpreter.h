@@ -255,7 +255,7 @@ public:
         return false;
     }
 
-    // QNT: XMSS post-quantum signature check
+    // SNTI: XMSS post-quantum signature check
     // pubkey: 64-byte XMSS public key (root || PUB_SEED)
     // sig: XMSS signature (variable length, ~2500 bytes for SHA2_10_256)
     // scriptCode: script to sign (after codeseparator)

@@ -81,7 +81,7 @@ public:
     std::string operator()(const CNoDestination& no) const { return {}; }
     std::string operator()(const PubKeyDestination& pk) const { return {}; }
 
-    // QNT: XMSS address encoding
+    // SNTI: XMSS address encoding
     std::string operator()(const XMSSHash& xmss) const
     {
         if (xmss.HasFullPubKey()) {
@@ -128,7 +128,7 @@ CTxDestination DecodeDestination(const std::string& str, const CChainParams& par
             return ScriptHash(hash);
         }
 
-        // QNT: XMSS addresses (Base58Check with XMSS version byte)
+        // SNTI: XMSS addresses (Base58Check with XMSS version byte)
         {
             uint160 xmss_hash;
             bool is_testnet = params.IsTestChain();

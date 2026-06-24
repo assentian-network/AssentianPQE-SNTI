@@ -208,7 +208,7 @@ enum opcodetype
     // Opcode added by BIP 342 (Tapscript)
     OP_CHECKSIGADD = 0xba,
 
-    // QNT: XMSS post-quantum signature opcodes
+    // SNTI: XMSS post-quantum signature opcodes
     OP_XMSS_CHECKSIG      = 0xbb,
     OP_XMSS_CHECKSIGVERIFY = 0xbc,
 

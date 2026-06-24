@@ -326,7 +326,7 @@ public:
         return obj;
     }
 
-    // QNT: XMSS post-quantum address
+    // SNTI: XMSS post-quantum address
     UniValue operator()(const XMSSHash& xmss) const
     {
         UniValue obj(UniValue::VOBJ);

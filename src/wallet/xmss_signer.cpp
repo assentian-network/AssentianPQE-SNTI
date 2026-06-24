@@ -113,7 +113,7 @@ bool CXMSSSigner::Sign(const uint256& hash, const std::vector<uint8_t>& pubkey, 
     auto it = xmss_keys.find(pubkey);
     if (it == xmss_keys.end()) return false;
 
-    // QNT: Anti-reuse — check if key is exhausted before signing
+    // SNTI: Anti-reuse — check if key is exhausted before signing
     if (it->second.leaf_index >= 1024) {
         LogPrintf("CXMSSSigner::Sign: XMSS key exhausted (index=%u), need new key\n", it->second.leaf_index);
         return false;
@@ -161,7 +161,7 @@ bool CXMSSSigner::HaveKey(const CKeyID& address) const
     return key_id_map.count(address) > 0;
 }
 
-// QNT: XMSS signing support implementation
+// SNTI: XMSS signing support implementation
 
 bool CXMSSSigner::SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubkey, std::vector<uint8_t>& sig) const
 {
@@ -170,7 +170,7 @@ bool CXMSSSigner::SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubk
     auto it = xmss_keys.find(pubkey);
     if (it == xmss_keys.end()) return false;
 
-    // QNT FIX (gap #3, 20/Jun/2026): refuse a second sign with the same
+    // SNTI FIX (gap #3, 20/Jun/2026): refuse a second sign with the same
     // key. Every XMSS address is one-time-use by design here -- reusing a
     // leaf index lets an attacker reconstruct the private key from two
     // signatures, so this is a hard block, not just leaf_index bookkeeping.
@@ -227,14 +227,14 @@ std::vector<uint8_t> CXMSSSigner::GetXMSSPubKey(const CKeyID& address) const
 }
 
 // ---------------------------------------------------------------------------
-// QNT: State Persistence (anti-reuse protection)
+// SNTI: State Persistence (anti-reuse protection)
 // ---------------------------------------------------------------------------
 
 std::vector<uint8_t> CXMSSSigner::SaveState() const
 {
     LOCK(cs_xmss_signer);
 
-    // QNT FIX (gap #3, 20/Jun/2026): format bumped to v2 to add a
+    // SNTI FIX (gap #3, 20/Jun/2026): format bumped to v2 to add a
     // per-key "retired" byte (one-time-address enforcement). Magic
     // prefix lets LoadState() distinguish v2 blobs from old v1 blobs
     // that have no retired field, so existing wallet DBs keep loading.
@@ -298,7 +298,7 @@ bool CXMSSSigner::LoadState(const std::vector<uint8_t>& data)
     xmss_keys.clear();
     key_id_map.clear();
 
-    // QNT FIX (gap #3, 20/Jun/2026): detect v2 format (magic "QNT2"
+    // SNTI FIX (gap #3, 20/Jun/2026): detect v2 format (magic "QNT2"
     // prefix, adds a per-key retired byte). Falls back to v1 parsing
     // (no retired field, defaults to not-retired) for blobs saved before
     // this change, so existing wallet DBs keep loading without a wipe.
@@ -452,7 +452,7 @@ CScript GetXMSSHashScriptForPubkey(const std::vector<uint8_t>& pubkey)
     return script;
 }
 
-// QNT: Get pubkey by address hash (RIPEMD160(SHA256(pubkey)))
+// SNTI: Get pubkey by address hash (RIPEMD160(SHA256(pubkey)))
 std::vector<uint8_t> CXMSSSigner::GetPubKeyForHash(const uint160& addr_hash) const
 {
     LOCK(cs_xmss_signer);
@@ -466,7 +466,7 @@ std::vector<uint8_t> CXMSSSigner::GetPubKeyForHash(const uint160& addr_hash) con
 }
 
 
-// QNT: Get secret key bytes for a given XMSS public key (sensitive!)
+// SNTI: Get secret key bytes for a given XMSS public key (sensitive!)
 std::vector<uint8_t> CXMSSSigner::GetSecKeyForPubkey(const std::vector<uint8_t>& pubkey) const
 {
     LOCK(cs_xmss_signer);

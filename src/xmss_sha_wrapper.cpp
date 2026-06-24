@@ -1,4 +1,4 @@
-// QNT: SHA256/SHA512 C wrapper for XMSS
+// SNTI: SHA256/SHA512 C wrapper for XMSS
 // Provides OpenSSL-compatible SHA256/SHA512 using Bitcoin's implementation
 #include <stdint.h>
 #include <stddef.h>

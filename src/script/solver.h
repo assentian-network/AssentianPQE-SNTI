@@ -31,7 +31,7 @@ enum class TxoutType {
     WITNESS_V0_KEYHASH,
     WITNESS_V1_TAPROOT,
     WITNESS_UNKNOWN, //!< Only for Witness versions not already defined above
-    // QNT: Post-quantum XMSS output
+    // SNTI: Post-quantum XMSS output
     P2XMSS,          //!< Pay-to-XMSS-Hash: OP_XMSS_CHECKSIG with 64-byte pubkey
     P2XMSSHASH,      //!< Pay-to-XMSS-Hash-committed: OP_DUP OP_HASH160 <20-byte-hash> OP_EQUALVERIFY OP_XMSS_CHECKSIG
 };

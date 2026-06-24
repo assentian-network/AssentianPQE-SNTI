@@ -958,7 +958,7 @@ Span<const CRPCCommand> GetWalletRPCCommands()
 #ifdef ENABLE_EXTERNAL_SIGNER
         {"wallet", &walletdisplayaddress},
 #endif // ENABLE_EXTERNAL_SIGNER
-        // QNT: XMSS post-quantum wallet RPCs
+        // SNTI: XMSS post-quantum wallet RPCs
         {"wallet", &getnewxmssaddress},
         {"wallet", &importxmsskey},
         {"wallet", &exportxmsskey},

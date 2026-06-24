@@ -34,7 +34,7 @@
 #include <wallet/types.h>
 #include <wallet/walletutil.h>
 
-// QNT: XMSS wallet keystore
+// SNTI: XMSS wallet keystore
 #include <wallet/xmss_keystore.h>
 #include <wallet/xmss_signer.h>
 
@@ -419,7 +419,7 @@ private:
     // ScriptPubKeyMan::GetID. In many cases it will be the hash of an internal structure
     std::map<uint256, std::unique_ptr<ScriptPubKeyMan>> m_spk_managers;
 
-    // QNT: XMSS signer for post-quantum transaction signing
+    // SNTI: XMSS signer for post-quantum transaction signing
     std::unique_ptr<wallet::CXMSSSigner> m_xmss_signer GUARDED_BY(cs_wallet);
 
     // Appends spk managers into the main 'm_spk_managers'.
@@ -655,21 +655,21 @@ public:
     bool SignTransaction(CMutableTransaction& tx, const std::map<COutPoint, Coin>& coins, int sighash, std::map<int, bilingual_str>& input_errors) const;
 
 
-    // QNT: XMSS signer accessor for RPC
+    // SNTI: XMSS signer accessor for RPC
     wallet::CXMSSSigner* GetXMSSSigner() const { return m_xmss_signer.get(); }
 
-    // QNT: XMSS keystore accessor for RPC
+    // SNTI: XMSS keystore accessor for RPC
     CXMSSKeyStore* GetXMSSKeyStore() const { return xmss_keystore.get(); }
 
-    // QNT: XMSS key management helpers
+    // SNTI: XMSS key management helpers
     void AddXMSSKeyToKeystore(const uint160& addr_hash, const std::vector<uint8_t>& pubkey);
-    // QNT: Persist XMSS signer state to wallet DB immediately.
+    // SNTI: Persist XMSS signer state to wallet DB immediately.
     // Must be called after any operation that creates or mutates an XMSS key
     // (including getnewxmssaddress) so private keys are never stranded in
     // memory only — a node crash before the first CommitTransaction would
     // otherwise make any funds received at that address unrecoverable.
     void PersistXMSSState();
-    // QNT: Load XMSS state from wallet DB, decrypting if necessary. Called
+    // SNTI: Load XMSS state from wallet DB, decrypting if necessary. Called
     // both at wallet load (CWallet::Create) and after Unlock() succeeds, so
     // encrypted XMSS state becomes available as soon as the master key is.
     void LoadXMSSStateIfPossible();
@@ -1084,7 +1084,7 @@ public:
 
     void TopUpCallback(const std::set<CScript>& spks, ScriptPubKeyMan* spkm) override;
 
-    // QNT: XMSS wallet keystore
+    // SNTI: XMSS wallet keystore
     std::unique_ptr<CXMSSKeyStore> xmss_keystore;
 };
 
