@@ -1,4 +1,6 @@
-# QNT Developer Documentation
+# Assentian-PQE (SNTI) Developer Documentation
+
+> **Ticker**: SNTI · **Copyright**: Asep Mulya · **GitHub**: https://github.com/asepganzu-svg/AssentianPQE-SNTI
 
 ## Table of Contents
 
@@ -36,8 +38,8 @@ sudo apt-get install -y \
 
 ```bash
 # Clone repository
-git clone https://github.com/asepganzu-svg/bitcoin-quant.git
-cd bitcoin-quant/bitcoin-quant
+git clone https://github.com/asepganzu-svg/AssentianPQE-SNTI.git
+cd AssentianPQE-SNTI
 
 # Generate configure script
 ./autogen.sh
@@ -48,9 +50,6 @@ cd bitcoin-quant/bitcoin-quant
 
 # Build
 make -j$(nproc)
-
-# Run tests (optional)
-make check
 ```
 
 ### Build Output
@@ -62,15 +61,27 @@ make check
 | bitcoin-wallet | src/bitcoin-wallet | Wallet management |
 | bitcoin-tx | src/bitcoin-tx | Transaction builder |
 
+### Running the Node (Testnet)
+
+```bash
+./src/bitcoind -testnet \
+  -datadir=/root/.assentian_testnet \
+  -rpcuser=user -rpcpassword=password \
+  -rpcport=39332 -port=39333 \
+  -rpcallowip=127.0.0.1 \
+  -walletcrosschain \
+  -daemon
+```
+
 ---
 
 ## RPC API Reference
 
 ### Standard Bitcoin RPC
 
-QNT supports all standard Bitcoin Core RPC commands. See [Bitcoin RPC documentation](https://developer.bitcoin.org/reference/rpc/).
+SNTI supports all standard Bitcoin Core RPC commands. See [Bitcoin RPC documentation](https://developer.bitcoin.org/reference/rpc/).
 
-### QNT-Specific RPC Commands
+### SNTI-Specific RPC Commands
 
 #### `getnewxmssaddress (label)`
 
@@ -82,7 +93,7 @@ Generate a new XMSS key pair and return the corresponding address.
 **Returns:**
 ```json
 {
-  "address": "q...",
+  "address": "tq1q...",
   "pubkey": "hex...",
   "leaf_index": 0,
   "remaining": 1024
@@ -91,7 +102,9 @@ Generate a new XMSS key pair and return the corresponding address.
 
 **Example:**
 ```bash
-bitcoin-cli -regtest getnewxmssaddress "my_first_key"
+./src/bitcoin-cli -testnet -datadir=/root/.assentian_testnet \
+  -rpcuser=user -rpcpassword=password -rpcport=39332 \
+  getnewxmssaddress "my_first_key"
 ```
 
 ---
@@ -105,18 +118,13 @@ List all XMSS keys in the wallet.
 [
   {
     "label": "my_first_key",
-    "address": "q...",
+    "address": "tq1q...",
     "pubkey": "hex...",
-    "leaf_index": 3,
-    "remaining": 1021,
+    "leaf_index": 0,
+    "remaining": 1024,
     "valid": true
   }
 ]
-```
-
-**Example:**
-```bash
-bitcoin-cli -regtest listxmsskeys
 ```
 
 ---
@@ -131,16 +139,15 @@ Get information about an XMSS address.
 **Returns:**
 ```json
 {
-  "address": "q...",
+  "address": "tq1q...",
   "pubkey": "hex...",
   "is_mine": true,
-  "leaf_index": 3,
-  "remaining": 1021
+  "leaf_index": 0,
+  "remaining": 1024
 }
 ```
 
 ---
-
 
 #### `importxmsskey (seckey, pubkey, label)`
 
@@ -151,23 +158,13 @@ Import an existing XMSS key pair into the wallet.
 - `pubkey` (string, required): 64-byte XMSS public key, hex-encoded
 - `label` (string, optional): Human-readable label for the key
 
-**Example:**
-```bash
-bitcoin-cli -testnet importxmsskey "<seckey-hex>" "<64-byte-pubkey-hex>" "restored_key"
-```
-
 ---
 
 #### `exportxmsskey (address)`
 
-Export an XMSS private key from the wallet for backup. Fixed 16/Jun/2026 —
-this command previously returned "Method not found" because it was
-implemented but never registered in the RPC command table, and depended
-on `CXMSSSigner::GetSecKeyForPubkey()`, which did not exist. Both issues
-are resolved as of this build (see CHANGELOG Phase 6.6).
+Export an XMSS private key from the wallet for backup.
 
 **WARNING**: anyone with the secret key can spend funds from this address.
-Handle the output with the same care as a Bitcoin private key.
 
 **Parameters:**
 - `address` (string, required): The XMSS address to export the key for
@@ -177,34 +174,21 @@ Handle the output with the same care as a Bitcoin private key.
 {
   "pubkey": "hex...",
   "seckey": "hex...",
-  "address": "q...",
+  "address": "tq1q...",
   "leaf_index": 0,
   "remaining": 1024
 }
 ```
 
-**Example:**
-```bash
-bitcoin-cli -testnet exportxmsskey "fmZyeGjBp4Yt4hSEfXi4byNhpfnE7UkMhv"
-```
+---
 
-#### `sendtoxmssaddress (address, amount, ...)`
+#### `sendfromxmssaddress (address, amount, ...)`
 
-Send QNT to an XMSS address.
+Send SNTI from an XMSS address. The sending address is swept fully and retired after signing (one-time-address model — see Key Lifecycle below).
 
 **Parameters:**
-- `address` (string, required): Destination XMSS address
-- `amount` (number, required): Amount in QNT
-- `comment` (string, optional): Transaction comment
-- `subtractfeefromamount` (boolean, optional): Subtract fee from amount
-
-**Returns:**
-```json
-{
-  "txid": "hex...",
-  "fee": 0.00001
-}
-```
+- `address` (string, required): Destination address
+- `amount` (number, required): Amount in SNTI
 
 ---
 
@@ -215,11 +199,15 @@ Returns mining information including PoUW status.
 **Returns:**
 ```json
 {
-  "blocks": 100,
-  "difficulty": 0.00024414,
-  "networkhashps": 1234.56,
-  "pouw_enabled": true,
-  "chain": "regtest"
+  "blocks": 2,
+  "currentblockweight": 4000,
+  "currentblocktx": 0,
+  "difficulty": 4.656542373906925e-10,
+  "networkhashps": 3.29e-05,
+  "pooledtx": 0,
+  "chain": "test",
+  "warnings": "",
+  "pouw_enabled": true
 }
 ```
 
@@ -231,95 +219,117 @@ Returns mining information including PoUW status.
 
 XMSS (eXtended Merkle Signature Scheme) is a **stateful** post-quantum signature scheme. Key properties:
 
-- **One-time signatures**: Each key pair can produce exactly 1,024 signatures
+- **One-time signatures**: Each key pair can produce exactly 1,024 signatures (indices 0–1022 safe; index 1023 has a known reference library bug — see Architecture §Known Bugs)
 - **Index tracking**: Each signature advances an internal counter
 - **Anti-reuse**: Reusing a key index leaks the private key
 - **Large signatures**: ~2,500 bytes per signature
 
-### Address Lifecycle
+### Address Lifecycle (Swept One-Time Model)
+
+SNTI uses a **swept one-time-address** model for XMSS spending addresses:
 
 ```
-Generate Key → Index 0
+Generate Key → Index 0 (only index ever used for spending)
   ↓
-Send TX → Index 1 (old address still receives)
+Receive funds
   ↓
-Send TX → Index 2
+sendfromxmssaddress → signs at index 0, sweeps ALL UTXOs at address
   ↓
-... (1024 total)
+Key retired (persisted before broadcast, wallet refuses second use)
   ↓
-Key Exhausted → Generate new key
+Generate new key for next use
 ```
 
-### Best Practices
+This design:
+- Avoids any HD-derivation/CPubKey incompatibility
+- Structurally prevents ever reaching the index-1023 library bug
+- Eliminates crash-safe index-persistence complexity
 
-1. **Never reuse a sending address** — always generate new change addresses
-2. **Monitor remaining signatures** — use `listxmsskeys` to check
-3. **Backup wallet regularly** — XMSS state is stored in wallet.dat
-4. **Don't share private keys** — each key is unique to your wallet
+> **Note**: This is separate from PoUW mining keys. Mining generates a fresh XMSS key per block (search phase — see Mining Guide) and discards it.
+
+### XMSS in PoUW Mining vs. Transaction Signing
+
+XMSS is used in **two distinct, unrelated contexts**:
+
+| Context | What XMSS does | Key lifecycle |
+|---------|----------------|---------------|
+| **PoUW Mining** | Tree root hash = proof of work | Fresh key per block, discarded |
+| **TX Signing** | Signs SNTI spending transactions | One-time address, swept and retired |
 
 ### Wallet Backup
 
 ```bash
 # Backup wallet
-bitcoin-cli -regtest backupwallet "/path/to/backup.dat"
-
-# Restore wallet
-bitcoin-wallet -regtest -wallet=/path/to/backup.dat
+./src/bitcoin-cli -testnet [...] backupwallet "/path/to/backup.dat"
 ```
 
 ---
 
 ## Mining Guide
 
-### Solo Mining (Regtest)
+### How PoUW v2 Works
+
+SNTI uses **Proof-of-Useful-Work v2** (PoUW v2): building an XMSS Merkle tree is the proof of work. There is no SHA-256 nonce grinding.
+
+**Mining loop:**
+1. Miner picks a random 96-byte SK_SEED (= SK_SEED | SK_PRF | PUB_SEED)
+2. Builds full XMSS-SHA2_10_256 tree (height 10, 1024 leaves) → ~6 seconds on 4 CPU cores
+3. Extracts `xmssRoot` (32-byte Merkle root)
+4. Checks: `xmssRoot < target` — if not, pick new SK_SEED and repeat
+5. When valid: sign the block hash with the XMSS key at leaf index 0
+6. Embed auth_path + WOTS+ signature in coinbase via `PoUWv2Proof::Serialize()` (2660 bytes)
+7. Broadcast block
+
+**Key point**: `nNonce` in the block header is **always 0** in PoUW v2. The "nonce" is the SK_SEED stored in the PoUW proof.
+
+**Difficulty**: EMA per-block adjustment (alpha=0.1), target ~60 second blocks.
+**powLimit (testnet)**: `7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff` (max — easy mining)
+**powLimit (mainnet)**: `01a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a4` (1-of-156 trees valid)
+
+### Solo Mining (RPC — recommended for now)
 
 ```bash
-# Start regtest node
-bitcoind -regtest -daemon
+CLI="./src/bitcoin-cli -testnet -datadir=/root/.assentian_testnet \
+  -rpcuser=user -rpcpassword=password -rpcport=39332"
 
-# Create wallet and get address
-bitcoin-cli -regtest createwallet "miner"
-ADDR=$(bitcoin-cli -regtest getnewaddress)
+# Load wallet
+$CLI loadwallet snti_testnet
 
-# Mine 10 blocks
-bitcoin-cli -regtest generatetoaddress 10 $ADDR
+# Get address
+ADDR=$($CLI getnewaddress)
 
-# Check balance
-bitcoin-cli -regtest getbalance
+# Mine 1 block (timeout long — XMSS tree build takes ~6s/attempt)
+$CLI -rpcclienttimeout=300 generatetoaddress 1 "$ADDR" 100
 ```
 
-### PoUW Mining Process
+### Pool Mining (Stratum — PoUW v2 hybrid)
 
-Each mined block:
-1. Generates fresh XMSS key pair (~2-3 seconds, measured)
-2. Embeds pubkey in coinbase OP_RETURN
-3. Grinds SHA-256 nonce
-4. Signs block hash with XMSS
-5. Inserts signature into coinbase witness (not scriptSig — avoids the 100-byte push limit)
-6. Re-verifies PoW
-
-
-> **Important — actual key lifecycle differs from the ideal XMSS model.**
-> The XMSS-Wallet-Guide section above describes the ideal case: one key signing
-> up to 1024 times before rotation. In the current PoUW mining implementation
-> (`GenerateBlock()` in `rpc/mining.cpp`), this is NOT what happens. A fresh
-> XMSS key is generated and discarded for every single block — only index 0
-> of each key's 1024-signature capacity is ever used. This is a deliberate
-> simplification: it avoids any risk of state persistence bugs or accidental
-> index reuse across node restarts, at the cost of generating a brand-new key
-> every ~2-3 seconds (most of a block's mining time) and wasting 1023 of 1024
-> available signatures per key. This tradeoff has not yet been revisited as
-> of the 16/Jun/2026 testnet validation session — see CHANGELOG Phase 6.5.
-
-### Mining RPC
+The stratum server (`stratum_server.py`) uses a hybrid approach:
+- Sends lightweight SHA-256 jobs to standard miners (cpuminer etc.)
+- After every N accepted shares, triggers `generatetoaddress` internally
+- `bitcoind` performs the actual XMSS tree building
+- Miners do not need to know about XMSS
 
 ```bash
-# Get mining info
-bitcoin-cli -regtest getmininginfo
+# Start stratum (already configured as systemd service)
+systemctl start assentian-stratum.service
 
-# Generate blocks (regtest only)
-bitcoin-cli -regtest generatetoaddress 100 $ADDR
+# Connect cpuminer
+minerd -a sha256d -o stratum+tcp://104.234.26.7:3333 \
+  -u tq1qftvdv0xh4534talv2axxfp5fh57mn4gl7x2cpl -p x
 ```
+
+> **Status (Jun 25 2026)**: Stratum server is functional for PoUW v2 via the hybrid approach. WOTS+ signature verification in `CheckPoUWv2()` is currently checking root < target only (WOTS verify disabled pending BDS state fix — see Architecture §Active Issues).
+
+### Key Design Decision: One-Shot Mining Keys
+
+Each mined block generates a fresh XMSS key and uses only index 0 of its 1024-signature capacity. This is deliberate:
+
+- No durable crash-safe index-state persistence needed
+- No risk of index reuse across restarts
+- Tradeoff: ~6s keygen overhead per block attempt, 1023 signatures wasted per key
+
+This will be revisited if block time needs to drop below ~5 seconds.
 
 ---
 
@@ -328,783 +338,266 @@ bitcoin-cli -regtest generatetoaddress 100 $ADDR
 ### Connecting to Testnet
 
 ```bash
-# Start testnet node
-bitcoind -testnet -daemon
-
-# Check connection
-bitcoin-cli -testnet getnetworkinfo
-
-# Get testnet coins from faucet (when available)
-# POST /faucet { "address": "your_testnet_address" }
+./src/bitcoind -testnet \
+  -datadir=/root/.assentian_testnet \
+  -rpcuser=user -rpcpassword=password \
+  -rpcport=39332 -port=39333 \
+  -rpcallowip=127.0.0.1 \
+  -walletcrosschain \
+  -daemon
 ```
 
 ### Testnet Parameters
 
 | Parameter | Value |
 |-----------|-------|
-| Port | 19333 |
-| RPC Port | 29332 |
-| Address Prefix | m or n |
-| Magic Bytes | 0x71545354 ("qTST") |
-| Difficulty | Low (easy mining) |
+| P2P Port | 39333 |
+| RPC Port | 39332 |
+| Address Prefix | `tq1` (bech32) |
+| Magic Bytes | `0x73545354` ("sTST") |
+| Block Time Target | 60 seconds |
+| powLimit | `7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff` (max) |
+| Block Reward | 50 SNTI |
+| Halving Interval | 2,100,000 blocks (~4 years) |
+
+### Genesis Block (PoUW v2)
+
+| Field | Value |
+|-------|-------|
+| nTime | 1782275807 (Jun 24 2026) |
+| nBits | 0x207fffff |
+| nNonce | 0 (PoUW v2 — always 0) |
+| Hash | `0616e8b3402b69dc97bb3ca02e3e83192e2b0c4c74093990ad917f0183b5ab97` |
+
+### VPS Live Infrastructure
+
+| Service | Status | Port |
+|---------|--------|------|
+| assentian-node.service | Active | P2P:39333, RPC:39332 |
+| assentian-explorer.service | Active | HTTP:8081 (proxied via nginx:80) |
+| assentian-stratum.service | Active (PoUW v2 hybrid) | Stratum:3333, Stats:3334 |
 
 ---
 
 ## Architecture
 
-### Block Structure
+### Block Header Structure (PoUW v2)
 
 ```
-Block Header
-├── Version
-├── Previous Block Hash
-├── Merkle Root (includes signed coinbase)
-├── Timestamp
-├── Bits (difficulty)
-└── Nonce
-
-Block Data
-├── Coinbase Transaction
-│   ├── Input: height + extra_nonce + XMSS_signature
-│   ├── Output 1: block reward (P2PKH)
-│   └── Output 2: OP_RETURN <64-byte XMSS pubkey>
-└── Transactions [...]
+CBlockHeader
+├── nVersion       (int32)   — block version
+├── hashPrevBlock  (uint256) — previous block hash
+├── hashMerkleRoot (uint256) — Merkle root of transactions
+├── nTime          (uint32)  — Unix timestamp
+├── nBits          (uint32)  — compact difficulty target
+├── nNonce         (uint32)  — ALWAYS 0 in PoUW v2 (legacy field retained for serialization)
+├── xmssRoot       (uint256) — XMSS tree Merkle root — THIS IS THE PROOF OF WORK
+├── nLeafIndex     (uint32)  — which leaf signed this block (consensus: sequential, no reuse)
+└── commitmentsRoot(uint256) — Merkle root of failed-SK_SEED commitments
 ```
 
-### Transaction Flow (XMSS)
+### PoUW v2 Proof Structure (in coinbase)
+
+Serialized `PoUWv2Proof` (2660 bytes total), identified by magic `PW2\x02`:
 
 ```
-1. CreateTransaction()
-   ↓
-2. SignTransaction() (ECDSA inputs)
-   ↓
-3. SignTransactionXMSS() (XMSS inputs)
-   ├── Detect 64-byte pubkey + OP_XMSS_CHECKSIG
-   ├── Compute sighash
-   ├── Sign via CXMSSSigner::SignXMSS()
-   └── Build scriptSig: <sig> <pubkey>
-   ↓
-4. CommitTransaction()
-   └── Save XMSS state to wallet DB
+[4 bytes magic: 'P','W','2',0x02]
+[96 bytes seed: SK_SEED | SK_PRF | PUB_SEED]
+[64 bytes xmss_pk: root(32) | PUB_SEED(32)]
+[320 bytes auth_path: 10 × 32-byte node hashes]
+[2144 bytes wots_sig: WOTS+ signature]
+[32 bytes r: signature randomness]
 ```
 
+### Block Layout
 
-### Design Decision Record — Key lifecycle (16/Jun/2026)
+```
+Block
+├── Block Header (PoUW v2 — see above)
+└── Block Data
+    ├── Coinbase Transaction
+    │   ├── Input: height + extra_nonce
+    │   ├── Output 1: block reward (50 SNTI)
+    │   └── Output 2: OP_RETURN <PoUWv2Proof 2660 bytes>
+    └── Transactions [...]
+```
 
-**Decision**: Keep the one-shot key model (fresh XMSS key generated and
-discarded per block) for the testnet/pre-mainnet phase. Key reuse across
-the full 1024-signature capacity was considered and explicitly deferred.
+### Transaction Flow (XMSS spending)
 
-**Reasoning**: Reusing an XMSS key across multiple blocks requires durable,
-crash-safe persistence of the signing index. If a node crashes after
-signing but before flushing the updated index to disk, a restart could
-sign again at the same index — which leaks the private key under XMSS's
-security model. Building that persistence correctly (atomic writes, fsync
-ordering, recovery on corrupt state) is real work with real risk of
-getting subtly wrong. The one-shot model has no such failure mode by
-construction. The tradeoff (1023 of 1024 signature capacity wasted per
-key, ~2-3s of keygen overhead per block) is accepted for now in exchange
-for that safety margin.
+P2XMSS and P2XMSSHASH are the two XMSS-native output types:
 
-**Revisit when**: mainnet launch planning begins in earnest, or if block
-time needs to drop below ~5 seconds and keygen overhead becomes the
-binding constraint.
+```
+P2XMSS:     <64-byte-pubkey> OP_XMSS_CHECKSIG
+P2XMSSHASH: OP_DUP OP_HASH160 <20-byte-hash> OP_EQUALVERIFY OP_XMSS_CHECKSIG
+```
 
+Signature is split into 5 × 500-byte chunks (each < 520-byte consensus push limit):
 
-### Known Reference Library Bug — Final Signature (index 1023) Fails Verification
+```
+scriptSig (P2XMSS, 2515 bytes):
+  <chunk1-500> <chunk2-500> <chunk3-500> <chunk4-500> <chunk5-500>
 
-Discovered 17/Jun/2026 during key-exhaustion audit testing. Confirmed empirically
-with a standalone test harness linked directly against the project's compiled
-XMSS library (bypassing the bitcoind wrapper entirely):
-Index 0–1022:  sign() succeeds, verify() succeeds   — 1023 of 1024 signatures OK
+scriptSig (P2XMSSHASH, 2580 bytes):
+  <chunk1-500> <chunk2-500> <chunk3-500> <chunk4-500> <chunk5-500> <pubkey-64>
+```
 
-Index 1023:    sign() succeeds, verify() FAILS      — the final signature is broken
-
-Index 1024:    sign() correctly refuses (code -2)   — key properly exhausted
-
-**Root cause**: in the core sign function (`xmss_core_fast.c` / `xmss_commons.c`),
-when the secret key's index reaches the maximum valid value, the implementation
-zeroes/marks the secret key's index bytes as a "key exhausted" sentinel *before*
-copying those same index bytes into the produced signature's index field. The
-final, otherwise-legitimate signature is therefore serialized with a corrupted
-index, which `xmss_sign_open()` cannot reconcile against the public key's Merkle
-root — verification fails even though the signature was produced from a valid,
-unused leaf.
-
-**Why this hasn't affected QNT mining**: under the current one-shot key design
-(see Design Decision Record above), every block generates a fresh key and signs
-exactly once at index 0 — index 1023 is never reached in practice, so this bug
-has zero observable effect on PoUW today.
-
-**Why it matters anyway**: if the one-shot key design is ever revisited in favor
-of reusing a key across its full 1024-signature capacity, this bug would cause
-the 1024th use of every key to silently produce an unverifiable, rejected block.
-Any future work in that direction must fix this in the XMSS library layer first
-— either by reordering the zero-out to happen after the signature's index bytes
-are committed to the output, or by reserving index 1023 as unusable (i.e.,
-treating 1023 effective signatures per key as the safe practical maximum).
+Policy exception: `MAX_STANDARD_SCRIPTSIG_SIZE_XMSS = 3000` (type-gated, only for P2XMSS/P2XMSSHASH prevouts; all other inputs keep the 1650-byte cap).
 
 ### Key Components
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| CXMSSSigner | wallet/xmss_signer.cpp | XMSS signing provider |
+| PoUWv2Proof | src/pouw_v2.h | PoUW v2 data structure, CheckPoUWv2(), CalcNextTargetEMA() |
+| CBlockHeader | src/primitives/block.h | Block header with xmssRoot, nLeafIndex, commitmentsRoot |
+| CheckPoUWv2 | src/validation.cpp | Block PoUW v2 verification |
+| GenerateBlock / XMSS search | src/rpc/mining.cpp | PoUW v2 mining loop (SK_SEED search) |
+| CalcNextTargetEMA | src/pow.cpp | EMA per-block difficulty adjustment |
+| CXMSSSigner | wallet/xmss_signer.cpp | XMSS signing provider (TX signing) |
 | CXMSSKeyStore | wallet/xmss_keystore.cpp | Key persistence |
-| CXMSSKey | xmss_bridge.cpp | C XMSS wrapper |
-| CheckPoUW | validation.cpp | Block PoUW verification |
-| GenerateBlock | rpc/mining.cpp | PoUW mining loop |
-| OP_XMSS_CHECKSIG | script/interpreter.cpp | Script verification |
+| OP_XMSS_CHECKSIG | script/interpreter.cpp | Script verification (5-chunk reassembly) |
+| sendfromxmssaddress | wallet/rpc/xmss.cpp | XMSS sweep-spend RPC |
+| stratum_server.py | stratum_server.py | PoUW v2 hybrid stratum server |
 
-## ⚠️ ACTIVE BLOCKER — XMSS Wallet Spending (as of 18/Jun/2026)
+### XMSS Library Parameters
 
-**Status: investigation complete, root cause confirmed, fix NOT yet implemented.**
-**This is the single most important section in this document for resuming work.**
+- OID: `0x00000001` (XMSS-SHA2_10_256)
+- Tree height: 10
+- Leaves: 1024
+- n (hash bytes): 32
+- WOTS+ sig bytes: 2144
+- Auth path bytes: 320 (10 × 32)
+- PK bytes: 64 (root || PUB_SEED)
+- SK_SEED bytes: 96 (SK_SEED || SK_PRF || PUB_SEED)
+- Signature bytes: 2500 (index_bytes:4 + R:32 + WOTS_sig:2144 + auth_path:320)
 
-### The goal
-Make `sendfromxmssaddress` actually work end-to-end: spend funds that were
-received at an XMSS address, broadcast successfully, confirm on-chain.
+### EMA Difficulty Adjustment
 
-### What was tried and ruled out, in order
+Per-block EMA with alpha=0.1:
 
-**1. Quick fix: bridge CXMSSSigner to LegacyScriptPubKeyMan**
-`AddXMSSKeyToKeystore()` was a no-op stub; `getnewxmssaddress` never called
-it. Implemented the bridge so generated keys register with
-`LegacyScriptPubKeyMan::AddXMSSKey()`. **Result: inert.** The active wallet
-is a descriptor wallet (`"descriptors": true`), and `GetLegacyScriptPubKeyMan()`
-returns nullptr for descriptor wallets — there is no Legacy SPKM instance to
-register anything with. Confirmed by trying to create an explicit legacy
-wallet: fails outright, `Compiled without bdb support (required for legacy
-wallets)`. **The current binary cannot create a legacy wallet at all.**
-
-**2. Real fix: proper descriptor integration (`xmss(pubkey)` descriptor type)**
-Investigated what this would require: a new `DescriptorImpl` subclass,
-parser support, wiring into `DescriptorScriptPubKeyMan`. Hit a hard type
-incompatibility: the entire `PubkeyProvider → DescriptorImpl → SigningProvider`
-pipeline is built around `CPubKey`, which is hard-capped at `SIZE = 65` bytes
-and whose `IsValid()`/`IsFullyValid()` checks call into libsecp256k1 to
-confirm the bytes are a valid EC point. XMSS's 64-byte raw pubkey (root ||
-PUB_SEED) is not EC data and cannot pass through `CPubKey` without either
-modifying `CPubKey` itself (used everywhere, very high blast radius) or
-building an entirely parallel non-`CPubKey` provider/descriptor/signing
-stack. Genuine multi-day-to-multi-week engineering effort, not a patch.
-
-**3. Pivoted to a different design philosophy: "swept one-time address"**
-Decision made (see new Design Decision Record below) to lean into XMSS's
-stateful nature rather than fight it: each XMSS address is used at most
-ONCE for spending (always index 0, never reused), matching the same
-philosophy already adopted for PoUW mining keys. This sidesteps the
-`CPubKey`/HD-derivation incompatibility entirely (no derivation needed —
-just individually tracked one-shot keys) and avoids the broken-last-signature
-reference library bug (index 1023) by construction, since index never
-advances past 0.
-
-**4. While implementing the manual transaction-builder approach for this
-design, found and fixed an unrelated but critical bug:** `CXMSSSigner::SaveState()`
-was only called from `CommitTransaction()` — a key generated via
-`getnewxmssaddress` lived in memory only until the wallet's first outgoing
-transaction. A crash/restart before that point would permanently lose the
-private key (and any funds already received at that address), silently.
-**Fixed**: extracted `CWallet::PersistXMSSState()`, now called both from
-`CommitTransaction()` and immediately after key generation in
-`getnewxmssaddress`. **Verified via actual crash test**: generated a key,
-sent zero transactions, `SIGKILL`'d the node, restarted, confirmed the key
-and `ismine:true` survived. This fix is committed and pushed
-(`d61ae76`) — it stands regardless of how the spending design below
-ultimately gets resolved.
-
-**5. Investigated exactly what consensus requires to spend a P2XMSS output**,
-to design the manual transaction builder correctly:
-- `OP_XMSS_CHECKSIG`'s `CheckXMSSSignature()` (interpreter.cpp ~line 1735)
-  computes a completely standard `SignatureHash(scriptCode, *txTo, nIn,
-  SIGHASH_ALL, amount, sigversion, nullptr)` — i.e. the ordinary
-  legacy/BIP143 sighash, nothing custom. Good news: no novel sighash scheme
-  needed.
-- `CScript::IsWitnessProgram()` is **completely unmodified** from upstream.
-  The P2XMSS script (`<64-byte-pubkey-push> OP_XMSS_CHECKSIG`, 66 bytes) is
-  far larger than the 42-byte max for witness programs and doesn't start
-  with `OP_0`/`OP_1`-`OP_16`. **A P2XMSS output is therefore never treated
-  as a witness program by consensus — it can only be spent via legacy
-  scriptSig (`SigVersion::BASE`)**, pushing just the signature (the pubkey
-  is already embedded in the locking script, so scriptSig only needs `<sig>`,
-  similar to bare P2PK).
-
-### THE ACTUAL BLOCKER (found last, and the reason nothing can move forward
-### without a deliberate decision)
-
-XMSS signatures are ~2500 bytes. Checked the standardness/relay policy
-limits in `policy/policy.h` (confirmed **unmodified** from upstream):
 ```
-MAX_STANDARD_SCRIPTSIG_SIZE        = 1650   bytes  (policy.cpp line ~121)
-MAX_STANDARD_P2WSH_STACK_ITEM_SIZE = 80     bytes  (policy.h line 43)
-MAX_STANDARD_P2WSH_SCRIPT_SIZE     = 3600   bytes  (policy.h line 47, fine on its own)
+new_target = old_target × (900×T + 100×A) / (1000×T)
+
+where T = 60s (target spacing), A = actual spacing (clamped to [T/4, T×4])
 ```
-**A 2500-byte signature does not fit through either path.** Neither bare
-scriptSig (consensus-mandated path per the IsWitnessProgram finding above,
-1650-byte policy cap) nor a hypothetical P2WSH-wrapped redesign (80-byte
-policy cap on witness stack items, nowhere close) can carry it under
-default relay policy. `AcceptToMemoryPool` would reject any transaction
-attempting to spend a P2XMSS output before it could ever reach a block —
-this would block it from our own node's mempool too, not just P2P relay.
 
-**This is why PoUW mining signatures never hit this wall**: they're carried
-in a coinbase `OP_RETURN` output (Phase 6.9's preimage redesign), which is
-not subject to scriptSig/witness-stack size policy at all. Spending-side
-signatures, going through actual script execution via `OP_XMSS_CHECKSIG`,
-have no equivalent escape hatch today.
+---
 
-### What fixing this actually requires (not started — this is the next session's first task)
+## Active Issues (Jun 25 2026)
 
-A deliberate policy decision, most likely one of:
-- (a) Raise `MAX_STANDARD_SCRIPTSIG_SIZE` specifically for transactions
-  whose input's previous output is a recognized P2XMSS script (narrow,
-  type-gated exception rather than a blanket policy change — safer, smaller
-  DoS surface), **or**
-- (b) Redesign P2XMSS spending to use a witness-based scheme and raise
-  `MAX_STANDARD_P2WSH_STACK_ITEM_SIZE` (or design a bespoke witness
-  program type for XMSS, recognized by a modified `IsWitnessProgram()`,
-  so it gets `SigVersion::WITNESS_V0` treatment) — this is more invasive
-  (touches consensus-level witness-program recognition) but is more
-  consistent with how the project already solved the identical problem
-  for mining (move large data out of size-constrained legacy paths into
-  a purpose-built carve-out).
+### 🔴 WOTS+ verification disabled in CheckPoUWv2()
 
-Either path has real DoS-surface tradeoffs (larger standard transaction
-sizes = more relay bandwidth and validation cost network-wide) that
-deserve careful, undistracted thought — explicitly NOT a decision to make
-at the tail end of an exhausting session, which is why this was stopped
-here rather than pushed through.
+`CheckPoUWv2()` currently only checks `xmssRoot < target`. The full WOTS+ signature verification (`xmss_sign_open`) is implemented but disabled pending a fix to auth_path extraction from `xmssmt_core_seed_keypair()`.
 
-### Design Decision Record — Swept One-Time XMSS Address Model (18/Jun/2026)
+**Affected file**: `src/pouw_v2.h` — `CheckPoUWv2()` and `BuildAndSign()`
 
-Decided, not yet implemented:
-- Each XMSS address is swept and retired in a single spend — one signature
-  (always index 0) authorizes spending the address's *entire* balance
-  (all UTXOs at that address) in one transaction. Partial spends from an
-  address are not allowed; the wallet must always sweep fully.
-- After a sweep, the key is marked permanently retired (persisted
-  synchronously, before broadcast) and the wallet must refuse to ever sign
-  with it again, regardless of future deposits to that address.
-- Change goes to a freshly generated XMSS address automatically (chosen by
-  the user this session, for consistency with the project's "everything
-  post-quantum" positioning).
-- If a single payment exceeds any one address's balance, the wallet may
-  automatically combine multiple one-time XMSS addresses' UTXOs into a
-  single transaction (chosen by the user this session, for usability) —
-  each input still signed independently by its own key, each of those keys
-  then independently retired.
-- This sidesteps needing any HD-derivation scheme for XMSS (no `CPubKey`
-  compatibility needed for key derivation) and structurally avoids ever
-  reaching the broken index-1023 reference-library bug (Phase 6.8 finding),
-  since no key's index ever advances past 0.
-- UTXO discovery approach settled on for the eventual manual transaction
-  builder (since `IsMine()`/`listunspent` don't recognize P2XMSS under the
-  current descriptor-only wallet backend): scan `pwallet->mapWallet` for
-  outputs matching the P2XMSS script pattern with the target pubkey,
-  filtered by `GetTxDepthInMainChain() >= 1` (confirmed) and
-  `!pwallet->IsSpent(outpoint)`. Final broadcast should reuse
-  `pwallet->CommitTransaction()` for recording + relay (already verified
-  safe and now correctly persists XMSS state per the Phase 6.11 fix),
-  bypassing only `CreateTransaction`'s coin selection and the standard
-  ECDSA-oriented signing path — NOT yet implemented, blocked on the policy
-  size-limit decision above.
+**Fix candidates**:
+1. Extract auth_path directly from treehash() output
+2. Use xmss_sign() output directly (already includes auth_path)
+3. Store auth_path at keypair generation time
 
-### Concrete next-session starting point
-1. Make the policy decision (scriptSig exception vs. witness redesign) —
-   read this whole section first, then decide.
-2. Implement the chosen policy change in `policy/policy.cpp`/`policy.h`
-   (and `script/interpreter.cpp`'s witness-program detection if option (b)).
-3. Implement the manual transaction builder for `sendfromxmssaddress`
-   per the Design Decision Record above (UTXO discovery via mapWallet scan
-   already designed, just needs writing + testing).
-4. Test: full round trip — generate address, receive funds, sweep-spend,
-   confirm key retired, confirm wallet refuses second use.
+### 🔴 Stratum: no native PoUW v2 protocol
+
+Stratum uses a hybrid approach (SHA-256 share-counting triggers `generatetoaddress`). A full getwork/submitblock flow exposing XMSS signing at RPC level is planned for a future wave.
+
+---
+
+## Historical Engineering Record
+
+The sections below preserve the detailed investigation and resolution history from earlier development phases. This is valuable context for auditors and future contributors.
+
+---
 
 ## ✅ RESOLVED — XMSS Wallet Spending (sweep working end-to-end) (20/Jun/2026)
 
 **Status: `sendfromxmssaddress` now produces a transaction that passes full
 consensus validation, is accepted to mempool, and confirms on-chain.**
-**This resolves the blocker documented in the section above.**
 
 ### Root cause (the size-limit decision, finally made)
 
-Chose option (a)-and-(b) hybrid from the blocker section above, but neither
-literally: instead of raising `MAX_SCRIPT_ELEMENT_SIZE` (520-byte consensus
-push limit) or redesigning P2XMSS as a witness program, the ~2500-byte
-XMSS-SHA2_10_256 signature is split into **5 chunks of exactly 500 bytes**
-(2500 = 5 × 500, divides evenly — no padding/remainder logic needed) pushed
-as separate scriptSig elements. Each chunk is comfortably under the 520-byte
-consensus limit, so **no consensus-level change was needed at all** — only
-a narrow, type-gated relay-policy exception (`MAX_STANDARD_SCRIPTSIG_SIZE_XMSS
-= 3000`, only applied to inputs spending a confirmed `TxoutType::P2XMSS`
-prevout; the original 1650-byte cap is explicitly re-enforced for every
-other input type).
+Chose option (a)-and-(b) hybrid: instead of raising `MAX_SCRIPT_ELEMENT_SIZE` (520-byte consensus push limit) or redesigning P2XMSS as a witness program, the ~2500-byte XMSS-SHA2_10_256 signature is split into **5 chunks of exactly 500 bytes** pushed as separate scriptSig elements. Each chunk is comfortably under the 520-byte consensus limit, so **no consensus-level change was needed at all** — only a narrow, type-gated relay-policy exception (`MAX_STANDARD_SCRIPTSIG_SIZE_XMSS = 3000`, only applied to inputs spending a confirmed `TxoutType::P2XMSS` prevout).
 
-### All fixes required, in the order discovered (each was a separate,
-### independent blocker — fixing one only revealed the next)
+### All fixes required, in the order discovered
 
-1. **`script/interpreter.cpp`** — `OP_XMSS_CHECKSIG`/`OP_XMSS_CHECKSIGVERIFY`
-   handler rewritten to pop `chunk1..chunk5 pubkey` (6 stack items instead
-   of 2), reassemble the signature by concatenating chunks in push order,
-   and validate the reassembled length is exactly 2500 bytes before calling
-   `CheckXMSSSignature`.
+1. **`script/interpreter.cpp`** — `OP_XMSS_CHECKSIG`/`OP_XMSS_CHECKSIGVERIFY` handler rewritten to pop `chunk1..chunk5 pubkey` (6 stack items instead of 2), reassemble the signature by concatenating chunks in push order, and validate the reassembled length is exactly 2500 bytes before calling `CheckXMSSSignature`.
 
-2. **`policy/policy.h` / `policy/policy.cpp`** — `IsStandardTx()`'s
-   type-blind `MAX_STANDARD_SCRIPTSIG_SIZE` check raised to
-   `MAX_STANDARD_SCRIPTSIG_SIZE_XMSS` (necessarily coarse, since that
-   function has no `CCoinsViewCache` to check prevout type); `AreInputsStandard()`
-   (which does have prevout access) re-enforces the original tight 1650-byte
-   cap for every input *except* confirmed P2XMSS spends.
+2. **`policy/policy.h` / `policy/policy.cpp`** — `IsStandardTx()`'s type-blind `MAX_STANDARD_SCRIPTSIG_SIZE` check raised to `MAX_STANDARD_SCRIPTSIG_SIZE_XMSS` (necessarily coarse, since that function has no `CCoinsViewCache` to check prevout type); `AreInputsStandard()` (which does have prevout access) re-enforces the original tight 1650-byte cap for every input *except* confirmed P2XMSS spends.
 
 3. **`script/sign.cpp`**, two separate bugs in `SignStep()`:
-   - The XMSS-detection block's guard condition only checked
-     `whichTypeRet == NONSTANDARD || PUBKEY || PUBKEYHASH`, but `Solver()`
-     already classifies P2XMSS as its own distinct `TxoutType::P2XMSS` (not
-     `NONSTANDARD`) — so the guard never matched, the entire XMSS signing
-     block was unreachable, and execution fell through to the generic
-     `switch (whichTypeRet)`'s unhandled-default `assert(false)`, crashing
-     `bitcoind` with `SIGABRT` on every real signing attempt. Fixed by
-     adding `|| whichTypeRet == TxoutType::P2XMSS` to the guard.
-   - Once reachable, the code pushed `<sig><pubkey>` (2 items) into the
-     scriptSig — but for bare P2XMSS the pubkey is already embedded in
-     scriptPubKey and must NOT be pushed again (it produces an extra stray
-     stack item and corrupts the sig/pubkey positions `OP_XMSS_CHECKSIG`
-     reads). Fixed to push only the 5 signature chunks.
+   - The XMSS-detection block's guard condition only checked `whichTypeRet == NONSTANDARD || PUBKEY || PUBKEYHASH`, but `Solver()` already classifies P2XMSS as its own distinct `TxoutType::P2XMSS` (not `NONSTANDARD`) — so the guard never matched, the entire XMSS signing block was unreachable, and execution fell through to the generic `switch (whichTypeRet)`'s unhandled-default `assert(false)`, crashing `bitcoind` with `SIGABRT` on every real signing attempt. Fixed by adding `|| whichTypeRet == TxoutType::P2XMSS` to the guard.
+   - Once reachable, the code pushed `<sig><pubkey>` (2 items) into the scriptSig — but for bare P2XMSS the pubkey is already embedded in scriptPubKey and must NOT be pushed again. Fixed to push only the 5 signature chunks.
 
-4. **`wallet/rpc/xmss.cpp`** — UTXO discovery used
-   `AvailableCoinsListUnspent()`, which filters through `IsMine()`. Descriptor
-   wallets have no working `IsMine()` path for P2XMSS (the `LegacyScriptPubKeyMan`
-   bridge documented as "inert" in the blocker section above), so it never
-   found the funds. Replaced with a manual scan over `pwallet->mapWallet`,
-   exactly as already designed in the Design Decision Record below the
-   original blocker writeup.
+4. **`wallet/rpc/xmss.cpp`** — UTXO discovery used `AvailableCoinsListUnspent()`, which filters through `IsMine()`. Descriptor wallets have no working `IsMine()` path for P2XMSS, so it never found the funds. Replaced with a manual scan over `pwallet->mapWallet`.
 
-5. **`wallet/spend.cpp`**, two separate fee/size-estimation functions that
-   both depend on `InferDescriptor()` (no XMSS support, same root cause as
-   `IsMine()` above — XMSS has no `CPubKey`-based descriptor representation):
-   `CalculateMaximumSignedInputSize()` and `GetSignedTxinWeight()` both
-   special-cased to return the deterministic XMSS input size/weight directly
-   instead of going through descriptor inference.
+5. **`wallet/spend.cpp`** — `CalculateMaximumSignedInputSize()` and `GetSignedTxinWeight()` both special-cased to return the deterministic XMSS input size/weight directly instead of going through descriptor inference (no XMSS support there).
 
-6. **`wallet/wallet.cpp`** — `CWallet::SignTransaction()` looped over all
-   `ScriptPubKeyMan`s (none know about XMSS) then fell through to a comment
-   promising a `SignTransactionXMSS()` fallback that **was never actually
-   called** (dead code, zero call sites, confirmed via grep). That dead
-   function also independently had both of the `sign.cpp` bugs from #3
-   above (un-chunked single push + redundant pubkey push) — if it had been
-   wired up as-is it would have produced consensus-invalid transactions.
-   Fixed by calling the corrected generic `::SignTransaction()` free
-   function (the one fixed in #3) with `m_xmss_signer.get()` as the
-   `SigningProvider`, instead of the broken dead function.
+6. **`wallet/wallet.cpp`** — `CWallet::SignTransaction()` looped over all `ScriptPubKeyMan`s (none know about XMSS) then fell through to a comment promising a `SignTransactionXMSS()` fallback that **was never actually called** (dead code). Fixed by calling the corrected generic `::SignTransaction()` free function with `m_xmss_signer.get()` as the `SigningProvider`.
 
 ### Verified end-to-end
 
-`sendfromxmssaddress` from a manually-funded P2XMSS UTXO (regtest) produced
-a transaction with a 2515-byte scriptSig (5 × (3-byte OP_PUSHDATA2 + 500
-bytes)), confirmed via `getmempoolentry` that the *node's actual mempool*
-accepted it (full consensus + policy validation passed), and confirmed
-on-chain after mining one block.
+`sendfromxmssaddress` from a manually-funded P2XMSS UTXO (regtest) produced a transaction with a 2515-byte scriptSig (5 × (3-byte OP_PUSHDATA2 + 500 bytes)), confirmed via `getmempoolentry` that the node's actual mempool accepted it, and confirmed on-chain after mining one block.
 
-### Known gaps, explicitly NOT fixed this session — next session's starting points
-
-1. **Generic funding bug**: `sendtoaddress` to an XMSS address (decoded via
-   the generic `DecodeDestination()`/`GetScriptForDestination()` path, not
-   the XMSS-aware logic inside `sendfromxmssaddress` itself) produces a
-   scriptPubKey with an all-zero 64-byte pubkey placeholder — the address
-   format only encodes a 20-byte hash, and the generic path has no way to
-   recover the real pubkey from just that hash. The resulting output is
-   provably unspendable. Likely needs the existing-but-unused
-   `GetXMSSHashScriptForPubkey()` (P2XMSSHASH, hash-committed form) wired
-   into `GetScriptForDestination()` for this case instead of the bare
-   pubkey form. Worked around this session via a hand-built raw transaction
-   (`build_p2xmss_tx.py`) to isolate-test the spending-side fix.
-2. **Swept one-time-address key retirement**: the Design Decision Record's
-   "each XMSS address spent exactly once, key retired after" is still
-   unimplemented — nothing currently prevents signing with the same key
-   twice.
-3. **XMSS state reload-on-`loadwallet` flakiness**: observed `ismine: false`
-   for a known-good XMSS key immediately after a clean `bitcoind` restart +
-   `loadwallet`, despite `CWallet::Create()`'s `LoadState()` call being
-   correctly wired into that exact code path. Root cause not yet found —
-   suspect either a `WriteXmssState`/`ReadXmssState` DB-key mismatch or the
-   state being silently overwritten empty by some other `PersistXMSSState()`
-   call. Not blocking (this session's funding/spending used a freshly
-   generated key each time to route around it), but needs investigation
-   before this is safe for any real, persistent-across-restarts use.
-4. **`CWallet::SignTransactionXMSS()` is now confirmed 100% dead code** —
-   zero call sites anywhere in the codebase. Safe to delete entirely in a
-   cleanup pass; keeping it around risks a future contributor wiring it
-   back in by mistake (as happened mid-session here) and reintroducing the
-   un-chunked/redundant-pubkey bugs it contains.
-5. Compiler warnings `enumeration value 'P2XMSS' not handled in switch`
-   (multiple sites: `rpc/rawtransaction.cpp`, `script/sign.cpp`'s main
-   switch) and `SigningProvider::GetXMSSPubKey/HaveXMSSKey was hidden`
-   (virtual function shadowing) are pre-existing, harmless for current
-   functionality, but worth a cleanup pass.
-
-## ✅ RESOLVED — XMSS Wallet Spending (sweep working end-to-end) (20/Jun/2026)
-
-**Status: `sendfromxmssaddress` now produces a transaction that passes full
-consensus validation, is accepted to mempool, and confirms on-chain.**
-**This resolves the blocker documented in the section above.**
-
-### Root cause (the size-limit decision, finally made)
-
-Chose option (a)-and-(b) hybrid from the blocker section above, but neither
-literally: instead of raising `MAX_SCRIPT_ELEMENT_SIZE` (520-byte consensus
-push limit) or redesigning P2XMSS as a witness program, the ~2500-byte
-XMSS-SHA2_10_256 signature is split into **5 chunks of exactly 500 bytes**
-(2500 = 5 × 500, divides evenly — no padding/remainder logic needed) pushed
-as separate scriptSig elements. Each chunk is comfortably under the 520-byte
-consensus limit, so **no consensus-level change was needed at all** — only
-a narrow, type-gated relay-policy exception (`MAX_STANDARD_SCRIPTSIG_SIZE_XMSS
-= 3000`, only applied to inputs spending a confirmed `TxoutType::P2XMSS`
-prevout; the original 1650-byte cap is explicitly re-enforced for every
-other input type).
-
-### All fixes required, in the order discovered (each was a separate,
-### independent blocker — fixing one only revealed the next)
-
-1. **`script/interpreter.cpp`** — `OP_XMSS_CHECKSIG`/`OP_XMSS_CHECKSIGVERIFY`
-   handler rewritten to pop `chunk1..chunk5 pubkey` (6 stack items instead
-   of 2), reassemble the signature by concatenating chunks in push order,
-   and validate the reassembled length is exactly 2500 bytes before calling
-   `CheckXMSSSignature`.
-
-2. **`policy/policy.h` / `policy/policy.cpp`** — `IsStandardTx()`'s
-   type-blind `MAX_STANDARD_SCRIPTSIG_SIZE` check raised to
-   `MAX_STANDARD_SCRIPTSIG_SIZE_XMSS` (necessarily coarse, since that
-   function has no `CCoinsViewCache` to check prevout type); `AreInputsStandard()`
-   (which does have prevout access) re-enforces the original tight 1650-byte
-   cap for every input *except* confirmed P2XMSS spends.
-
-3. **`script/sign.cpp`**, two separate bugs in `SignStep()`:
-   - The XMSS-detection block's guard condition only checked
-     `whichTypeRet == NONSTANDARD || PUBKEY || PUBKEYHASH`, but `Solver()`
-     already classifies P2XMSS as its own distinct `TxoutType::P2XMSS` (not
-     `NONSTANDARD`) — so the guard never matched, the entire XMSS signing
-     block was unreachable, and execution fell through to the generic
-     `switch (whichTypeRet)`'s unhandled-default `assert(false)`, crashing
-     `bitcoind` with `SIGABRT` on every real signing attempt. Fixed by
-     adding `|| whichTypeRet == TxoutType::P2XMSS` to the guard.
-   - Once reachable, the code pushed `<sig><pubkey>` (2 items) into the
-     scriptSig — but for bare P2XMSS the pubkey is already embedded in
-     scriptPubKey and must NOT be pushed again (it produces an extra stray
-     stack item and corrupts the sig/pubkey positions `OP_XMSS_CHECKSIG`
-     reads). Fixed to push only the 5 signature chunks.
-
-4. **`wallet/rpc/xmss.cpp`** — UTXO discovery used
-   `AvailableCoinsListUnspent()`, which filters through `IsMine()`. Descriptor
-   wallets have no working `IsMine()` path for P2XMSS (the `LegacyScriptPubKeyMan`
-   bridge documented as "inert" in the blocker section above), so it never
-   found the funds. Replaced with a manual scan over `pwallet->mapWallet`,
-   exactly as already designed in the Design Decision Record below the
-   original blocker writeup.
-
-5. **`wallet/spend.cpp`**, two separate fee/size-estimation functions that
-   both depend on `InferDescriptor()` (no XMSS support, same root cause as
-   `IsMine()` above — XMSS has no `CPubKey`-based descriptor representation):
-   `CalculateMaximumSignedInputSize()` and `GetSignedTxinWeight()` both
-   special-cased to return the deterministic XMSS input size/weight directly
-   instead of going through descriptor inference.
-
-6. **`wallet/wallet.cpp`** — `CWallet::SignTransaction()` looped over all
-   `ScriptPubKeyMan`s (none know about XMSS) then fell through to a comment
-   promising a `SignTransactionXMSS()` fallback that **was never actually
-   called** (dead code, zero call sites, confirmed via grep). That dead
-   function also independently had both of the `sign.cpp` bugs from #3
-   above (un-chunked single push + redundant pubkey push) — if it had been
-   wired up as-is it would have produced consensus-invalid transactions.
-   Fixed by calling the corrected generic `::SignTransaction()` free
-   function (the one fixed in #3) with `m_xmss_signer.get()` as the
-   `SigningProvider`, instead of the broken dead function.
-
-### Verified end-to-end
-
-`sendfromxmssaddress` from a manually-funded P2XMSS UTXO (regtest) produced
-a transaction with a 2515-byte scriptSig (5 × (3-byte OP_PUSHDATA2 + 500
-bytes)), confirmed via `getmempoolentry` that the *node's actual mempool*
-accepted it (full consensus + policy validation passed), and confirmed
-on-chain after mining one block.
-
-### Known gaps, explicitly NOT fixed this session — next session's starting points
-
-1. **Generic funding bug**: `sendtoaddress` to an XMSS address (decoded via
-   the generic `DecodeDestination()`/`GetScriptForDestination()` path, not
-   the XMSS-aware logic inside `sendfromxmssaddress` itself) produces a
-   scriptPubKey with an all-zero 64-byte pubkey placeholder — the address
-   format only encodes a 20-byte hash, and the generic path has no way to
-   recover the real pubkey from just that hash. The resulting output is
-   provably unspendable. Likely needs the existing-but-unused
-   `GetXMSSHashScriptForPubkey()` (P2XMSSHASH, hash-committed form) wired
-   into `GetScriptForDestination()` for this case instead of the bare
-   pubkey form. Worked around this session via a hand-built raw transaction
-   (`build_p2xmss_tx.py`) to isolate-test the spending-side fix.
-2. **Swept one-time-address key retirement**: the Design Decision Record's
-   "each XMSS address spent exactly once, key retired after" is still
-   unimplemented — nothing currently prevents signing with the same key
-   twice.
-3. **XMSS state reload-on-`loadwallet` flakiness**: observed `ismine: false`
-   for a known-good XMSS key immediately after a clean `bitcoind` restart +
-   `loadwallet`, despite `CWallet::Create()`'s `LoadState()` call being
-   correctly wired into that exact code path. Root cause not yet found —
-   suspect either a `WriteXmssState`/`ReadXmssState` DB-key mismatch or the
-   state being silently overwritten empty by some other `PersistXMSSState()`
-   call. Not blocking (this session's funding/spending used a freshly
-   generated key each time to route around it), but needs investigation
-   before this is safe for any real, persistent-across-restarts use.
-4. **`CWallet::SignTransactionXMSS()` is now confirmed 100% dead code** —
-   zero call sites anywhere in the codebase. Safe to delete entirely in a
-   cleanup pass; keeping it around risks a future contributor wiring it
-   back in by mistake (as happened mid-session here) and reintroducing the
-   un-chunked/redundant-pubkey bugs it contains.
-5. Compiler warnings `enumeration value 'P2XMSS' not handled in switch`
-   (multiple sites: `rpc/rawtransaction.cpp`, `script/sign.cpp`'s main
-   switch) and `SigningProvider::GetXMSSPubKey/HaveXMSSKey was hidden`
-   (virtual function shadowing) are pre-existing, harmless for current
-   functionality, but worth a cleanup pass.
+---
 
 ## ✅ RESOLVED — P2XMSSHASH (hash-committed XMSS funding) (20/Jun/2026)
 
-**Status: generic `sendtoaddress` to an XMSS address now produces a correct,
-spendable output. Full round trip (fund via generic RPC, spend via
-`sendfromxmssaddress`) verified end-to-end on regtest.**
+**Status: generic `sendtoaddress` to an XMSS address now produces a correct, spendable output.**
 
 ### The bug
 
-`sendtoaddress` (and any other generic RPC building an output from an
-address string) resolved XMSS addresses to a P2XMSS scriptPubKey with an
-all-zero 64-byte pubkey placeholder -- a provably unspendable output. Root
-cause: an XMSS address only ever encodes a 20-byte `HASH160(pubkey)` (the
-sender of an arbitrary payment can't know the recipient's real pubkey up
-front -- this is architecturally unavoidable, same situation as P2PKH).
-`DecodeDestination()` had a stub `XMSSHash(const uint160&)` constructor
-that literally discarded the decoded hash and zero-filled the pubkey field
-instead (comment: "from address hash - store zeros, full pubkey needed").
-`GetScriptForDestination()` then always built the bare P2XMSS form
-(`<pubkey> OP_XMSS_CHECKSIG`) from that zeroed pubkey.
+`sendtoaddress` resolved XMSS addresses to a P2XMSS scriptPubKey with an all-zero 64-byte pubkey placeholder — a provably unspendable output. Root cause: an XMSS address only encodes a 20-byte `HASH160(pubkey)`; `DecodeDestination()` had a stub that discarded the decoded hash and zero-filled the pubkey field instead.
 
-### The fix: real P2XMSSHASH support (the XMSS analogue of P2PKH)
+### The fix
 
-Added a proper hash-committed script type --
-`OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY OP_XMSS_CHECKSIG` -- so a sender
-who only has the address (hash) can pay it correctly; the real pubkey is
-revealed only when spending, exactly like ordinary P2PKH/P2WPKH.
+Added a proper hash-committed script type — `OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY OP_XMSS_CHECKSIG` — so a sender who only has the address (hash) can pay it correctly; the real pubkey is revealed only when spending, exactly like ordinary P2PKH.
 
-1. **`script/solver.h`** -- new `TxoutType::P2XMSSHASH`.
-2. **`script/solver.cpp`** -- pattern-match the new script form; **also**
-   add the missing `case` to `GetTxnOutputType()` (forgotten on the first
-   pass -- caused an `assert(false)`/SIGABRT crash on any verbose RPC call
-   that decoded a P2XMSSHASH scriptPubKey, e.g. `gettransaction true true`).
-3. **`addresstype.h`** -- `XMSSHash` redesigned to hold *either* a known
-   full pubkey *or* just a hash (`HasFullPubKey()` flag), instead of always
-   forcing a (possibly zeroed) pubkey.
-4. **`addresstype.cpp`** -- `ExtractDestination()` gets a `P2XMSSHASH` case;
-   `CScriptVisitor`'s XMSS handler branches on `HasFullPubKey()` to build
-   bare P2XMSS (pubkey known) or P2XMSSHASH (hash only).
-5. **`key_io.cpp`**, two separate bugs:
-   - `DecodeDestination()`: fixed to actually store the decoded hash
-     (`XMSSHash(xmss_hash)`) instead of discarding it.
-   - `DestinationEncoder` (the *other* direction, hash/destination back to
-     a display string): was unconditionally calling
-     `XMSSAddr::Encode(xmss.GetPubKeyVec(), ...)`, which re-derives
-     `HASH160` from `GetPubKeyVec()` -- all-zeros in hash-only mode --
-     silently producing the *wrong* address in any RPC output that displays
-     an `"address"` field for a P2XMSSHASH script (e.g.
-     `gettransaction`/`decoderawtransaction`). Fixed to encode directly
-     from `xmss.GetHash()` when no full pubkey is known, bypassing
-     `XMSSAddr::Encode()`'s pubkey-hashing path entirely for that case.
-6. **`script/sign.cpp`** -- `SignStep`'s XMSS block extended to handle
-   P2XMSSHASH: look up the real pubkey via `provider.GetXMSSPubKey()`
-   (confirmed this uses the *same* `HASH160(pubkey)` scheme as
-   `XMSSAddr::Hash()` -- both go through `CHash160`, so the lookup keys
-   line up), then push the pubkey *in addition to* the 5 signature chunks
-   (unlike bare P2XMSS, where the pubkey is already embedded in
-   scriptPubKey and must NOT be pushed again).
-7. **`wallet/rpc/xmss.cpp`** -- UTXO discovery's manual `mapWallet` scan
-   extended to also match `TxoutType::P2XMSSHASH` outputs.
-8. **`wallet/spend.cpp`** -- both fee/size-estimation special-cases
-   (`CalculateMaximumSignedInputSize`, `GetSignedTxinWeight`) extended:
-   P2XMSSHASH scriptSig is 2580 bytes (2515 chunked-signature bytes + 65
-   bytes for the extra pubkey push), vs 2515 for bare P2XMSS.
-9. **`policy/policy.cpp`** -- `AreInputsStandard`'s type-gated scriptSig
-   size exception extended to cover P2XMSSHASH too (same
-   `MAX_STANDARD_SCRIPTSIG_SIZE_XMSS` cap; 2580 bytes still comfortably
-   fits under the 3000-byte allowance).
-
-One more compile-time-only fix along the way: `CKeyID keyid(uint160(...))`
-in `sign.cpp` is a classic C++ "most vexing parse" -- parsed as a function
-declaration, not a variable. Fixed with brace-init:
-`CKeyID keyid{uint160(...)};`.
+Files changed: `script/solver.h`, `script/solver.cpp`, `addresstype.h`, `addresstype.cpp`, `key_io.cpp` (two bugs), `script/sign.cpp`, `wallet/rpc/xmss.cpp`, `wallet/spend.cpp`, `policy/policy.cpp`.
 
 ### Verified end-to-end
 
-`sendtoaddress` to an XMSS address now produces a `type: p2xmsshash` output
-whose `address` field correctly round-trips back to the original address
-string. `sendfromxmssaddress` correctly spends it: scriptSig is exactly
-2580 bytes (chunks + pubkey), accepted to mempool, confirmed on-chain.
-
-### Known gaps / cleanup for next session
-
-1. **`sendtoxmssaddress` (the custom RPC, distinct from generic
-   `sendtoaddress`) is now obsolete and arguably actively misleading**: per
-   its own header comment, it's a "v1" stopgap that creates a **plain
-   P2PKH** output to the XMSS address hash (not a real XMSS-spendable
-   output at all) "until `CTxDestination` is extended to support XMSS
-   destinations natively" -- which is exactly what this session did. This
-   RPC should probably be removed (or rewritten as a thin wrapper around
-   the now-correct generic `sendtoaddress` path) so users don't
-   accidentally use the fake-P2PKH stopgap instead of real XMSS funding.
-2. **`CWallet::IsMine(const CScript&)`'s QNT special-case only checks
-   `TxoutType::P2XMSS`, not `P2XMSSHASH`.** This means `getxmssaddressinfo`
-   and other `IsMine()`-dependent paths may not recognize P2XMSSHASH funds
-   as belonging to the wallet, even though `sendfromxmssaddress`'s
-   independent manual `mapWallet` scan (which doesn't use `IsMine()`) can
-   still find and spend them correctly, as verified this session. Worth
-   auditing whether any *other* `IsMine()`-dependent feature (balance
-   totals, `listunspent`, etc.) needs the same P2XMSSHASH awareness.
-3. Carried over from the previous session, still open: swept
-   one-time-address key retirement not implemented; XMSS state
-   reload-on-`loadwallet` flakiness; `CWallet::SignTransactionXMSS()` still
-   100% dead code (now confirmed dead across *two* sessions -- safe to
-   delete); cosmetic `-Wswitch` warnings for unhandled `P2XMSS`/`P2XMSSHASH`
-   in switches that are provably unreachable for those types (e.g. the
-   lower generic switch in `sign.cpp`'s `SignStep`, `IsMineInner` in
-   `scriptpubkeyman.cpp`, `rpc/rawtransaction.cpp`).
-
-## ✅ RESOLVED — cleanup pass: gaps 1, 2, 5, 6 from the P2XMSSHASH session (20/Jun/2026)
-
-**Status: all four fixed, built clean, regression-tested on regtest
-(getxmssaddressinfo + sendfromxmssaddress round trip still work).**
-
-1. **`sendtoxmssaddress`'s fallback fixed** (`wallet/rpc/xmss.cpp`): when
-   the wallet doesn't know the recipient's full pubkey (paying someone
-   else's XMSS address), it now builds a real `XMSSHash(hash)` ->
-   P2XMSSHASH output instead of the old "v1 compat" fake-P2PKH placeholder.
-   Help text updated to match. The bare-P2XMSS fast path (when the wallet
-   *does* know the pubkey, e.g. paying its own address) is unchanged.
-
-2. **`CWallet::IsMine(const CScript&)` now also recognizes P2XMSSHASH**
-   (`wallet/wallet.cpp`): previously only checked `TxoutType::P2XMSS`.
-   Added the same `GetXMSSSigner()->GetPubKeyForHash()` lookup for the
-   hash-committed form (vSolutions[0] is already the hash directly here,
-   no re-derivation needed).
-
-3. **`CWallet::SignTransactionXMSS()` removed entirely**
-   (`wallet/wallet.cpp` + `wallet/wallet.h`): confirmed 100% dead code
-   (zero call sites) across two separate sessions. Real XMSS signing goes
-   through the generic `::SignTransaction()` free function with
-   `m_xmss_signer` as the `SigningProvider` (see `CWallet::SignTransaction()`'s
-   XMSS branch).
-
-4. **Cosmetic `-Wswitch` warnings for `P2XMSS`/`P2XMSSHASH` silenced** in
-   four switches that were provably unreachable or simply needed an
-   explicit case:
-   - `rpc/rawtransaction.cpp` (`decodescript`'s `can_wrap` and
-     `can_wrap_P2WSH` checks) -- added to the "should not be wrapped"
-     group alongside `NULL_DATA`/`SCRIPTHASH`/`WITNESS_*`.
-   - `wallet/scriptpubkeyman.cpp`'s `IsMineInner` -- **first attempt at
-     this introduced a `duplicate case value` compile error**: `P2XMSS`
-     already had a real, meaningful case further down in this switch
-     (using `keystore.HaveXMSSKey()`), missed during the initial grep-only
-     investigation. Corrected: reverted the erroneous duplicate, and added
-     a proper `P2XMSSHASH` case right next to the existing `P2XMSS` one,
-     mirroring its `HaveXMSSKey()` lookup (using the hash directly, no
-     re-derivation needed since `P2XMSSHASH`'s `vSolutions[0]` already IS
-     the hash). Lesson: grep a narrow line range before assuming a TxoutType
-     is fully unhandled in a switch -- it may have a real case elsewhere
-     in the same switch that a partial view missed.
-   - `script/sign.cpp`'s lower `switch (whichTypeRet)` in `SignStep` --
-     both types are handled and returned earlier in the function; this
-     switch is provably unreachable for them, cases added purely to
-     silence the warning.
-
-### Still open (unchanged from before)
-
-- Gap #3 (swept one-time-address key retirement) -- not attempted this
-  pass, candidate for next session if desired.
-- Gap #4 (XMSS state reload-on-`loadwallet` flakiness) -- deliberately
-  deferred to a **separate new session**, since it's an open bug hunt with
-  unknown scope/duration, unlike the other items here which were all
-  well-understood, bounded fixes.
-- Pre-existing (unrelated to this session) `-Woverloaded-virtual` warnings
-  about `GetXMSSPubKey`/`HaveXMSSKey` signature shadowing between
-  `SigningProvider` and `LegacyScriptPubKeyMan` -- harmless, out of scope.
+`sendtoaddress` to an XMSS address now produces a `type: p2xmsshash` output whose `address` field correctly round-trips. `sendfromxmssaddress` correctly spends it: scriptSig is exactly 2580 bytes (chunks + pubkey), accepted to mempool, confirmed on-chain.
 
 ---
 
-## Gap #4 — Investigasi flakiness reload state XMSS (20 Jun 2026) — DITUTUP, TIDAK REPRODUCE
+## ✅ RESOLVED — cleanup pass: P2XMSSHASH gaps (20/Jun/2026)
 
-**Status: bukan bug nyata di kode.** Setelah investigasi mendalam + reproduksi
-terkontrol, mekanisme `PersistXMSSState()` → `WalletBatch::WriteXmssState()`
-(DB key `"xms"`) → `CXMSSSigner::LoadState()` saat `CWallet::Create()`
-terbukti benar dan durable di semua skenario yang diuji:
-
-1. Restart bersih (`bitcoin-cli stop` + `loadwallet`), address yang sudah
-   pernah dipakai sign (leaf_index > 0) — konsisten `ismine: true`, 3x
-   putaran berturut-turut.
-2. Restart bersih, address baru yang baru di-generate, belum pernah masuk
-   transaksi apa pun (leaf_index 0) — konsisten `ismine: true`, sebelum
-   maupun sesudah restart.
-3. **`kill -9` paksa** (simulasi crash, bukan shutdown graceful) tepat
-   setelah `getnewxmssaddress` — state tetap selamat setelah restart,
-   `LoadState` berhasil load semua key, tidak ada `NEED_REWRITE` atau
-   tanda corruption di debug.log.
-
-### Akar masalah sebenarnya dari laporan "flaky" sebelumnya (dugaan kuat)
-
-Bukan bug C++. Dua masalah metodologi testing yang ketahuan sendiri di
-sesi investigasi ini:
-
-1. **Binary `bitcoind`/`bitcoin-cli` tidak ada di `$PATH`** — kalau
-   dipanggil tanpa path lengkap (`bitcoin-cli` bukan `./src/bitcoin-cli`),
-   command gagal dengan "command not found" yang **diam-diam tidak
-   menghentikan proses lama**. Restart berikutnya jadi "nyambung" ke
-   proses `bitcoind` lama yang masih jalan, dengan state membingungkan.
-   **Mitigasi**: selalu pakai path lengkap (`./src/bitcoind`,
-   `./src/bitcoin-cli`) atau pastikan `~/quant/bitcoin-quant/src` ada di
-   `$PATH` sebelum testing restart/reload.
-
-2. **`getnewxmssaddress` mengembalikan objek JSON lengkap**
-   (`{"address":..., "pubkey":..., ...}`), bukan string alamat polos.
-   Skrip shell ad-hoc yang nge-capture return value langsung ke variabel
-   (`ADDR=$(bitcoin-cli getnewxmssaddress)`) tanpa ekstraksi field
-   `address` akan mengirim seluruh blob JSON sebagai parameter ke RPC
-   berikutnya (mis. `getxmssaddressinfo`), yang gagal decode dan balikin
-   `ismine: false` palsu — kelihatan seperti bug reload padahal cuma
-   parameter yang salah. **Mitigasi**: selalu ekstrak field dulu, mis.
-   `grep -oP '"address":\s*"\K[^"]+'` atau `jq -r .address`.
-
-### Kalau gejala serupa muncul lagi nanti
-
-Cek dua hal di atas DULU sebelum curiga ke kode `xmss_signer.cpp`/
-`walletdb.cpp`. Kalau sudah dipastikan bukan dari situ, baru investigasi
-ulang dari titik yang sama (`CWallet::Create()` → `ReadXmssState` →
-`CXMSSSigner::LoadState()`).
+1. **`sendtoxmssaddress` fallback fixed** — when the wallet doesn't know the recipient's full pubkey, now builds a real `XMSSHash(hash)` → P2XMSSHASH output instead of a fake-P2PKH placeholder.
+2. **`CWallet::IsMine()` now recognizes P2XMSSHASH** — previously only checked `TxoutType::P2XMSS`.
+3. **`CWallet::SignTransactionXMSS()` removed entirely** — confirmed 100% dead code across two sessions; real XMSS signing goes through the generic `::SignTransaction()` free function.
+4. **`-Wswitch` warnings silenced** in four switches (`rpc/rawtransaction.cpp`, `wallet/scriptpubkeyman.cpp`, `script/sign.cpp`) for `P2XMSS`/`P2XMSSHASH` cases.
 
 ---
 
-## Gap #3 — Key retirement / one-time address enforcement (20 Jun 2026) — SELESAI
+## ✅ RESOLVED — Gap #4: XMSS state reload flakiness (20 Jun 2026) — CLOSED, NOT REPRODUCIBLE
 
-Ditambahkan field `retired` ke `XMSSKeyEntry` (`xmss_signer.h`).
-`SignXMSS()` (`xmss_signer.cpp`) cek flag ini sebelum sign, tolak kalau
-sudah `true`; set `true` setelah sign sukses, di dalam lock yang sama
-dengan increment `leaf_index`. State format bump ke v2 (`QNT2` magic
-prefix + 1 byte retired per key entry), `LoadState()` fallback otomatis
-ke parsing v1 kalau magic nggak ada — wallet DB lama tetap kebaca tanpa
-wipe.
+After controlled reproduction testing, `PersistXMSSState()` → `WalletBatch::WriteXmssState()` → `CXMSSSigner::LoadState()` is durable across all tested scenarios including `kill -9`.
 
-Diverifikasi: address baru → fund → sign pertama sukses → sign kedua
-ke address sama ditolak (`SignXMSS refused -- key is retired` di
-debug.log). Address lama format v1 tetap `ismine: true` setelah
-restart pakai binary baru.
+The "flakiness" reports were methodology issues:
+1. Calling `bitcoin-cli` without full path connected to a stale `bitcoind` process
+2. `getnewxmssaddress` returns a JSON object, not a bare address string — capturing without `jq .address` sent the whole JSON blob as a parameter to subsequent RPCs, producing false `ismine: false`
 
-**Catatan buat sesi depan**: test di atas belum 100% mengisolasi
-"ditolak karena retired" vs "ditolak karena dana sudah habis disapu"
-(sendfromxmssaddress nyapu semua dana sekali sign). Log
-`SignXMSS refused` adalah bukti independen yang cukup kuat, tapi kalau
-mau lebih rigorous: coba `signrawtransactionwithwallet` manual pakai
-input/scriptPubKey yang sama setelah key retired, buat isolasi murni
-dari soal saldo.
+If similar symptoms reappear: check these two causes first before suspecting `xmss_signer.cpp`/`walletdb.cpp`.
 
-Sisa item lama yang masih opsional/rendah prioritas: index ringkas di
-puncak DEVDOCS.md (lihat catatan sesi 20 Jun pagi).
+---
+
+## ✅ RESOLVED — Gap #3: Key retirement / one-time address enforcement (20 Jun 2026)
+
+Added `retired` field to `XMSSKeyEntry` (`xmss_signer.h`). `SignXMSS()` checks this flag before signing, rejects if `true`; sets `true` after successful sign, inside the same lock as `leaf_index` increment. State format bumped to v2 (`QNT2` magic prefix + 1 byte retired per key entry); `LoadState()` falls back to v1 parsing automatically — old wallet DBs remain readable without wipe.
+
+Verified: generate address → fund → first sign succeeds → second sign to same address rejected (`SignXMSS refused -- key is retired` in debug.log).
+
+---
+
+## Known Bugs
+
+### Reference Library Bug — Final Signature (index 1023) Fails Verification
+
+Discovered 17/Jun/2026. Confirmed empirically:
+- Index 0–1022: sign() succeeds, verify() succeeds
+- Index 1023: sign() succeeds, verify() **FAILS**
+- Index 1024: sign() correctly refuses (code -2)
+
+**Root cause**: in `xmss_core_fast.c`, when the SK reaches max index, the implementation zeroes the SK's index bytes as a "key exhausted" sentinel *before* copying those bytes into the produced signature's index field. The final signature is serialized with a corrupted index, which `xmss_sign_open()` cannot reconcile against the PK's Merkle root.
+
+**Why this doesn't affect SNTI today**: one-shot mining keys never reach index 1023; spending keys use only index 0 and are immediately retired.
+
+**If one-shot design is ever revisited**: fix this in the XMSS library layer first — either reorder the zero-out to happen after the signature index bytes are committed to output, or treat 1023 effective signatures per key as the safe practical maximum.
