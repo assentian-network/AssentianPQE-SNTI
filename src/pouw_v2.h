@@ -94,75 +94,92 @@ inline bool BuildAndSign(const uint8_t* seed96,
                          const uint8_t* block_hash32,
                          PoUWv2Proof& proof)
 {
+    // SNTI PoUW v2: Use standard xmss_keypair() — safe, no BDS state issues
     xmss_params params;
     if (xmss_parse_oid(&params, XMSS_OID) != 0) return false;
 
-    // Buffers (no OID prefix — core functions don't use OID)
-    const size_t pk_raw = params.pk_bytes;           // 64
-    const size_t sk_raw = params.index_bytes + 4 * params.n; // 4+128=132? check
-    // sk format (core): [idx(index_bytes) | SK_SEED(n) | SK_PRF(n) | PUB_SEED(n) | root(n)]
-    // = 4 + 32 + 32 + 32 + 32 = 132 bytes
+    std::vector<uint8_t> pk(4 + params.pk_bytes, 0);
+    std::vector<uint8_t> sk(4 + params.sk_bytes + 256, 0);
 
-    std::vector<uint8_t> pk(pk_raw, 0);
-    std::vector<uint8_t> sk(sk_raw + 64, 0); // safety buffer
-
-    // Build tree deterministically from seed96
-    // seed96 = [SK_SEED(32) | SK_PRF(32) | PUB_SEED(32)]
-    uint8_t seed_mut[SEED_BYTES];
-    memcpy(seed_mut, seed96, SEED_BYTES);
-
-    int ret = xmssmt_core_seed_keypair(&params, pk.data(), sk.data(), seed_mut);
+    int ret = xmss_keypair(pk.data(), sk.data(), XMSS_OID);
     if (ret != 0) return false;
 
-    // pk = [root(32) | PUB_SEED(32)] — exactly what we need
-    memcpy(proof.xmss_pk, pk.data(), PK_BYTES);
+    // pk = [OID(4) | root(32) | PUB_SEED(32)]
+    memcpy(proof.xmss_pk, pk.data() + 4, PK_BYTES);
     memcpy(proof.seed, seed96, SEED_BYTES);
 
     // Sign block_hash with leaf 0
-    // xmss_core_sign format: sm = [idx(4)|R(32)|WOTS_sig(2144)|auth_path(320)|msg(32)]
     const size_t sm_size = params.sig_bytes + 32 + 64;
     std::vector<uint8_t> sm(sm_size, 0);
     unsigned long long smlen = 0;
 
-    // We need to use the sk we just built
-    // xmss_core_sign expects sk without OID prefix
-    // Build a temporary sk with OID for xmss_sign()
-    std::vector<uint8_t> sk_with_oid(4 + sk.size(), 0);
-    sk_with_oid[0] = (XMSS_OID >> 24) & 0xFF;
-    sk_with_oid[1] = (XMSS_OID >> 16) & 0xFF;
-    sk_with_oid[2] = (XMSS_OID >>  8) & 0xFF;
-    sk_with_oid[3] =  XMSS_OID        & 0xFF;
-    memcpy(sk_with_oid.data() + 4, sk.data(), sk.size());
-
-    ret = xmss_sign(sk_with_oid.data(), sm.data(), &smlen, block_hash32, 32);
+    ret = xmss_sign(sk.data(), sm.data(), &smlen, block_hash32, 32);
     if (ret != 0) return false;
 
-    // Parse signature components from sm:
-    // [idx(4) | R(32) | WOTS_sig(2144) | auth_path(320)]
-    size_t off = 4;                  // skip idx
-    memcpy(proof.r,         sm.data() + off, R_BYTES);          off += R_BYTES;
-    memcpy(proof.wots_sig,  sm.data() + off, WOTS_SIG_BYTES);   off += WOTS_SIG_BYTES;
+    // Parse: [idx(4) | R(32) | WOTS_sig(2144) | auth_path(320)]
+    size_t off = 4;
+    memcpy(proof.r,         sm.data() + off, R_BYTES);         off += R_BYTES;
+    memcpy(proof.wots_sig,  sm.data() + off, WOTS_SIG_BYTES);  off += WOTS_SIG_BYTES;
     memcpy(proof.auth_path, sm.data() + off, AUTH_PATH_BYTES);
 
     return true;
 }
 
-// ── CheckPoUWv2 ──────────────────────────────────────────────────────────────
-// Verify PoUW v2 proof. Called by CheckProofOfWork() replacement.
-// 1. root < target  (PoW check)
-// 2. xmss_sign_open verifies wots_sig + auth_path  (validity check)
 inline bool CheckPoUWv2(const PoUWv2Proof& proof,
                         const uint8_t* block_hash32,
-                        const arith_uint256& target)
+                        const arith_uint256& target,
+                        uint32_t nLeafIndex = 0)
 {
     // 1. PoW check: root < target
     uint256 root = proof.GetRoot();
     if (UintToArith256(root) > target) return false;
 
-    // 2. Validity: root verified above, wots_sig stored for future use
-    // SNTI PoUW v2 phase 1: root < target is sufficient PoW
-    // Full WOTS+ verification will be added in phase 2
-    (void)block_hash32; // suppress unused warning
+    // 2. WOTS+ verify via xmss_sign_open
+    // SM format for xmss_sign_open (matches xmss_sign output):
+    // [idx(index_bytes) | R(n) | WOTS_sig(wots_sig_bytes) | auth_path(tree_height*n) | msg(32)]
+    xmss_params params;
+    if (xmss_parse_oid(&params, XMSS_OID) != 0) return false;
+
+    // Build PK with OID prefix: OID(4) | root(32) | PUB_SEED(32)
+    std::vector<uint8_t> pk_with_oid(4 + PK_BYTES, 0);
+    pk_with_oid[0] = (XMSS_OID >> 24) & 0xFF;
+    pk_with_oid[1] = (XMSS_OID >> 16) & 0xFF;
+    pk_with_oid[2] = (XMSS_OID >>  8) & 0xFF;
+    pk_with_oid[3] =  XMSS_OID        & 0xFF;
+    memcpy(pk_with_oid.data() + 4, proof.xmss_pk, PK_BYTES);
+
+    // SM = sig + msg, where sig = params.sig_bytes
+    // params.sig_bytes = index_bytes(4) + n(32) + wots_sig_bytes(2144) + tree_height*n(320) = 2500
+    const size_t sm_size = (size_t)params.sig_bytes + 32;
+    std::vector<uint8_t> sm(sm_size + 64, 0); // +64 safety
+
+    // Fill SM: [idx(4) | R(32) | WOTS_sig(2144) | auth_path(320) | msg(32)]
+    size_t off = 0;
+    // idx = nLeafIndex big-endian, index_bytes=4
+    sm[0] = (nLeafIndex >> 24) & 0xFF;
+    sm[1] = (nLeafIndex >> 16) & 0xFF;
+    sm[2] = (nLeafIndex >>  8) & 0xFF;
+    sm[3] =  nLeafIndex        & 0xFF;
+    off = (size_t)params.index_bytes; // =4
+
+    memcpy(sm.data() + off, proof.r,         R_BYTES);          off += R_BYTES;
+    memcpy(sm.data() + off, proof.wots_sig,  WOTS_SIG_BYTES);   off += WOTS_SIG_BYTES;
+    memcpy(sm.data() + off, proof.auth_path, AUTH_PATH_BYTES);  off += AUTH_PATH_BYTES;
+    memcpy(sm.data() + off, block_hash32,    32);               off += 32;
+
+    // Verify: xmss_sign_open recovers message from SM using PK
+    std::vector<uint8_t> msg_out(32 + 64, 0); // +64 safety
+    unsigned long long msg_len = 0;
+
+    int ret = xmss_sign_open(msg_out.data(), &msg_len,
+                             sm.data(), (unsigned long long)sm_size,
+                             pk_with_oid.data());
+    if (ret != 0) return false;
+
+    // 3. Verify recovered message matches block_hash
+    if (msg_len != 32) return false;
+    if (memcmp(msg_out.data(), block_hash32, 32) != 0) return false;
+
     return true;
 }
 
