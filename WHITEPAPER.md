@@ -318,19 +318,25 @@ MatRiCT+    SPHINCS+    Dilithium-    IOTA        QRL         SNTI ★
 
 ├────────────────────────────────────────┤
 
-│  Block Header (80 bytes)               │
+│  Block Header (148 bytes)              │
 
-│  ├── nVersion    (4 bytes)             │
+│  ├── nVersion       (4 bytes)          │
 
-│  ├── hashPrevBlock (32 bytes)          │
+│  ├── hashPrevBlock  (32 bytes)         │
 
 │  ├── hashMerkleRoot (32 bytes)         │
 
-│  ├── nTime       (4 bytes)             │
+│  ├── nTime          (4 bytes)          │
 
-│  ├── nBits       (4 bytes)             │
+│  ├── nBits          (4 bytes)          │
 
-│  └── nNonce      (4 bytes)             │
+│  ├── nNonce         (4 bytes, = 0)     │
+
+│  ├── xmssRoot       (32 bytes) ← PoUW │
+
+│  ├── nLeafIndex     (4 bytes)  ← PoUW │
+
+│  └── commitmentsRoot(32 bytes) ← PoUW │
 
 ├────────────────────────────────────────┤
 
@@ -340,9 +346,13 @@ MatRiCT+    SPHINCS+    Dilithium-    IOTA        QRL         SNTI ★
 
 │  ├── vout[1]: Witness commitment       │
 
-│  ├── vout[2]: XMSS pubkey (64 bytes)  │
+│  ├── vout[2]: OP_RETURN PoUWv2Proof   │
 
-│  └── vout[3]: XMSS signature (2,500B) │
+│  │            (2,660 bytes, PW2\x02)   │
+
+│  └── vout[3]: OP_RETURN failed seeds  │
+
+│               (optional, key der.)     │
 
 ├────────────────────────────────────────┤
 
@@ -365,25 +375,30 @@ Assentian-PQE implements a hardened sighash scheme:
 
 #### How PoUW v2 Works
 
-Step 1: Miner generates random SK_SEED (96 bytes) — this is the "nonce"
+Step 1: Miner loads persistent XMSS tree state from disk
+- If none exists or tree is exhausted: build a new tree (Step 2)
+- If valid tree exists with root < target: skip to Step 4
 
-Step 2: Miner builds full XMSS tree (height=10, 1024 leaves)
-- Uses `xmssmt_core_seed_keypair(SK_SEED)` — deterministic tree build
+Step 2: Miner builds a new XMSS keypair (height=10, 1024 leaves)
+- Uses `xmss_keypair()` — cryptographically random keypair generation
 - Cost: ~6 seconds per attempt on Intel Xeon @ 2.5GHz
-- Output: `xmssRoot` = Merkle root hash (32 bytes)
+- Output: `xmssRoot` = Merkle root hash (32 bytes), persisted to disk
 
 Step 3: Check if `xmssRoot < target`
-- YES → valid block! Sign and submit
-- NO → increment SK_SEED, rebuild tree
+- YES → valid tree found, save state, proceed to Step 4
+- NO → discard tree, build new one (back to Step 2)
 
-Step 4: Sign block preimage with WOTS+ (leaf 0)
+Step 4: Sign block preimage with WOTS+ (next available leaf)
 - `preimage = SHA256(nVersion || hashPrevBlock || nTime || nBits)`
+- One tree (same `xmssRoot`) serves up to 1024 consecutive blocks, each using a different leaf index
+- Leaf index saved atomically to disk before block is returned — prevents WOTS+ reuse on restart
 - Embed `PoUWv2Proof` in coinbase OP_RETURN (2,660 bytes total)
 
 Step 5: Submit block — node verifies:
 - `block.xmssRoot < target` (PoW check)
 - `PoUWv2Proof.Deserialize()` — extract proof components
-- `CheckPoUWv2()` — verify root matches proof
+- `CheckPoUWv2()` — WOTS+ signature verified via `xmss_sign_open()`
+- Leaf index uniqueness — scan last 1,024 blocks, reject if `(xmssRoot, leafIndex)` pair reused
 
 #### Why This IS "Useful Work"
 
@@ -442,12 +457,12 @@ Assentian-PQE is actively seeking funding for a professional security audit. Bud
 
 ### 8.3 Known Limitations
 
-**XMSS is stateful.** Unlike ECDSA, XMSS requires tracking which leaf indices have been used. If a miner uses the same leaf index twice, the security guarantee is void (though no coins are stolen — it simply weakens the signature scheme).
+**XMSS is stateful.** Unlike ECDSA, XMSS requires tracking which leaf indices have been used. WOTS+ is a one-time signature scheme: signing two different messages with the same leaf exposes the WOTS private key, which would allow an attacker to forge block signatures for that keypair.
 
-Assentian-PQE mitigates this through:
-- Enforced leaf-index tracking in wallet state
-- Write-before-use atomic state updates
-- Deterministic leaf index assignment from node consensus
+Assentian-PQE enforces strict protection against this:
+- **Write-before-use**: leaf index is saved to disk atomically *before* the mined block is returned. If the disk write fails, mining aborts — the block is never returned and the leaf is never exposed.
+- **Consensus-level rejection**: full nodes scan the last 1,024 blocks and reject any block whose `(xmssRoot, leafIndex)` pair has already appeared on chain.
+- **Exhaustion rebuild**: when all 1,024 leaves of a tree are used, a new keypair is built automatically before the next block is mined.
 
 ---
 
@@ -602,19 +617,27 @@ A signature valid at leaf index N cannot be replayed at index M.
 Prevents cross-index forgery attacks on XMSS-signed transactions.
 ### 11.4 CheckPoUW Validation
 
-Every block is validated by `CheckPoUW()`:
+Every block undergoes a two-stage validation:
 
-```cpp
-bool CheckPoUW(const CBlock& block, const Consensus::Params& params) {
-    // 1. Extract XMSS pubkey from coinbase vout[2]
-    // 2. Extract XMSS signature from coinbase vout[3]
-    // 3. Verify pubkey is exactly 64 bytes
-    // 4. Verify signature is exactly 2,500 bytes
-    // 5. Verify XMSS_verify(pubkey, sighash_v2, signature) == true
-    // 6. Verify leaf index has not been used before
-    return valid;
-}
+**Stage 1 — Header check** (`CheckBlockHeader`):
 ```
+block.xmssRoot < target   (compact nBits)
+```
+
+**Stage 2 — Full proof check** (`CheckPoUW`):
+```
+1. Scan coinbase vouts for OP_RETURN with magic PW2\x02
+2. Deserialize PoUWv2Proof (2,660 bytes):
+     seed(96) | xmss_pk(64) | auth_path(320) | wots_sig(2144) | r(32)
+3. Verify proof.GetRoot() < target
+4. Compute preimage = SHA256(nVersion || hashPrevBlock || nTime || nBits)
+5. Reconstruct SM buffer: [idx(4) | r(32) | wots_sig(2144) | auth_path(320) | preimage(32)]
+6. xmss_sign_open(SM, xmss_pk) — recovers message, verifies WOTS+ chain
+7. Assert recovered message == preimage
+8. Scan last 1,024 blocks: reject if (xmssRoot, nLeafIndex) already used
+```
+
+The preimage intentionally excludes `hashMerkleRoot` and `xmssRoot` to avoid a circular dependency (the proof is embedded in the coinbase, which changes the merkle root when inserted).
 
 ---
 

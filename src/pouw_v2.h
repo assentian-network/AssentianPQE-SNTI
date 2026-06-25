@@ -87,44 +87,6 @@ struct PoUWv2Proof {
     }
 };
 
-// ── BuildAndSign ─────────────────────────────────────────────────────────────
-// Build XMSS tree from seed, sign block_hash, fill proof.
-// Returns false on XMSS internal error.
-inline bool BuildAndSign(const uint8_t* seed96,
-                         const uint8_t* block_hash32,
-                         PoUWv2Proof& proof)
-{
-    // SNTI PoUW v2: Use standard xmss_keypair() — safe, no BDS state issues
-    xmss_params params;
-    if (xmss_parse_oid(&params, XMSS_OID) != 0) return false;
-
-    std::vector<uint8_t> pk(4 + params.pk_bytes, 0);
-    std::vector<uint8_t> sk(4 + params.sk_bytes + 256, 0);
-
-    int ret = xmss_keypair(pk.data(), sk.data(), XMSS_OID);
-    if (ret != 0) return false;
-
-    // pk = [OID(4) | root(32) | PUB_SEED(32)]
-    memcpy(proof.xmss_pk, pk.data() + 4, PK_BYTES);
-    memcpy(proof.seed, seed96, SEED_BYTES);
-
-    // Sign block_hash with leaf 0
-    const size_t sm_size = params.sig_bytes + 32 + 64;
-    std::vector<uint8_t> sm(sm_size, 0);
-    unsigned long long smlen = 0;
-
-    ret = xmss_sign(sk.data(), sm.data(), &smlen, block_hash32, 32);
-    if (ret != 0) return false;
-
-    // Parse: [idx(4) | R(32) | WOTS_sig(2144) | auth_path(320)]
-    size_t off = 4;
-    memcpy(proof.r,         sm.data() + off, R_BYTES);         off += R_BYTES;
-    memcpy(proof.wots_sig,  sm.data() + off, WOTS_SIG_BYTES);  off += WOTS_SIG_BYTES;
-    memcpy(proof.auth_path, sm.data() + off, AUTH_PATH_BYTES);
-
-    return true;
-}
-
 inline bool CheckPoUWv2(const PoUWv2Proof& proof,
                         const uint8_t* block_hash32,
                         const arith_uint256& target,

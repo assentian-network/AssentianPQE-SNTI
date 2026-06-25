@@ -11,6 +11,7 @@
 #include <hash.h>
 #include <chainparams.h>
 #include <common/system.h>
+#include <common/args.h>
 #include <consensus/amount.h>
 #include <consensus/consensus.h>
 #include <consensus/merkle.h>
@@ -45,8 +46,11 @@
 // SNTI: PoUW mining
 // SNTI PoUW v2 include
 #include <pouw_v2.h>
+#include <pouw_v2_keyder.h>
 #include <xmss_bridge.h>
+#include <xmss_miner_state.h>
 #include <logging.h>
+#include <util/fs.h>
 
 #include <memory>
 #include <stdint.h>
@@ -134,60 +138,44 @@ static RPCHelpMan getnetworkhashps()
     };
 }
 
-// SNTI FIX (17/Jun/2026): Compute the PoUW signing preimage — a hash that
-// commits to the chain position, timing/difficulty, the coinbase content
-// EXCLUDING the not-yet-attached signature output, and the signer's public
-// key. This is deliberately NOT block.GetHash(): embedding the signature
-// into the block as an OP_RETURN output (part of the legacy merkle root)
-// necessarily changes block.GetHash() the moment it's inserted, so signing
-// that hash directly creates a circular dependency — discovered when an
-// independent second node rejected every QNT block ever mined (see
-// CHANGELOG: the original design avoided this by hiding the signature in
-// the coinbase witness, which doesn't affect the merkle root, but that
-// violated BIP141's coinbase-witness-must-be-exactly-32-bytes rule instead).
-// This preimage depends only on fields that are already final before
-// grinding starts (version/prevhash/time/bits/coinbase-without-sig/pubkey),
-// so it can be computed once, signed once, and identically reconstructed
-// and verified by any node from the final block — see CheckPoUW() in
-// validation.cpp for the matching verification-side reconstruction.
-static uint256 ComputePoUWPreimage(int32_t nVersion, const uint256& hashPrevBlock,
-                                    uint32_t nTime, uint32_t nBits,
-                                    const uint256& coinbase_txid_no_sig,
-                                    const std::vector<uint8_t>& xmss_pk)
-{
-    HashWriter hw{};
-    hw << nVersion << hashPrevBlock << nTime << nBits << coinbase_txid_no_sig << xmss_pk;
-    return hw.GetHash();
-}
-
 static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& max_tries, std::shared_ptr<const CBlock>& block_out, bool process_new_block)
 {
     block_out.reset();
     block.hashMerkleRoot = BlockMerkleRoot(block);
 
-    // SNTI PoUW v2: XMSS tree search mining loop
-    // Miner searches SK_SEED (96 bytes) until XMSS root < target
-    // No SHA-256 nonce — XMSS tree building IS the proof of work
+    // SNTI PoUW v2: Stateful XMSS mining loop
+    // - Reuse SK across blocks (1 tree = 1024 blocks)
+    // - leafIndex tracked persistently to prevent WOTS+ key reuse
+    // - New tree built only when current tree exhausted
     {
-        // Initialize seed from block fields for determinism
-        uint8_t seed[PoUWv2::SEED_BYTES];
+        // Load or build XMSS miner state
+        fs::path datadir = gArgs.GetDataDirNet();
+        PoUWv2::XMSSMinerStateManager state_mgr(datadir);
+        PoUWv2::XMSSMinerState state;
+
+        // SNTI PoUW v2: collect failed seeds for key derivation
+        PoUWv2KeyDer::FailedSeedList failed_seeds;
         {
-            // seed = SHA256(hashPrevBlock || nTime || nBits || counter)
-            // We use GetRandBytes for initial seed, then increment counter
-            // GetRandBytes max 32 bytes — fill 96 bytes in 3 calls
-            GetRandBytes({seed,      32});
-            GetRandBytes({seed + 32, 32});
-            GetRandBytes({seed + 64, 32});
+            LOCK(cs_main);
+            const CBlockIndex* tip = chainman.ActiveChain().Tip();
+            failed_seeds.block_height = tip ? (uint32_t)(tip->nHeight + 1) : 1;
         }
 
-        uint64_t attempt = 0;
-        PoUWv2::PoUWv2Proof proof;
+        if (!state_mgr.Load(state)) {
+            LogPrintf("PoUW v2: building new XMSS tree...\n");
+            if (!PoUWv2::BuildNewTree(state)) {
+                LogPrintf("PoUW v2: BuildNewTree failed!\n");
+                return false;
+            }
+            if (!state_mgr.Save(state)) {
+                LogPrintf("PoUW v2: failed to save initial state\n");
+                return false;
+            }
+        }
 
-        // Preimage = data that XMSS signs (block header fields without xmssRoot)
+        // Preimage = block fields yang di-sign (tanpa xmssRoot dan hashMerkleRoot)
         uint256 preimage_hash;
         {
-            // SNTI PoUW v2: preimage excludes hashMerkleRoot
-            // because merkle root changes after proof is embedded
             HashWriter hw{};
             hw << block.nVersion << block.hashPrevBlock
                << block.nTime << block.nBits;
@@ -196,25 +184,57 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
 
         arith_uint256 target;
         target.SetCompact(block.nBits);
+        LogPrintf("PoUW v2: block.nBits=%08x target=%s\n", block.nBits, ArithToUint256(target).GetHex().substr(0,16));
 
-        LogPrintf("PoUW v2: starting XMSS tree search (target=%s)\n",
-                  ArithToUint256(target).GetHex().substr(0, 16));
+        LogPrintf("PoUW v2: mining with leaf %u/1024, root=%s\n",
+                  state.nextLeafIndex,
+                  state.xmssRoot.GetHex().substr(0, 16));
+
+        // PoUW v2: satu sign attempt per leaf
+        // Jika root tidak < target, build tree baru (search SK_SEED baru)
+        // Tapi kita reuse tree yang ada dulu — sign dengan leaf berikutnya
+        // Jika root tree aktif tidak pernah < target, perlu tree baru
+        // Strategy: coba sign dengan state saat ini, cek root < target
+        // Root adalah properti tree (fixed per tree), bukan per-leaf
+        // Jadi: jika root tree aktif > target → perlu tree baru
+
+        bool found = false;
+        auto proof_ptr = std::make_unique<PoUWv2::PoUWv2Proof>();
+        PoUWv2::PoUWv2Proof& proof = *proof_ptr;
 
         while (max_tries > 0 && !chainman.m_interrupt) {
-            // Build XMSS tree from current seed
-            if (!PoUWv2::BuildAndSign(seed, preimage_hash.begin(), proof)) {
-                LogPrintf("PoUW v2: BuildAndSign failed at attempt %llu\n", attempt);
-                break;
-            }
+            // Cek apakah root tree aktif < target
+            if (UintToArith256(state.xmssRoot) <= target) {
+                // Root valid! Sign block dengan leaf berikutnya
+                if (state.IsExhausted()) {
+                    LogPrintf("PoUW v2: tree exhausted, building new tree\n");
+                    if (!PoUWv2::BuildNewTree(state)) break;
+                    if (!state_mgr.Save(state)) break;
+                    continue;
+                }
 
-            // Check if root < target
-            uint256 root = proof.GetRoot();
-            if (UintToArith256(root) <= target) {
-                // Found valid block!
-                block.xmssRoot = root;
-                block.nNonce   = 0; // nNonce unused in PoUW v2
+                uint32_t leaf_used = state.nextLeafIndex;
+                if (!PoUWv2::SignWithState(state, preimage_hash.begin(), *proof_ptr)) {
+                    LogPrintf("PoUW v2: SignWithState failed at leaf %u\n", leaf_used);
+                    break;
+                }
 
-                // Embed PoUW v2 proof into coinbase OP_RETURN
+                // Save state immediately setelah sign (leaf index sudah increment).
+                // WOTS+ is one-time: if save fails, the leaf index on disk stays at N,
+                // so the next call would reuse leaf N with a different message —
+                // catastrophic WOTS+ key reuse. Abort mining instead of returning
+                // a block that would corrupt state.
+                if (!state_mgr.Save(state)) {
+                    LogPrintf("PoUW v2: CRITICAL: failed to save state after sign! Aborting to prevent WOTS+ leaf reuse.\n");
+                    break;
+                }
+
+                // Set block fields
+                block.xmssRoot   = state.xmssRoot;
+                block.nLeafIndex = leaf_used;
+                block.nNonce     = 0;
+
+                // Embed proof ke coinbase OP_RETURN
                 std::vector<uint8_t> proof_bytes = proof.Serialize();
                 CMutableTransaction coinbase(*block.vtx[0]);
                 CScript proof_script;
@@ -223,27 +243,46 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
                 block.vtx[0] = MakeTransactionRef(std::move(coinbase));
                 block.hashMerkleRoot = BlockMerkleRoot(block);
 
-                LogPrintf("PoUW v2: found valid block! root=%s attempt=%llu\n",
-                          root.GetHex().substr(0, 16), attempt);
+                LogPrintf("PoUW v2: found valid block! root=%s leaf=%u\n",
+                          state.xmssRoot.GetHex().substr(0, 16), leaf_used);
+                // SNTI PoUW v2: embed failed seeds + commitmentsRoot
+                if (failed_seeds.entries.size() >= PoUWv2KeyDer::MIN_FAILED_SEEDS) {
+                    block.commitmentsRoot = failed_seeds.ComputeMerkleRoot();
+                    std::vector<uint8_t> seeds_bytes = failed_seeds.Serialize();
+                    CMutableTransaction cb_seeds(*block.vtx[0]);
+                    CScript seeds_script;
+                    seeds_script << OP_RETURN << seeds_bytes;
+                    cb_seeds.vout.push_back(CTxOut(0, seeds_script));
+                    block.vtx[0] = MakeTransactionRef(std::move(cb_seeds));
+                    block.hashMerkleRoot = BlockMerkleRoot(block);
+                    LogPrintf("PoUW v2: %zu seeds embedded, commitmentsRoot=%s\n",
+                              failed_seeds.entries.size(),
+                              block.commitmentsRoot.GetHex().substr(0, 16));
+                }
+                found = true;
                 break;
-            }
-
-            // Increment seed (treat as 96-byte big integer, increment byte 95)
-            for (int i = PoUWv2::SEED_BYTES - 1; i >= 0; i--) {
-                if (++seed[i] != 0) break;
-            }
-            ++attempt;
-            --max_tries;
-
-            if (attempt % 10 == 0) {
-                LogPrintf("PoUW v2: attempt %llu, last_root=%s\n",
-                          attempt, proof.GetRoot().GetHex().substr(0, 16));
+            } else {
+                // Root tree aktif > target — perlu tree baru
+                LogPrintf("PoUW v2: root > target, building new tree (attempt %llu)\n",
+                          (unsigned long long)(DEFAULT_MAX_TRIES - max_tries));
+                // SNTI PoUW v2: collect failed seed
+                if (failed_seeds.entries.size() < PoUWv2KeyDer::MAX_FAILED_SEEDS) {
+                    failed_seeds.AddFailedSeed(
+                        state.sk.data() + 8,
+                        state.xmssRoot.begin(),
+                        failed_seeds.block_height);
+                }
+                if (!PoUWv2::BuildNewTree(state)) {
+                    LogPrintf("PoUW v2: BuildNewTree failed\n");
+                    break;
+                }
+                if (!state_mgr.Save(state)) break;
+                --max_tries;
             }
         }
 
-        if (block.xmssRoot.IsNull()) {
-            // No valid block found
-            return (chainman.m_interrupt ? false : false);
+        if (!found) {
+            return false;
         }
     }
 
