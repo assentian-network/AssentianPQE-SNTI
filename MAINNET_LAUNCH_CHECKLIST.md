@@ -17,7 +17,7 @@
 | WOTS+ leaf reuse vulnerability | ✅ Fixed | Commit f8788c6 — miner bisa reuse leaf jika save state gagal, sudah diperbaiki dengan abort |
 | EMA difficulty adjustment per-block | ✅ Implemented | alpha=0.1, alpha=60s target, clamped [T/4, T×4] |
 | Key retirement / anti-reuse XMSS (TX signing) | ✅ Verified | One-time-use per address |
-| Multi-node consensus agreement (PoUW v2) | ❌ Belum diverifikasi | Chain wipe 24 Jun — perlu re-verifikasi dengan PoUW v2 blocks. Node eksternal belum sync ulang |
+| Multi-node consensus agreement (PoUW v2) | ✅ Verified | 25 Jun 2026: node 2 (datadir terpisah, port 39334/39335) sync dari genesis, verifikasi CheckPoUWv2 result=1 untuk semua blok, block dari node 1 diterima node 2, block dari node 2 (9247b1a5...) diterima dan diverifikasi node 1 — kedua arah lulus |
 | Chain reorg handling dengan blok PoUW v2 | ❌ Belum diuji | Belum pernah dipaksa fork/reorg dengan PoUW v2 |
 | Difficulty retarget di bawah beban nyata | ❌ Belum diuji | EMA terimplementasi tapi belum diuji multi-miner berhari-hari |
 | Mainnet genesis | ⚠️ Placeholder | Code says "PLACEHOLDER — do not use for mainnet launch". nNonce=26 (PoUW v1, 23 Jun) sudah outdated. Genesis PoUW v2 resmi perlu dibuat saat launch nyata |
@@ -39,8 +39,8 @@
 | Testnet node (`assentian-node.service`) | ✅ Running | Binary terbaru, berjalan sejak 25 Jun. Port P2P override ke 39333 |
 | Block explorer (`assentian-explorer.service`) | ✅ Live | **Fix 25 Jun:** orphan process di port 8081 menyebabkan crash loop — sudah resolved |
 | Stratum server (`assentian-stratum.service`) | ✅ Verified fungsional | **Fix 25 Jun:** `generatetoaddress` ke wallet endpoint gagal diam-diam — diperbaiki ke root RPC + load wallet + mining lock. End-to-end test lulus: 3 shares → block mined |
-| Multi-node sync lokal | ⚠️ Perlu re-verifikasi | Sebelumnya verified, tapi setelah chain wipe + PoUW v2 belum diuji ulang |
-| Node independen eksternal | ❌ Perlu re-verifikasi | VM terpisah sebelumnya berhasil sync, tapi itu era PoUW v1. Perlu sync ulang dengan PoUW v2 |
+| Multi-node sync lokal | ✅ Verified | 25 Jun 2026: node 2 connect ke node 1 (127.0.0.1:39333), sync dari genesis ke height 4 dalam <1 detik, kedua node sepakat di bestblockhash yang sama |
+| Node independen eksternal (internet) | ❌ Perlu diuji | Belum ada node di mesin/jaringan berbeda yang sync PoUW v2 |
 | Firewall / port dapat diakses dari luar | ✅ Verified | Port P2P 39333 (override dari default 19333), stratum 3333 |
 | DNS seeds | ❌ Belum | Di-comment di chainparams.cpp — tunggu domain sendiri |
 | Build system (autotools) fresh checkout | ✅ Verified | |
@@ -84,7 +84,7 @@
 
 ## Urutan Prioritas (per 25 Jun 2026)
 
-1. **Re-verifikasi multi-node dengan PoUW v2** — chain wipe 24 Jun memutus semua external node, perlu node kedua sync ulang dari genesis baru
+1. ~~**Re-verifikasi multi-node dengan PoUW v2**~~ ✅ Done — dua node lokal sync, block propagation dua arah lulus, CheckPoUWv2 result=1 di kedua node
 2. **Audit keamanan eksternal** — tidak ada perubahan signifikansi ini; wajib sebelum exposure publik lebih luas
 3. **Test chain reorg dengan PoUW v2** — belum pernah diuji, potensi edge case di `CheckPoUWv2()` saat reorganisasi
 4. **Test difficulty retarget under load** — EMA terimplementasi tapi belum divalidasi dengan banyak miner aktif
