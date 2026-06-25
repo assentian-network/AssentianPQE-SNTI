@@ -83,7 +83,7 @@ class BitcoinRPC:
         self.auth = (user, password)
         self.id = 0
 
-    def call(self, method, params=None):
+    def call(self, method, params=None, timeout=30):
         self.id += 1
         payload = {
             "jsonrpc": "1.0",
@@ -96,7 +96,7 @@ class BitcoinRPC:
                 self.url,
                 json=payload,
                 auth=self.auth,
-                timeout=30,
+                timeout=timeout,
             )
             data = resp.json()
             if data.get("error"):
@@ -143,21 +143,26 @@ class BitcoinRPC:
     def get_block_count(self):
         return self.call("getblockcount")
 
-    def generate_to_address(self, n_blocks, address, wallet="snti_testnet"):
-        """Mine n_blocks to address. This triggers full PoUW (XMSS) internally."""
-        # Wave 2: must use wallet URL for generatetoaddress
+    def generate_to_address(self, n_blocks, address):
+        """Mine n_blocks to address. PoUW v2 XMSS tree building happens inside bitcoind."""
+        # Do NOT use wallet endpoint — generatetoaddress works at root RPC level.
+        # Timeout 180s: XMSS tree build takes ~6s/attempt, may need many attempts.
+        return self.call("generatetoaddress", [n_blocks, address], timeout=180)
+
+    def load_wallet(self, name):
         self.id += 1
-        payload = {"jsonrpc": "1.0", "id": self.id, "method": "generatetoaddress", "params": [n_blocks, address]}
+        payload = {"jsonrpc": "1.0", "id": self.id, "method": "loadwallet", "params": [name]}
         try:
-            resp = requests.post(f"{self.url}/wallet/{wallet}", json=payload, auth=self.auth, timeout=60)
+            resp = requests.post(self.url, json=payload, auth=self.auth, timeout=10)
             data = resp.json()
-            if data.get("error"):
-                log.error(f"generatetoaddress error: {data['error']}")
-                return None
-            return data.get("result")
+            err = data.get("error")
+            if err and "already loaded" not in str(err.get("message", "")):
+                log.warning(f"loadwallet {name}: {err}")
+                return False
+            return True
         except Exception as e:
-            log.error(f"generatetoaddress failed: {e}")
-            return None
+            log.warning(f"loadwallet {name}: {e}")
+            return False
 
     def create_wallet(self, name):
         """Create wallet, ignore error if already exists."""
@@ -221,6 +226,7 @@ class StratumServer:
         self.template_lock = asyncio.Lock()
         self.last_template_update = 0
         self.last_block_height = 0
+        self.mining_in_progress = False  # prevent concurrent PoUW attempts
 
         # Stats
         self.total_shares = 0
@@ -298,40 +304,46 @@ class StratumServer:
 
     async def _try_mine_block(self, writer, worker_id):
         """
-        Attempt to mine a block via bitcoind's generatetoaddress.
-        Called after N accepted shares from miners.
-        
-        Wave 1 limitation: reward goes to pool address, not individual miner.
-        Wave 2 will implement proper getwork/submitblock flow.
+        Trigger PoUW v2 block mining via bitcoind's generatetoaddress.
+        Bitcoind handles XMSS tree building and SK_SEED search internally.
+        Called after every shares_per_block accepted shares.
         """
-        if self.accepted > 0 and self.accepted % self.shares_per_block == 0:
-            # Wave 2: reward goes directly to miner address
-            worker = self.workers.get(worker_id, {})
-            address = worker.get("miner_address") or self.pool_address
-            if not address:
-                address = self.rpc.get_new_address()
-            if not address:
-                log.error("No address available for mining")
-                return
+        if not (self.accepted > 0 and self.accepted % self.shares_per_block == 0):
+            return
 
-            log.info(f"⛏ Mining attempt triggered (shares: {self.accepted}) → {address}")
-            loop = asyncio.get_event_loop()
-            try:
-                hashes = await loop.run_in_executor(
-                    None, lambda: self.rpc.generate_to_address(1, address)
-                )
-                if hashes and len(hashes) > 0:
-                    self.blocks_found += 1
-                    log.info(f"✅ Block found! Hash: {hashes[0]} (total blocks: {self.blocks_found})")
-                    # Invalidate current job — force new work
-                    async with self.template_lock:
-                        self.current_job = None
-                    # Send new work to this miner
-                    await self._send_work(writer, worker_id)
-                else:
-                    log.warning("generatetoaddress returned no hashes")
-            except Exception as e:
-                log.error(f"Mining attempt failed: {e}")
+        # Prevent concurrent XMSS mining attempts — they're CPU-heavy
+        if self.mining_in_progress:
+            log.debug("Mining already in progress, skipping trigger")
+            return
+        self.mining_in_progress = True
+
+        worker = self.workers.get(worker_id, {})
+        address = worker.get("miner_address") or self.pool_address
+        if not address:
+            address = self.rpc.get_new_address()
+        if not address:
+            log.error("No address available for mining")
+            self.mining_in_progress = False
+            return
+
+        log.info(f"⛏ PoUW v2 mining triggered (shares: {self.accepted}) → {address}")
+        loop = asyncio.get_event_loop()
+        try:
+            hashes = await loop.run_in_executor(
+                None, lambda: self.rpc.generate_to_address(1, address)
+            )
+            if hashes and len(hashes) > 0:
+                self.blocks_found += 1
+                log.info(f"✅ Block found! Hash: {hashes[0]} (total: {self.blocks_found})")
+                async with self.template_lock:
+                    self.current_job = None
+                await self._send_work(writer, worker_id)
+            else:
+                log.warning("generatetoaddress returned no hashes")
+        except Exception as e:
+            log.error(f"Mining attempt failed: {e}")
+        finally:
+            self.mining_in_progress = False
 
     @staticmethod
     async def _send(writer, msg):
@@ -372,8 +384,8 @@ class StratumServer:
                 "id": msg_id,
                 "result": [
                     [
-                        ["mining.set_difficulty", "snti-stratum-v1"],
-                        ["mining.notify", "snti-stratum-v1"],
+                        ["mining.set_difficulty", "snti-stratum-v2"],
+                        ["mining.notify", "snti-stratum-v2"],
                     ],
                     "00000000",  # extranonce1
                     4,           # extranonce2 size
@@ -506,13 +518,14 @@ class StratumServer:
     async def _stats_reporter(self):
         while self.active:
             await asyncio.sleep(STATS_INTERVAL)
-            info = self.rpc.get_mining_info()
+            info = self.rpc.get_blockchain_info()
             blocks = info.get("blocks", "?") if info else "?"
+            mining_flag = " [mining]" if self.mining_in_progress else ""
             log.info(
                 f"📊 Stats — workers: {self.connected_workers} | "
                 f"shares: {self.accepted}/{self.total_shares} | "
                 f"blocks found: {self.blocks_found} | "
-                f"chain height: {blocks}"
+                f"chain height: {blocks}{mining_flag}"
             )
 
     async def _http_stats(self):
@@ -548,6 +561,11 @@ class StratumServer:
             await server.serve_forever()
 
     async def start(self):
+        # Load mining wallet — required for generatetoaddress when miner address
+        # is not provided by the connecting worker.
+        log.info("Loading snti_testnet wallet...")
+        self.rpc.load_wallet("snti_testnet")
+
         # Setup pool wallet & address
         if not self.pool_address:
             log.info("Setting up pool wallet...")
@@ -575,10 +593,10 @@ class StratumServer:
 
         # Start stratum server
         server = await asyncio.start_server(self.handle_client, "0.0.0.0", self.port)
-        log.info(f"🚀 Assentian-PQE Stratum Server started on port {self.port}")
+        log.info(f"🚀 Assentian-PQE Stratum Server (PoUW v2) started on port {self.port}")
         log.info(f"   Connect miners to: stratum+tcp://YOUR_IP:{self.port}")
         log.info(f"   Network: testnet | RPC: {self.rpc.url}")
-        log.info(f"   Wave 1: CPU mining | Shares per block: {self.shares_per_block}")
+        log.info(f"   PoUW v2: XMSS tree building via bitcoind | Shares per block: {self.shares_per_block}")
 
         async with server:
             await server.serve_forever()
