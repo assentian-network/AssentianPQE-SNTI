@@ -184,7 +184,7 @@ Dua jenis script output:
 | P2XMSS + P2XMSSHASH spending | ✅ Berjalan |
 | XMSS key retirement | ✅ Berjalan |
 | Stratum server (hybrid) | ✅ Berjalan |
-| WOTS+ verification di CheckPoUWv2 | 🔴 Disabled (pending BDS state fix) |
+| WOTS+ verification di CheckPoUWv2 | ✅ Berjalan (auth_path non-zero, result=1 di semua blok) |
 | DNS seeds | 🟡 Belum (tunggu domain) |
 
 Detail teknis lengkap: lihat [`DEVDOCS.md`](DEVDOCS.md).

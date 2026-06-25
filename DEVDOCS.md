@@ -484,16 +484,11 @@ where T = 60s (target spacing), A = actual spacing (clamped to [T/4, T×4])
 
 ## Active Issues (Jun 25 2026)
 
-### 🔴 WOTS+ verification disabled in CheckPoUWv2()
+### ✅ RESOLVED — WOTS+ verification in CheckPoUWv2() (Jun 25 2026)
 
-`CheckPoUWv2()` currently only checks `xmssRoot < target`. The full WOTS+ signature verification (`xmss_sign_open`) is implemented but disabled pending a fix to auth_path extraction from `xmssmt_core_seed_keypair()`.
+WOTS+ verification is fully active. `CheckPoUWv2()` calls `xmss_sign_open()` on every block and all blocks are confirmed passing (`CheckPoUWv2 result=1` in node logs). `auth_path` is non-zero (populated correctly by `xmss_sign()` after `xmssmt_core_seed_keypair()`).
 
-**Affected file**: `src/pouw_v2.h` — `CheckPoUWv2()` and `BuildAndSign()`
-
-**Fix candidates**:
-1. Extract auth_path directly from treehash() output
-2. Use xmss_sign() output directly (already includes auth_path)
-3. Store auth_path at keypair generation time
+The BDS state issue documented in the Jun 24 handoff note was resolved by commit `5409c3f` (use `xmss_keypair()` flow to ensure BDS state is initialized before signing).
 
 ### 🔴 Stratum: no native PoUW v2 protocol
 
