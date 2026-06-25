@@ -1,6 +1,6 @@
 # Assentian-PQE (SNTI)
 ## The First Mineable Post-Quantum Cryptocurrency
-### Whitepaper v1.0 | June 2026
+### Whitepaper v1.1 | June 2026
 
 ---
 
@@ -517,17 +517,17 @@ The development fund is controlled by a multisig wallet. All transactions will b
 ### ✅ Phase 0: Foundation (Complete — June 2026)
 
 - ✅ XMSS-SHA2_10_256 integrated into Bitcoin Core 27.0
-- ✅ Proof-of-Useful-Work (PoUW) consensus implemented
+- ✅ Proof-of-Useful-Work (PoUW) v2 consensus — XMSS tree building IS the mining algorithm
 - ✅ Sighash-v2 (cross-index attack prevention)
 - ✅ Key retirement protocol (one-time XMSS addresses)
 - ✅ Encryption at rest for XMSS wallet state
 - ✅ Wallet backup/restore with XMSS state verification
-- ✅ Testnet live (genesis: `2d858f51...`)
-- ✅ Mainnet genesis mined (June 22, 2026 — `00146ebb...`)
+- ✅ Testnet live (PoUW v2 genesis Jun 24, 2026 — `d02122cd...`)
 - ✅ Block explorer operational
-- ✅ Stratum mining server Wave 1 + Wave 2
-- ✅ cpuminer-multi verified (48/48 shares, 15+ blocks)
-- ✅ Direct miner payout (Wave 2)
+- ✅ WOTS+ leaf reuse protection enforced (abort on save failure — Jun 25, 2026)
+- ✅ XMSS miner state persistence verified — 1 tree reused across 1,024 blocks (Jun 25, 2026)
+- ✅ WOTS+ full signature verification via `xmss_sign_open()` in `CheckPoUWv2()`
+- ⚠️ Stratum server pending PoUW v2 update (v1 format incompatible)
 
 ### 🔜 Phase 1: Mainnet Launch (Q3–Q4 2026)
 
@@ -917,7 +917,7 @@ Assentian-PQE (SNTI) does not wait for the threat to materialize. It is **built 
 3. **Bitcoin DNA** — 15 years of battle-tested code as the foundation
 4. **Useful work** — Mining produces real cryptographic value, not wasted hashes
 5. **Fair launch** — No pre-mine, no VC allocation, no insider advantage
-6. **First mover** — The only working, mineable, post-quantum blockchain
+6. **Novel consensus** — The only blockchain where XMSS tree building IS the proof of work, not just the signature scheme
 
 The question investors should ask is not "Will quantum computers threaten ECDSA?" — they will. The question is: **"When the quantum inflection point arrives, which blockchain will already be ready?"**
 
@@ -938,7 +938,7 @@ The answer is Assentian-PQE.
 
 ---
 
-*Assentian-PQE Whitepaper v1.0 | June 22, 2026*
+*Assentian-PQE Whitepaper v1.1 | June 25, 2026*
 *Genesis: "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia"*
 *Contact: assentianpqe@gmail.com*
 *GitHub: https://github.com/asepganzu-svg/AssentianPQE-SNTI*
