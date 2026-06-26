@@ -579,6 +579,17 @@ function fmtDifficulty(d) {
   return d.toFixed(4);
 }
 
+function fmtHashps(h) {
+  if (h === undefined || h === null) return '—';
+  if (h >= 1e18) return (h / 1e18).toFixed(2) + ' EH/s';
+  if (h >= 1e15) return (h / 1e15).toFixed(2) + ' PH/s';
+  if (h >= 1e12) return (h / 1e12).toFixed(2) + ' TH/s';
+  if (h >= 1e9)  return (h / 1e9).toFixed(2)  + ' GH/s';
+  if (h >= 1e6)  return (h / 1e6).toFixed(2)  + ' MH/s';
+  if (h >= 1e3)  return (h / 1e3).toFixed(2)  + ' KH/s';
+  return h.toFixed(2) + ' H/s';
+}
+
 function fmtSize(bytes) {
   if (!bytes) return '—';
   if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
@@ -670,7 +681,7 @@ async function loadStatus() {
       <div class="stat-item"><div class="stat-label">Chain</div><div class="stat-value">${escHtml(d.chain||'—')}</div></div>
       <div class="stat-item"><div class="stat-label">Block Height</div><div class="stat-value">${escHtml(String(d.blocks??'—'))}</div></div>
       <div class="stat-item"><div class="stat-label">Difficulty</div><div class="stat-value">${fmtDifficulty(d.difficulty)}</div></div>
-      <div class="stat-item"><div class="stat-label">Network Hash/s</div><div class="stat-value">${fmtHashps(d.networkhashps)}</div></div>
+      <div class="stat-item"><div class="stat-label">Network Rate (est.)</div><div class="stat-value">${fmtHashps(d.networkhashps)}</div></div>
       <div class="stat-item"><div class="stat-label">Connections</div><div class="stat-value">${escHtml(String(d.connections??'—'))}</div></div>
       <div class="stat-item"><div class="stat-label">Mempool</div><div class="stat-value">${escHtml(String(d.mempool_txs??0))} txs</div></div>
       <div class="stat-item"><div class="stat-label">PoUW Status</div><div class="stat-value">${pouwBadge}</div></div>
