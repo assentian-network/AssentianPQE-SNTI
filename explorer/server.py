@@ -190,6 +190,8 @@ def api_blocks_latest():
             "merkleroot": block.get("merkleroot"),
             "bits": block.get("bits"),
             "confirmations": block.get("confirmations"),
+            "xmssRoot": block.get("xmssRoot"),
+            "nLeafIndex": block.get("nLeafIndex"),
         })
 
     return jsonify({"blocks": blocks, "tip_height": tip_height})
@@ -257,6 +259,8 @@ def api_block(identifier):
         "time": block.get("time"),
         "mediantime": block.get("mediantime"),
         "nonce": block.get("nonce"),
+        "xmssRoot": block.get("xmssRoot"),
+        "nLeafIndex": block.get("nLeafIndex"),
         "difficulty": block.get("difficulty"),
         "size": block.get("size"),
         "strippedsize": block.get("strippedsize"),

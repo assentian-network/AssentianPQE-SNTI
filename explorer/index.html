@@ -772,6 +772,8 @@ async function showBlock(id) {
             <div class="detail-label">Confirmations</div><div class="detail-value">${escHtml(String(d.confirmations??'—'))}</div>
             <div class="detail-label">Merkle Root</div><div class="detail-value hash">${escHtml(d.merkleroot)}</div>
             <div class="detail-label">Nonce</div><div class="detail-value">${escHtml(String(d.nonce??'—'))}</div>
+            <div class="detail-label">XMSS Root</div><div class="detail-value hash" style="word-break:break-all;font-size:11px;">${escHtml(d.xmssRoot||'—')}</div>
+            <div class="detail-label">Leaf Index</div><div class="detail-value">${escHtml(String(d.nLeafIndex??'—'))}</div>
             <div class="detail-label">Bits</div><div class="detail-value hash">${escHtml(d.bits||'—')}</div>
             <div class="detail-label">Difficulty</div><div class="detail-value">${fmtDifficulty(d.difficulty)}</div>
             <div class="detail-label">Size</div><div class="detail-value">${fmtSize(d.size)}</div>
