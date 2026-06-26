@@ -35,6 +35,7 @@
 
 extern "C" {
 #include "xmss.h"
+#include "params.h"
 }
 
 #include <cstdint>
@@ -64,7 +65,15 @@ public:
     bool Generate() {
         std::lock_guard<std::mutex> lock(m_mutex);
 
-        m_sk.resize(2048, 0);
+        // Allocate exactly the right size using params (no trailing-zero trimming)
+        xmss_params xp;
+        if (xmss_parse_oid(&xp, QNT_XMSS_OID) != 0) {
+            m_valid = false;
+            return false;
+        }
+        size_t sk_buf = QNT_XMSS_OID_LEN + (size_t)xp.sk_bytes;
+
+        m_sk.resize(sk_buf, 0);
         m_pk.resize(QNT_XMSS_OID_LEN + QNT_XMSS_PK_SIZE, 0);
 
         int ret = xmss_keypair(m_pk.data(), m_sk.data(), QNT_XMSS_OID);
@@ -72,12 +81,6 @@ public:
             m_valid = false;
             return false;
         }
-
-        // Determine actual sk size
-        size_t actual = 2048;
-        while (actual > 4 && m_sk[actual-1] == 0) actual--;
-        actual += 64;
-        m_sk.resize(actual);
 
         m_index = 0;
         m_valid = true;

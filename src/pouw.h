@@ -33,6 +33,7 @@
 
 extern "C" {
 #include "xmss.h"
+#include "params.h"
 }
 
 #include <cstdint>
@@ -63,7 +64,15 @@ struct MinerKey {
     MinerKey() : index(0), valid(false) {}
 
     bool Generate() {
-        sk.resize(XMSS_SK_SIZE, 0);
+        // Allocate exactly the right size using params (no trailing-zero trimming)
+        xmss_params xp;
+        if (xmss_parse_oid(&xp, XMSS_OID) != 0) {
+            valid = false;
+            return false;
+        }
+        size_t sk_buf = XMSS_OID_LEN + (size_t)xp.sk_bytes;
+
+        sk.resize(sk_buf, 0);
         pk.resize(XMSS_OID_LEN + XMSS_PK_SIZE, 0);
 
         int ret = xmss_keypair(pk.data(), sk.data(), XMSS_OID);
@@ -71,12 +80,6 @@ struct MinerKey {
             valid = false;
             return false;
         }
-
-        // Determine actual sk size
-        size_t actual = XMSS_SK_SIZE;
-        while (actual > 4 && sk[actual-1] == 0) actual--;
-        actual += 64; // safety margin
-        sk.resize(actual);
 
         index = 0;
         valid = true;

@@ -9,6 +9,7 @@
 #include <sync.h>
 #include <serialize.h>
 #include <util/time.h>
+#include <logging.h>
 
 #include <map>
 #include <vector>
@@ -108,6 +109,11 @@ public:
         }
 
         CXMSSKeyEntry& entry = it->second;
+
+        if (entry.leaf_index >= 1024) {
+            LogPrintf("CXMSSKeyStore::Sign: key exhausted (leaf_index=%u >= 1024), refusing to sign\n", entry.leaf_index);
+            return {};
+        }
 
         XMSS::CXMSSKey key;
         if (!key.Load(entry.seckey)) {

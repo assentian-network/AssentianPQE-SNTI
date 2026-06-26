@@ -167,7 +167,6 @@ public:
 
         bech32_hrp = "qn";  // whitepaper: native segwit-style addresses
 
-        vFixedSeeds.clear();
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
 
