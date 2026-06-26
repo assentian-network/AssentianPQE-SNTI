@@ -310,16 +310,48 @@ The stratum server (`stratum_server.py`) uses a hybrid approach:
 - `bitcoind` performs the actual XMSS tree building
 - Miners do not need to know about XMSS
 
-```bash
-# Start stratum (already configured as systemd service)
-systemctl start assentian-stratum.service
+#### Install cpuminer-multi (build from source)
 
-# Connect cpuminer
-minerd -a sha256d -o stratum+tcp://104.234.26.7:3333 \
-  -u tq1qftvdv0xh4534talv2axxfp5fh57mn4gl7x2cpl -p x
+cpuminer-multi is not in apt — build from source:
+
+```bash
+# Dependencies
+apt-get install -y libcurl4-openssl-dev libjansson-dev
+
+# Build
+git clone --depth=1 https://github.com/tpruvot/cpuminer-multi.git /tmp/cpuminer-multi
+cd /tmp/cpuminer-multi && ./build.sh
+
+# Install
+cp /tmp/cpuminer-multi/cpuminer /usr/local/bin/minerd
 ```
 
-> **Status (Jun 25 2026)**: Stratum server is functional for PoUW v2 via the hybrid approach. WOTS+ signature verification in `CheckPoUWv2()` is currently checking root < target only (WOTS verify disabled pending BDS state fix — see Architecture §Active Issues).
+#### Start mining
+
+```bash
+# Start stratum service (if not already running)
+systemctl start assentian-stratum.service
+
+# Connect cpuminer — use your SNTI address as username
+minerd -a sha256d \
+  -o stratum+tcp://104.234.26.7:3333 \
+  -u <YOUR_SNTI_ADDRESS> \
+  -p x \
+  --threads=$(nproc)
+```
+
+#### Verify mining is working
+
+```bash
+# Stratum stats (shows connected workers, shares, blocks found)
+curl http://104.234.26.7:3334/
+
+# Node chain height
+./src/bitcoin-cli -testnet -datadir=/root/.assentian_testnet \
+  -rpcuser=user -rpcpassword=password -rpcport=39332 getblockcount
+```
+
+> **Status (Jun 26 2026)**: Stratum + cpuminer-multi confirmed working end-to-end. VM at 114.79.6.173 mining via stratum, all shares accepted. WOTS+ signature verification in `CheckPoUWv2()` is currently checking root < target only (WOTS verify disabled pending BDS state fix — see Architecture §Active Issues).
 
 ### Key Design Decision: One-Shot Mining Keys
 
