@@ -3974,19 +3974,45 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
         hw_v2 << block.nVersion << block.hashPrevBlock
               << block.nTime << block.nBits;
         uint256 preimage_v2 = hw_v2.GetHash();
-        LogPrintf("PoUW v2 DEBUG: preimage=%s\n", preimage_v2.GetHex());
-        LogPrintf("PoUW v2 DEBUG: xmss_pk=%s\n", HexStr(xmss_pk).substr(0,16));
-        LogPrintf("PoUW v2 DEBUG: root=%s\n", HexStr(Span<const uint8_t>(v2_proof.xmss_pk, 32)).substr(0,16));
-        LogPrintf("PoUW v2 DEBUG: wots_sig[0..4]=%s\n", HexStr(Span<const uint8_t>(v2_proof.wots_sig, 4)));
-        LogPrintf("PoUW v2 DEBUG: auth[0..4]=%s\n", HexStr(Span<const uint8_t>(v2_proof.auth_path, 4)));
-        bool v2_ok = PoUWv2::CheckPoUWv2(v2_proof, preimage_v2.begin(), target);
-        LogPrintf("PoUW v2 DEBUG: CheckPoUWv2 result=%d\n", v2_ok);
+        bool v2_ok = PoUWv2::CheckPoUWv2(v2_proof, preimage_v2.begin(), target, block.nLeafIndex);
         if (!v2_ok) {
             return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-v2-invalid",
-                                 "PoUW v2: invalid proof");
+                                 "PoUW v2: invalid proof (root check or WOTS+ verify failed)");
         }
-        LogPrint(BCLog::VALIDATION, "PoUW v2: block %s verified (root=%s)\n",
-                 block.GetHash().GetHex(), HexStr(xmss_pk).substr(0, 16));
+
+        // SNTI consensus rule: leaf index reuse prevention
+        // Use CBlockIndex fields (xmssRoot + nLeafIndex now stored there)
+        // Scan recent chain for same xmssRoot + nLeafIndex combination
+        {
+            uint256 block_root = v2_proof.GetRoot();
+            uint32_t block_leaf = block.nLeafIndex;
+
+            const CBlockIndex* pindex = chainman.ActiveChain().Tip();
+            int scan_depth = 0;
+            while (pindex && scan_depth < 1024) {
+                // Skip blocks without PoUW v2 (genesis, pre-activation)
+                if (!pindex->xmssRoot.IsNull()) {
+                    if (pindex->xmssRoot == block_root) {
+                        // Same tree — check leaf reuse
+                        if (pindex->nLeafIndex == block_leaf) {
+                            LogPrintf("PoUW v2: REJECTED leaf reuse! root=%s leaf=%u at height=%d\n",
+                                      block_root.GetHex().substr(0,16), block_leaf, pindex->nHeight);
+                            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
+                                                 "pouw-leaf-reuse",
+                                                 "PoUW v2: XMSS leaf index reuse detected");
+                        }
+                    } else {
+                        // Different tree — no reuse possible before this point
+                        break;
+                    }
+                }
+                pindex = pindex->pprev;
+                scan_depth++;
+            }
+        }
+
+        LogPrint(BCLog::VALIDATION, "PoUW v2: block %s verified (root=%s leaf=%u)\n",
+                 block.GetHash().GetHex(), HexStr(xmss_pk).substr(0, 16), block.nLeafIndex);
         return true;
     }
 
