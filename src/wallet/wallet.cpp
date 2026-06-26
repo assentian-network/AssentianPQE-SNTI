@@ -2195,6 +2195,10 @@ bool CWallet::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint,
         const_cast<CWallet*>(this)->PersistXMSSState();
         return true;
     }
+    // SNTI DEBUG: log input_errors to diagnose signing failures
+    for (const auto& [idx, err] : input_errors) {
+        LogPrintf("QNT: SignTransaction input_errors[%d]: %s\n", idx, err.original);
+    }
     // At this point, one input was not fully signed otherwise we would have exited already
     return false;
 }

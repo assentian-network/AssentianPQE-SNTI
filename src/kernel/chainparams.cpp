@@ -146,9 +146,9 @@ public:
         // REAL GENESIS TIMESTAMP will be set at official launch (Q4 2026)
         // This is a PLACEHOLDER — do not use for mainnet launch
         // SNTI PoUW v2: genesis
-        // nNonce=0 (unused in PoUW v2), nBits=0x2001a41a
+        // nNonce=0 (unused in PoUW v2), nBits=0x207fffff
         // xmssRoot will be computed by first miner — genesis is special case
-        genesis = CreateGenesisBlock(1782275807, 0, 0x2001a41a, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1782275807, 0, 0x207fffff, 1, 50 * COIN);
         // hashGenesisBlock will be updated after first mine
         consensus.hashGenesisBlock = genesis.GetHash();
 
@@ -208,7 +208,7 @@ public:
         consensus.MinBIP9WarningHeight = 0;
         // TESTNET: minimum difficulty for easy genesis mining during dev
         // TODO: change to 0x1d00ffff before public testnet launch
-        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"); // testnet: max
         consensus.nPowTargetTimespan = 14 * 24 * 60 * 60;
         consensus.nPowTargetSpacing = 60;  // 60 seconds (whitepaper)
         consensus.fPowAllowMinDifficultyBlocks = true;
@@ -243,9 +243,9 @@ public:
         m_assumed_chain_state_size = 2;
 
         // SNTI PoUW v2: genesis
-        // nNonce=0 (unused in PoUW v2), nBits=0x2001a41a
+        // nNonce=0 (unused in PoUW v2), nBits=0x207fffff
         // xmssRoot will be computed by first miner — genesis is special case
-        genesis = CreateGenesisBlock(1782275807, 0, 0x2001a41a, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1782275807, 0, 0x207fffff, 1, 50 * COIN);
         // hashGenesisBlock will be updated after first mine
         consensus.hashGenesisBlock = genesis.GetHash();
 
@@ -454,9 +454,9 @@ public:
         }
 
         // SNTI PoUW v2: genesis
-        // nNonce=0 (unused in PoUW v2), nBits=0x2001a41a
+        // nNonce=0 (unused in PoUW v2), nBits=0x207fffff
         // xmssRoot will be computed by first miner — genesis is special case
-        genesis = CreateGenesisBlock(1782275807, 0, 0x2001a41a, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1782275807, 0, 0x207fffff, 1, 50 * COIN);
         // hashGenesisBlock will be updated after first mine
         consensus.hashGenesisBlock = genesis.GetHash();
 

@@ -486,40 +486,54 @@ RPCHelpMan sendfromxmssaddress()
             // for descriptor wallets (the LegacyScriptPubKeyMan bridge is inert
             // here -- see DEVDOCS.md). Bypass it with a manual mapWallet scan,
             // the same approach getxmssaddressinfo's separate ismine check uses.
-            bool found_input = false;
+            //
+            // SNTI: XMSS keys are one-time-use per signing. Selecting multiple
+            // UTXOs from the same address would require signing multiple inputs
+            // with the same key — impossible once the key is retired after the
+            // first use. Select only ONE UTXO at a time; the wallet can
+            // collect change back to a non-XMSS address for further spending.
+            // We pick the smallest UTXO that is >= nAmount + estimated fee, or
+            // if none exists, the largest available UTXO.
+            struct XMSSUtxo {
+                COutPoint outpoint;
+                CAmount   value;
+            };
+            std::vector<XMSSUtxo> xmss_utxos;
             for (const auto& [txid, wtx] : pwallet->mapWallet) {
-                if (pwallet->GetTxDepthInMainChain(wtx) < 1) continue; // require >=1 confirmation
+                if (pwallet->GetTxDepthInMainChain(wtx) < 1) continue;
                 const CTransactionRef& wtx_tx = wtx.tx;
                 for (unsigned int n = 0; n < wtx_tx->vout.size(); n++) {
-                    COutPoint outpoint(wtx.GetHash(), n); // SNTI FIX: wtx.GetHash() returns properly-typed Txid; raw map key is uint256
+                    COutPoint outpoint(wtx.GetHash(), n);
                     if (pwallet->IsSpent(outpoint)) continue;
                     const CTxOut& txout = wtx_tx->vout[n];
                     std::vector<std::vector<unsigned char>> solutions;
                     TxoutType type = Solver(txout.scriptPubKey, solutions);
+                    bool matches = false;
                     if (type == TxoutType::P2XMSS && solutions.size() == 1 && solutions[0].size() == 64) {
-                        uint160 this_hash = XMSSAddr::Hash(solutions[0]);
-                        if (this_hash == from_hash) {
-                            coin_control.Select(outpoint);
-                            found_input = true;
-                        }
+                        matches = (XMSSAddr::Hash(solutions[0]) == from_hash);
                     } else if (type == TxoutType::P2XMSSHASH && solutions.size() == 1 && solutions[0].size() == 20) {
-                        // SNTI: hash-committed funding (e.g. via generic sendtoaddress,
-                        // now that DecodeDestination/GetScriptForDestination correctly
-                        // resolve XMSS addresses to P2XMSSHASH instead of a zero-pubkey
-                        // placeholder). vSolutions[0] IS the address hash directly here.
-                        uint160 this_hash(solutions[0]);
-                        if (this_hash == from_hash) {
-                            coin_control.Select(outpoint);
-                            found_input = true;
-                        }
+                        matches = (uint160(solutions[0]) == from_hash);
+                    }
+                    if (matches) {
+                        xmss_utxos.push_back({outpoint, txout.nValue});
                     }
                 }
             }
-            if (!found_input) {
+            if (xmss_utxos.empty()) {
                 throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS,
                     "No spendable funds found at this XMSS address");
             }
-            coin_control.m_allow_other_inputs = true;
+            // Pick the best single UTXO: smallest that covers nAmount, else largest
+            // SNTI: generous fee buffer — XMSS scriptSig is ~2.5 kB so fee is higher than typical
+            const CAmount fee_estimate = 50000; // 0.0005 SNTI — generous for large XMSS scriptSig
+            const CAmount needed = nAmount + fee_estimate;
+            std::sort(xmss_utxos.begin(), xmss_utxos.end(), [](const XMSSUtxo& a, const XMSSUtxo& b){ return a.value < b.value; });
+            COutPoint chosen = xmss_utxos.back().outpoint; // default: largest
+            for (const auto& u : xmss_utxos) {
+                if (u.value >= needed) { chosen = u.outpoint; break; }
+            }
+            coin_control.Select(chosen);
+            coin_control.m_allow_other_inputs = false; // only spend the chosen XMSS UTXO
         }
 
         // Create and sign transaction with XMSS
@@ -605,6 +619,10 @@ RPCHelpMan importxmsskey()
 
         // Store in keystore for IsMine detection
         pwallet->AddXMSSKeyToKeystore(hash, pubkey);
+
+        // Persist XMSS state to wallet DB immediately so the key survives
+        // wallet unload/reload without needing to re-import.
+        pwallet->PersistXMSSState();
 
         // Rescan if requested
         if (rescan) {

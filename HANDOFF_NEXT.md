@@ -101,9 +101,31 @@
 ```
 1. ✅ DONE — Hapus DEBUG LogPrintf di validation.cpp:3983
 2. ✅ DONE — Test chain reorg paksa di testnet
-3. [30 menit] Verifikasi exportxmsskey/importxmsskey di build saat ini
-4. [30 menit] Verifikasi wallet backup/restore
-5. [1 jam]    Test P2P sync dari VM rumah (bukan stratum, tapi port 39333)
+3. ✅ DONE (sesi 26 Jun) — Verifikasi exportxmsskey/importxmsskey di build PoUW v2
+   - listxmsskeys: 3 key (tty64fZ, tiP76f, tXKv9v) ✅
+   - exportxmsskey "tty64fZ7..." → pubkey+seckey terpisah ✅
+   - importxmsskey pubkey seckey "label" ke snti_importtest → address match ✅
+   - getxmssaddressinfo → ismine:true, leaf_index:0, remaining:1024 ✅
+   - Catatan: importxmsskey butuh 2 arg terpisah (pubkey, seckey) — bukan 1 blob
+4. ✅ DONE (sesi 26 Jun) — Verifikasi wallet backup/restore
+   - backupwallet → snti_testnet_backup.dat (40KB sqlite) ✅
+   - Copy backup → wallets/snti_restore_test/wallet.dat → loadwallet ✅
+   - listxmsskeys: 3 key match persis (address, pubkey, leaf_index, remaining) ✅
+   - balance: 99.99973050 match ✅ | txcount: 3 match ✅
+   - ismine: true di restored wallet ✅
+   - Backup file disimpan di: /root/.assentian_testnet/testnet3/wallets/ (per wallet)
+5. ⏳ IN PROGRESS (sesi 26 Jun) — Test P2P sync dari VM rumah (port 39333)
+   - VM 114.79.6.173 build dari scratch ✅ selesai
+   - P2P konek ke VPS ✅ (ping 0.24s, bytesrecv 73KB headers terkirim)
+   - GENESIS MISMATCH ❌ — root cause:
+     * GitHub (VM clone): nBits=0x2001a41a → genesis=2d858f51... (salah)
+     * VPS binary: nBits=0x207fffff → genesis=0616e8b3... (benar, UNCOMMITTED)
+     * chainparams.cpp uncommitted di VPS bersama banyak perubahan PoUW v2 lain
+   - Fix: patch VM langsung (sed 0x2001a41a → 0x207fffff), rebuild, wipe data, restart
+   - Setelah fix: VM harus punya genesis 0616e8b3 dan sync otomatis
+   - ⚠️ TODO: commit semua uncommitted changes (chain.h, block.h, interpreter.cpp,
+     blockstorage.cpp, blockchain.cpp, xmss.cpp, wallet.cpp, chainparams.cpp)
+     ke GitHub setelah direview — ini PoUW v2 changes penting yang belum di-push
 6. [2 jam]    Fix explorer stats (fmtHashps missing)
 7. [?]        Mine mainnet genesis resmi (timing sesuai keputusan launch)
 8. [?]        Audit keamanan eksternal (budget & waktu)

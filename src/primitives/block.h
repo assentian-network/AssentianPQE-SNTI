@@ -32,6 +32,12 @@ public:
     // XMSS tree root hash — this IS the proof of work.
     // Miner searches SK_SEED until xmssRoot < target.
     uint256 xmssRoot;
+    // SNTI PoUW v2: leaf index — which leaf of XMSS tree was used to sign this block
+    // Consensus rule: must be sequential per xmssRoot, no reuse allowed
+    uint32_t nLeafIndex;
+    // SNTI PoUW v2: commitmentsRoot — Merkle root of 10-20 failed SK_SEED commitments
+    // Cryptographically binds failed-seed key derivation to this block
+    uint256 commitmentsRoot;
 
     CBlockHeader()
     {
@@ -39,7 +45,7 @@ public:
     }
 
     // SNTI PoUW v2: xmssRoot included in serialization
-    SERIALIZE_METHODS(CBlockHeader, obj) { READWRITE(obj.nVersion, obj.hashPrevBlock, obj.hashMerkleRoot, obj.nTime, obj.nBits, obj.nNonce, obj.xmssRoot); }
+    SERIALIZE_METHODS(CBlockHeader, obj) { READWRITE(obj.nVersion, obj.hashPrevBlock, obj.hashMerkleRoot, obj.nTime, obj.nBits, obj.nNonce, obj.xmssRoot, obj.nLeafIndex, obj.commitmentsRoot); }
 
     void SetNull()
     {
@@ -50,6 +56,8 @@ public:
         nBits = 0;
         nNonce = 0;
         xmssRoot.SetNull();
+        nLeafIndex = 0;
+        commitmentsRoot.SetNull();
     }
 
     bool IsNull() const
@@ -116,8 +124,10 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
-        // SNTI PoUW v2: copy xmssRoot
-        block.xmssRoot       = xmssRoot;
+        // SNTI PoUW v2: copy xmssRoot + commitmentsRoot
+        block.xmssRoot         = xmssRoot;
+        block.nLeafIndex       = nLeafIndex;
+        block.commitmentsRoot  = commitmentsRoot;
         return block;
     }
 
