@@ -207,6 +207,7 @@ public:
     // SNTI PoUW v2
     uint256 xmssRoot{};
     uint32_t nLeafIndex{0};
+    uint256 commitmentsRoot{};
 
     //! (memory only) Sequential id assigned to distinguish order in which blocks are received.
     int32_t nSequenceId{0};
@@ -221,7 +222,8 @@ public:
           nBits{block.nBits},
           nNonce{block.nNonce},
           xmssRoot{block.xmssRoot},
-          nLeafIndex{block.nLeafIndex}
+          nLeafIndex{block.nLeafIndex},
+          commitmentsRoot{block.commitmentsRoot}
     {
     }
 
@@ -259,6 +261,7 @@ public:
         block.nNonce = nNonce;
         block.xmssRoot = xmssRoot;
         block.nLeafIndex = nLeafIndex;
+        block.commitmentsRoot = commitmentsRoot;
         return block;
     }
 
@@ -431,6 +434,10 @@ public:
         READWRITE(obj.nTime);
         READWRITE(obj.nBits);
         READWRITE(obj.nNonce);
+        // SNTI PoUW v2: persist all 9 header fields so ConstructBlockHash() matches GetHash()
+        READWRITE(obj.xmssRoot);
+        READWRITE(obj.nLeafIndex);
+        READWRITE(obj.commitmentsRoot);
     }
 
     uint256 ConstructBlockHash() const
@@ -444,6 +451,7 @@ public:
         block.nNonce = nNonce;
         block.xmssRoot = xmssRoot;
         block.nLeafIndex = nLeafIndex;
+        block.commitmentsRoot = commitmentsRoot;
         return block.GetHash();
     }
 

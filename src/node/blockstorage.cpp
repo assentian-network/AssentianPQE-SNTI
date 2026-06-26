@@ -127,9 +127,10 @@ bool BlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, s
                 pindexNew->nTime          = diskindex.nTime;
                 pindexNew->nBits          = diskindex.nBits;
                 pindexNew->nNonce         = diskindex.nNonce;
-                pindexNew->xmssRoot       = diskindex.xmssRoot;
-                pindexNew->nLeafIndex     = diskindex.nLeafIndex;
-                pindexNew->nStatus        = diskindex.nStatus;
+                pindexNew->xmssRoot         = diskindex.xmssRoot;
+                pindexNew->nLeafIndex       = diskindex.nLeafIndex;
+                pindexNew->commitmentsRoot  = diskindex.commitmentsRoot;
+                pindexNew->nStatus          = diskindex.nStatus;
                 pindexNew->nTx            = diskindex.nTx;
 
                 // SNTI PoUW v2: skip CheckProofOfWork in LoadBlockIndexGuts

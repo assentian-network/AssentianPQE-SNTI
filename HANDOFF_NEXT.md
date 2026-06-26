@@ -4,14 +4,23 @@
 
 ---
 
-## STATUS CHAIN SAAT INI
+## STATUS CHAIN SAAT INI (26 Jun 2026 update)
 
-- Blocks: 10+ (aktif mining via stratum)
-- Node: `assentian-node.service` ✅ Running (P2P:39333, RPC:39332)
+- Blocks: 465+ (aktif mining via stratum)
+- Node: `assentian-node.service` ✅ Running via systemd (P2P:39333, RPC:39332)
 - Stratum: `assentian-stratum.service` ✅ Running (port 3333, stats port 3334)
-- cpuminer: ✅ Installed di `/usr/local/bin/minerd`
-- VM rumah (`114.79.6.173`): ✅ Mining via stratum, semua shares accepted
-- Miner address VM: `tq1qgccyyw9khr4uqs8z4qzh7rds077czttredxrds`
+- Miner: `assentian-miner.service` ✅ NEW — cpuminer via systemd, auto-restart
+- cpuminer: ✅ `/usr/local/bin/minerd` --threads=2 ~18 MH/s
+- VM rumah (`114.79.6.173`): ✅ P2P sync ke VPS, blocks=465 match
+- Mining address: `tty64fZ7nMaQ6SnRo79kotinQfRiwFKXWF` (XMSS key dari snti_testnet)
+- Genesis: `0616e8b3...` (clean chain, semua blocks format 9-field)
+
+**Catatan penting (26 Jun, sesi ini):**
+- Datadir di-wipe (blocks+chainstate) karena mixed format (7-field lama + 9-field baru)
+- VPS sync ulang dari VM rumah (462 blocks dalam <15 detik)
+- Wallet backup ada di: `/root/wallets_backup_20260626_*/`
+- Mining address baru (XMSS): `tty64fZ7nMaQ6SnRo79kotinQfRiwFKXWF`
+- Address lama `tq1q...` tidak ada di wallet manapun (sudah tidak dipakai)
 
 ---
 
@@ -101,7 +110,7 @@
 ```
 1. ✅ DONE — Hapus DEBUG LogPrintf di validation.cpp:3983
 2. ✅ DONE — Test chain reorg paksa di testnet
-3. ✅ DONE (sesi 26 Jun) — Verifikasi exportxmsskey/importxmsskey di build PoUW v2
+3. ✅ DONE — Verifikasi exportxmsskey/importxmsskey di build PoUW v2
    - listxmsskeys: 3 key (tty64fZ, tiP76f, tXKv9v) ✅
    - exportxmsskey "tty64fZ7..." → pubkey+seckey terpisah ✅
    - importxmsskey pubkey seckey "label" ke snti_importtest → address match ✅
@@ -114,22 +123,39 @@
    - balance: 99.99973050 match ✅ | txcount: 3 match ✅
    - ismine: true di restored wallet ✅
    - Backup file disimpan di: /root/.assentian_testnet/testnet3/wallets/ (per wallet)
-5. ⏳ IN PROGRESS (sesi 26 Jun) — Test P2P sync dari VM rumah (port 39333)
-   - VM 114.79.6.173 build dari scratch ✅ selesai
-   - P2P konek ke VPS ✅ (ping 0.24s, bytesrecv 73KB headers terkirim)
-   - GENESIS MISMATCH ❌ — root cause:
-     * GitHub (VM clone): nBits=0x2001a41a → genesis=2d858f51... (salah)
-     * VPS binary: nBits=0x207fffff → genesis=0616e8b3... (benar, UNCOMMITTED)
-     * chainparams.cpp uncommitted di VPS bersama banyak perubahan PoUW v2 lain
-   - Fix: patch VM langsung (sed 0x2001a41a → 0x207fffff), rebuild, wipe data, restart
-   - Setelah fix: VM harus punya genesis 0616e8b3 dan sync otomatis
-   - ⚠️ TODO: commit semua uncommitted changes (chain.h, block.h, interpreter.cpp,
-     blockstorage.cpp, blockchain.cpp, xmss.cpp, wallet.cpp, chainparams.cpp)
-     ke GitHub setelah direview — ini PoUW v2 changes penting yang belum di-push
-6. [2 jam]    Fix explorer stats (fmtHashps missing)
-7. [?]        Mine mainnet genesis resmi (timing sesuai keputusan launch)
-8. [?]        Audit keamanan eksternal (budget & waktu)
-9. [?]        DNS seeds (perlu domain sendiri)
+5. ✅ DONE (sesi 26 Jun) — Test P2P sync dari VM rumah (port 39333)
+   - VM 114.79.6.173 build dari scratch ✅
+   - Genesis mismatch (2d858f51 vs 0616e8b3) → root cause: chainparams uncommitted
+   - Fix: commit semua uncommitted VPS changes ke GitHub (b2a5657, a3bff97)
+   - VM git pull → rebuild (make -j1) → wipe datadir → restart node
+   - VM sync BERHASIL: blocks=456, headers=456 (sama dengan VPS) ✅
+   - Genesis match terbukti: sync tidak mungkin terjadi kalau genesis beda
+   - Pelajaran: SELALU commit perubahan consensus-critical sebelum test P2P
+6. ✅ DONE — Fix explorer stats (fmtHashps missing)
+   - Tambah fungsi fmtHashps() dengan SI prefix: H/s, KH/s, MH/s ... EH/s
+   - Stats grid sebelumnya crash (ReferenceError) → sekarang render normal
+   - Label "Network Hash/s" → "Network Rate (est.)" untuk PoUW v2
+   - Commit: 5adb509
+7. ✅ DONE — Mine mainnet genesis resmi
+   - nTime=1782474812 (Fri Jun 26 11:53:32 UTC 2026)
+   - nBits=0x2001a41a (= powLimit mainnet 2^256/156)
+   - Genesis hash: b4a26aef52f6f5038815f26917cb0ea1fd3b3b13fbc7cfb5c541088a6943a5ba
+   - Commit: 4044d53
+   - Binary mainnet siap di /root/Assentian-PQE/SNTI/src/bitcoind
+   - Launch mainnet: ./src/bitcoind -datadir=~/.snti_mainnet (tanpa -testnet flag)
+8. ✅ DONE (sesi 26 Jun) — Fix critical block index corruption bug
+   - Root cause: CDiskBlockIndex::SERIALIZE_METHODS tidak menyimpan xmssRoot, nLeafIndex,
+     commitmentsRoot ke LevelDB (blocks/index/). Hanya 7 fields lama yang disimpan.
+   - Akibat: ConstructBlockHash() menghasilkan hash berbeda dari GetHash() sebenarnya
+     karena commitmentsRoot tidak tersimpan. LoadChainTip() gagal karena LookupBlockIndex
+     tidak bisa menemukan tip hash dari chainstate.
+   - Fix: src/chain.h — tambah 3 fields ke CDiskBlockIndex::SERIALIZE_METHODS dan
+     ConstructBlockHash(). Juga tambah commitmentsRoot ke CBlockIndex struct.
+   - Fix: src/node/blockstorage.cpp — load commitmentsRoot dari disk ke CBlockIndex
+     di LoadBlockIndexGuts.
+   - Hasil: node restart stabil tanpa reindex. Diverifikasi 2x restart berturut-turut.
+9. [?]        Audit keamanan eksternal (budget & waktu)
+10. [?]        DNS seeds (perlu domain sendiri)
 ```
 
 ---
