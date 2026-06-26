@@ -141,15 +141,12 @@ public:
         m_assumed_blockchain_size = 20;
         m_assumed_chain_state_size = 3;
 
-        // Genesis: Set to 0 — will be dynamically set on first launch
-        // For now, use a recent timestamp placeholder
-        // REAL GENESIS TIMESTAMP will be set at official launch (Q4 2026)
-        // This is a PLACEHOLDER — do not use for mainnet launch
-        // SNTI PoUW v2: genesis
-        // nNonce=0 (unused in PoUW v2), nBits=0x207fffff
-        // xmssRoot will be computed by first miner — genesis is special case
-        genesis = CreateGenesisBlock(1782275807, 0, 0x207fffff, 1, 50 * COIN);
-        // hashGenesisBlock will be updated after first mine
+        // SNTI PoUW v2 mainnet genesis
+        // nTime=1782474812 (Fri Jun 26 11:53:32 UTC 2026) — official launch
+        // nNonce=0 (unused in PoUW v2 — SK_SEED search replaces nNonce grinding)
+        // nBits=0x2001a41a (= powLimit mainnet: 2^256/156)
+        // xmssRoot skipped at height=0 (nPoUWStartHeight=1)
+        genesis = CreateGenesisBlock(1782474812, 0, 0x2001a41a, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
 
         vSeeds.clear();
@@ -182,7 +179,7 @@ public:
 
         // SNTI PoUW v2: chainTxData
         chainTxData = ChainTxData{
-            .nTime    = 1782275807,
+            .nTime    = 1782474812,
             .nTxCount = 1,
             .dTxRate  = 0,
         };
