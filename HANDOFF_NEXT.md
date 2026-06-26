@@ -73,11 +73,34 @@
 
 ---
 
+## YANG SELESAI SESI 26 JUN 2026
+
+| # | Item | Status | Commit |
+|---|---|---|---|
+| 1 | Hapus 5x DEBUG LogPrintf di validation.cpp | ✅ Done | `1f9c995` |
+| 2 | Test chain reorg via invalidateblock/reconsiderblock | ✅ LULUS | — |
+| - | cpuminer-multi build+install | ✅ Done | `c4aa556` |
+| - | DEVDOCS Mining Guide update | ✅ Done | `c4aa556` |
+
+**Hasil reorg test (26 Jun 02:41 UTC):**
+- Block 38 di-disconnect → rollback ke height 37 ✅
+- Node switch ke chain alternatif (d5f24cfb height=38) ✅
+- Mining lanjut dengan XMSS leaf tracking (leaf=81, 82) ✅
+- Tidak ada crash ✅
+- Chain terpanjang menang (height 40 > 38) ✅
+
+**Catatan penting — block file corruption:**
+- Root cause: dua proses bitcoind berjalan bersamaan (service Restart=on-failure loop + manual -daemon)
+- Fix: RestartSec=30 + StartLimitBurst=3 di service file
+- Jangan jalankan bitcoind manual saat service running
+
+---
+
 ## URUTAN NEXT STEP (prioritas)
 
 ```
-1. [5 menit]  Hapus DEBUG LogPrintf di validation.cpp:3983
-2. [1 jam]    Test chain reorg paksa di testnet
+1. ✅ DONE — Hapus DEBUG LogPrintf di validation.cpp:3983
+2. ✅ DONE — Test chain reorg paksa di testnet
 3. [30 menit] Verifikasi exportxmsskey/importxmsskey di build saat ini
 4. [30 menit] Verifikasi wallet backup/restore
 5. [1 jam]    Test P2P sync dari VM rumah (bukan stratum, tapi port 39333)
