@@ -4,7 +4,7 @@
 
 ---
 
-## STATUS CHAIN SAAT INI (26 Jun 2026 update)
+## STATUS CHAIN SAAT INI (26 Jun 2026 — update audit fix)
 
 - Blocks: 465+ (aktif mining via stratum)
 - Node: `assentian-node.service` ✅ Running via systemd (P2P:39333, RPC:39332)
@@ -21,6 +21,39 @@
 - Wallet backup ada di: `/root/wallets_backup_20260626_*/`
 - Mining address baru (XMSS): `tty64fZ7nMaQ6SnRo79kotinQfRiwFKXWF`
 - Address lama `tq1q...` tidak ada di wallet manapun (sudah tidak dipakai)
+
+---
+
+## AUDIT FIX — 26 Jun 2026 (commit 7ec14ed)
+
+Audit menyeluruh dari `test_audit.md` diverifikasi dan 5 bug nyata diperbaiki.
+
+### Bug yang DIFIX
+
+| # | Severity | File | Fix |
+|---|---|---|---|
+| C1 | CRITICAL | `src/wallet/xmss_state.h`, `src/pouw.h` | SK sizing pakai `xmss_parse_oid()+params.sk_bytes` — hilangkan trim-trailing-zero yang bisa korupsi BDS state |
+| C2 | CRITICAL | `src/wallet/xmss_keystore.h` | Tambah guard `leaf_index >= 1024` + LogPrintf sebelum Sign() |
+| H3 | HIGH | `src/randombytes.c` | Ganti static-fd /dev/urandom (race condition) → `getrandom()` syscall |
+| H6 | HIGH | `src/pow.cpp` | Rewrite `PermittedDifficultyTransition()` untuk EMA — versi lama reject semua block EMA di mainnet (`fPowAllowMinDifficultyBlocks=false`) |
+| L3 | LOW | `src/kernel/chainparams.cpp` | Hapus `vFixedSeeds.clear()` baris 170 — mainnet seed nodes langsung di-clear setelah di-set |
+
+### FALSE POSITIVE di audit (sudah benar / by design)
+
+| # | Claim audit | Realita |
+|---|---|---|
+| C3 | Sig 2500 ≠ 2498 bytes | `params.c:739` hardcode `index_bytes=4` → 4+32+2144+320 = **2500** ✓ |
+| C4 | Header 148 bytes breaking change | By design — SNTI bukan Bitcoin-compatible |
+| H1 | Tidak flush setelah sign | Sudah ada `PersistXMSSState()` + `WalletBatch` di `wallet.cpp:2195` ✓ |
+| H4 | malloc tanpa secure clear | `Clear()` → `SecureClear()` (volatile zero) sebelum `free()` di `xmss_bridge.cpp` ✓ |
+
+### SKIP (bukan code fix)
+
+| # | Alasan skip |
+|---|---|
+| H2 (VLA di xmss_core.c) | Upstream XMSS reference lib — perubahan rawan break signing/verification |
+| H5 (1 seed node) | Butuh server infrastruktur tambahan, bukan code fix |
+| M1–M6 (architecture) | Refactoring besar, jadwalkan di phase hardening |
 
 ---
 
@@ -143,7 +176,7 @@
    - Commit: 4044d53
    - Binary mainnet siap di /root/Assentian-PQE/SNTI/src/bitcoind
    - Launch mainnet: ./src/bitcoind -datadir=~/.snti_mainnet (tanpa -testnet flag)
-8. ✅ DONE (sesi 26 Jun) — Fix critical block index corruption bug
+8. ✅ DONE (sesi 26 Jun, commit 6adb517) — Fix critical block index corruption bug
    - Root cause: CDiskBlockIndex::SERIALIZE_METHODS tidak menyimpan xmssRoot, nLeafIndex,
      commitmentsRoot ke LevelDB (blocks/index/). Hanya 7 fields lama yang disimpan.
    - Akibat: ConstructBlockHash() menghasilkan hash berbeda dari GetHash() sebenarnya
@@ -154,8 +187,15 @@
    - Fix: src/node/blockstorage.cpp — load commitmentsRoot dari disk ke CBlockIndex
      di LoadBlockIndexGuts.
    - Hasil: node restart stabil tanpa reindex. Diverifikasi 2x restart berturut-turut.
-9. [?]        Audit keamanan eksternal (budget & waktu)
-10. [?]        DNS seeds (perlu domain sendiri)
+9. ✅ DONE (sesi 26 Jun) — Fix 5 bugs dari audit menyeluruh (test_audit.md)
+   - C1: SK corruption trim-trailing-zero → pakai xmss_parse_oid()+params.sk_bytes
+   - C2: Tidak ada exhaustion guard di Sign() → tambah leaf_index>=1024 check
+   - H3: randombytes.c thread-unsafe (static fd) → ganti getrandom() syscall
+   - H6: PermittedDifficultyTransition reject EMA block di mainnet → rewrite
+   - L3: vFixedSeeds.clear() hapus seed nodes mainnet → remove clear() line
+   - Commit: 7ec14ed | Push: github.com/asepganzu-svg/AssentianPQE-SNTI
+10. [?]        Audit keamanan eksternal (budget & waktu)
+11. [?]        DNS seeds (perlu domain sendiri)
 ```
 
 ---
