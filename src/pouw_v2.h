@@ -129,8 +129,9 @@ inline bool CheckPoUWv2(const PoUWv2Proof& proof,
     memcpy(sm.data() + off, proof.auth_path, AUTH_PATH_BYTES);  off += AUTH_PATH_BYTES;
     memcpy(sm.data() + off, block_hash32,    32);               off += 32;
 
-    // Verify: xmss_sign_open recovers message from SM using PK
-    std::vector<uint8_t> msg_out(32 + 64, 0); // +64 safety
+    // xmss_sign_open writes at msg_out[params.sig_bytes] internally,
+    // so msg_out must be at least params.sig_bytes + msg_size.
+    std::vector<uint8_t> msg_out((size_t)params.sig_bytes + 32 + 64, 0);
     unsigned long long msg_len = 0;
 
     int ret = xmss_sign_open(msg_out.data(), &msg_len,
