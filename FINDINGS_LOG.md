@@ -10,11 +10,11 @@
 | Severity  | Total | Fixed | Open |
 |-----------|-------|-------|------|
 | CRITICAL  |   5   |   3   |   2  |
-| HIGH      |   8   |   3   |   5  |
+| HIGH      |   8   |   4   |   4  |
 | MEDIUM    |   7   |   0   |   7  |
 | LOW       |   4   |   0   |   4  |
 | FUTURE    |   5   |   0   |   5  |
-| **TOTAL** | **29**| **6** |**23**|
+| **TOTAL** | **29**| **7** |**22**|
 
 Referensi commit fix: `7ec14ed` (26 Jun 2026)
 
@@ -207,9 +207,9 @@ Atomik, tidak ada global state, tidak ada race condition.
 ---
 
 ### [H3] SK Trim-Trailing-Zero — PARTIAL FIX (Satu File Masih Buggy)
-- **Status:** ~ PARTIAL — `wallet/xmss_state.h` FIXED, `src/xmss_state.h` MASIH BUGGY
-- **File buggy:** `src/xmss_state.h:77-80` (namespace `QNT::XMSS`)
-- **File fixed:** `src/wallet/xmss_state.h` (commit `7ec14ed`)
+- **Status:** ✓ FIXED — 27 Jun 2026
+- **File:** `src/xmss_state.h:77-80` (namespace `QNT::XMSS`)
+- **File ref:** `src/wallet/xmss_state.h` (sudah fix di commit `7ec14ed`, dijadikan referensi)
 
 **Apa yang terjadi di file yang masih buggy:**
 ```cpp
@@ -222,12 +222,14 @@ BDS state XMSS bisa punya trailing zero yang **legitimate**. Setelah save+load,
 SK berbeda dari aslinya → signature gagal atau corrupt.
 
 File `src/xmss_state.h` digunakan oleh **mining path** (xmss_miner_state).
-Fix di `wallet/xmss_state.h` saja tidak cukup.
 
-**Fix:** Copy-paste patch dari `wallet/xmss_state.h::Generate()` ke `src/xmss_state.h`:
-gunakan `xmss_parse_oid()` + `params.sk_bytes`, hapus `while`-trim.
+**Fix yang diterapkan:**
+- Tambah `#include "params.h"` ke blok `extern "C"` di `src/xmss_state.h`
+- Replace `Generate()`: hapus `resize(2048)` + `while`-trim + `+= 64`;
+  ganti dengan `xmss_parse_oid()` → `xp.sk_bytes` → `resize(QNT_XMSS_OID_LEN + sk_bytes)`
+- Build: **PASS**
 
-**Effort:** 30 menit
+**Effort realisasi:** 5 menit
 
 ---
 
