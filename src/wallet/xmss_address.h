@@ -72,11 +72,10 @@
 
 namespace XMSSAddr {
 
-// Version bytes for Base58Check encoding
-static constexpr uint8_t XMSS_PUBKEY_VERSION_MAINNET = 0x60;  // 96
-static constexpr uint8_t XMSS_PUBKEY_VERSION_TESTNET = 0x80;   // 128
-static constexpr uint8_t XMSS_PUBKEY_VERSION_REGTEST  = 0x80;   // 128
-static constexpr size_t  XMSS_ADDRESS_HASH_SIZE       = 20;      // RIPEMD160 output
+// XMSS uses bech32m witness version 2 (v0=P2WPKH, v1=Taproot, v2=XMSS).
+// Addresses: snti1z... (mainnet), tsnti1z... (testnet), sntirt1z... (regtest).
+static constexpr int    XMSS_WITNESS_VERSION   = 2;
+static constexpr size_t XMSS_ADDRESS_HASH_SIZE = 20;  // RIPEMD160 output
 
 /**
  * Compute the 20-byte address hash from a 64-byte XMSS public key.
@@ -91,22 +90,21 @@ inline uint160 Hash(const std::vector<uint8_t>& xmss_pubkey)
 }
 
 /**
- * Encode a 64-byte XMSS public key as a Base58Check address.
- * Pass true for testnet to use testnet version byte.
+ * Encode a 64-byte XMSS public key as a bech32m address using the given HRP.
+ * Result format: <hrp>1z<bech32m-data>
  */
-std::string Encode(const std::vector<uint8_t>& xmss_pubkey, bool testnet = false);
+std::string Encode(const std::vector<uint8_t>& xmss_pubkey, const std::string& hrp);
 
 /**
- * Decode a XMSS Base58Check address back to the 20-byte hash.
- * Returns false if the string is not a valid XMSS address.
+ * Decode a bech32m XMSS address back to the 20-byte hash.
+ * Returns false if not a valid XMSS address for the given HRP.
  */
-bool Decode(const std::string& str, uint160& hash, bool testnet = false);
+bool Decode(const std::string& str, uint160& hash, const std::string& hrp);
 
 /**
- * Validate that a string is a valid XMSS address (correct version byte,
- * correct length, valid checksum).
+ * Validate that a string is a valid XMSS bech32m address for the given HRP.
  */
-bool IsValid(const std::string& str, bool testnet = false);
+bool IsValid(const std::string& str, const std::string& hrp);
 
 } // namespace XMSSAddr
 

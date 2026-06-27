@@ -81,24 +81,22 @@ public:
     std::string operator()(const CNoDestination& no) const { return {}; }
     std::string operator()(const PubKeyDestination& pk) const { return {}; }
 
-    // SNTI: XMSS address encoding
+    // SNTI: XMSS address encoding — bech32m witness version 2
+    // Format: <hrp>1z... (snti1z... mainnet, tsnti1z... testnet, sntirt1z... regtest)
     std::string operator()(const XMSSHash& xmss) const
     {
+        const std::string& hrp = m_params.Bech32HRP();
+        uint160 h;
         if (xmss.HasFullPubKey()) {
-            return XMSSAddr::Encode(xmss.GetPubKeyVec(), m_params.IsTestChain());
+            h = XMSSAddr::Hash(xmss.GetPubKeyVec());
+        } else {
+            // Hash-only mode: full pubkey unknown (e.g. decoded from on-chain P2XMSSHASH)
+            h = xmss.GetHash();
         }
-        // Hash-only mode (e.g. extracted from an on-chain P2XMSSHASH
-        // output): encode directly from the already-known hash instead of
-        // re-deriving HASH160 from a pubkey we don't have -- GetPubKeyVec()
-        // is all-zeros in this mode, which previously produced a silently
-        // wrong address.
-        uint8_t version = m_params.IsTestChain() ? XMSSAddr::XMSS_PUBKEY_VERSION_TESTNET : XMSSAddr::XMSS_PUBKEY_VERSION_MAINNET;
-        std::vector<unsigned char> data;
-        data.reserve(21);
-        data.push_back(version);
-        const uint160& h = xmss.GetHash();
-        data.insert(data.end(), h.begin(), h.end());
-        return EncodeBase58Check(data);
+        std::vector<unsigned char> enc;
+        enc.push_back(static_cast<unsigned char>(XMSSAddr::XMSS_WITNESS_VERSION));
+        ConvertBits<8, 5, true>([&](unsigned char c) { enc.push_back(c); }, h.begin(), h.end());
+        return bech32::Encode(bech32::Encoding::BECH32M, hrp, enc);
     }
 };
 
@@ -128,19 +126,7 @@ CTxDestination DecodeDestination(const std::string& str, const CChainParams& par
             return ScriptHash(hash);
         }
 
-        // SNTI: XMSS addresses (Base58Check with XMSS version byte)
-        {
-            uint160 xmss_hash;
-            bool is_testnet = params.IsTestChain();
-            if (XMSSAddr::Decode(str, xmss_hash, is_testnet)) {
-                // Hash-only XMSSHash -- the address format only ever encodes
-                // the hash, never the full pubkey (the sender of an
-                // arbitrary payment can't know the recipient's real pubkey
-                // up front). GetScriptForDestination() resolves this to the
-                // hash-committed P2XMSSHASH script form.
-                return XMSSHash(xmss_hash);
-            }
-        }
+        // SNTI: XMSS addresses are now bech32m — decoded in the bech32 path below.
 
         // If the prefix of data matches either the script or pubkey prefix, the length must have been wrong
         if ((data.size() >= script_prefix.size() &&
@@ -214,6 +200,13 @@ CTxDestination DecodeDestination(const std::string& str, const CChainParams& par
                 WitnessV1Taproot tap;
                 std::copy(data.begin(), data.end(), tap.begin());
                 return tap;
+            }
+
+            // SNTI: XMSS address — bech32m witness version 2, 20-byte HASH160(xmss_pubkey)
+            if (version == XMSSAddr::XMSS_WITNESS_VERSION && data.size() == XMSSAddr::XMSS_ADDRESS_HASH_SIZE) {
+                uint160 xmss_hash;
+                std::copy(data.begin(), data.end(), xmss_hash.begin());
+                return XMSSHash(xmss_hash);
             }
 
             if (version > 16) {
