@@ -963,6 +963,7 @@ Span<const CRPCCommand> GetWalletRPCCommands()
         {"wallet", &importxmsskey},
         {"wallet", &exportxmsskey},
         {"wallet", &listxmsskeys},
+        {"wallet", &getxmsskeypool},
         {"wallet", &getxmssaddressinfo},
         {"wallet", &sendtoxmssaddress},
         {"wallet", &sendfromxmssaddress},

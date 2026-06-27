@@ -2,6 +2,11 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+// SNTI M2: This file uses the legacy "QNT" / "Quant" namespace from the
+// pre-rebrand codebase. The canonical project name is Assentian-PQE / SNTI.
+// New code should use namespace PoUWv2 (pouw_v2.h / xmss_miner_state.h)
+// and wallet::CXMSSSigner (wallet/xmss_signer.h). This file is preserved
+// for the QNT::XMSS::VerifySignature() helper used by xmss_bridge.cpp.
 #ifndef QUANT_XMSS_STATE_H
 #define QUANT_XMSS_STATE_H
 

@@ -46,6 +46,34 @@ std::string CopyrightHolders(const std::string& strPrefix);
 /** Returns licensing information (for -version) */
 std::string LicenseInfo();
 
+// ── SNTI R5: Protocol version constants and governance framework ──────────────
+//
+// SNTI protocol upgrades are gated by BIP9-style version bits defined in
+// consensus/params.h (Consensus::DeploymentPos enum). To add a new protocol
+// feature:
+//
+//   1. Add a new enum value to DeploymentPos (e.g. DEPLOYMENT_SNTI_POUW_V3).
+//   2. Add VBDeploymentInfo entry to VersionBitsDeploymentInfo[] in
+//      deploymentinfo.cpp (name, gbt_force flag).
+//   3. Set nStartTime / nTimeout / min_activation_height in each network's
+//      chainparams.cpp block.
+//   4. Bump SNTI_PROTOCOL_VERSION below and document the change.
+//
+// Miner signaling: bits 0-28 in nVersion are available for BIP9 deployment
+// signals. Miners signal readiness by setting the bit for each feature they
+// support. Once 95% of blocks in a 2016-block window signal, the feature
+// locks in after the next difficulty boundary.
+//
+// SNTI_PROTOCOL_VERSION history:
+//   1 — genesis: PoUW v2 (XMSS tree building), sighash_v2 (chain ID replay
+//       protection), EMA difficulty, 16 MB block weight (R1 fix).
+//
+static constexpr int SNTI_PROTOCOL_VERSION = 1;
+//
+// PLACEHOLDER: DEPLOYMENT_SNTI_POUW_V3 — future PoUW upgrade (not yet deployed)
+// When ready, add to Consensus::DeploymentPos:
+//   DEPLOYMENT_SNTI_POUW_V3,  // XMSS witness migration + compressed proof format
+
 #endif // WINDRES_PREPROC
 
 #endif // BITCOIN_CLIENTVERSION_H

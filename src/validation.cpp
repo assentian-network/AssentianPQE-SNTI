@@ -68,7 +68,7 @@
 // SNTI: XMSS PoUW verification
 #include <xmss_bridge.h>
 #include <pouw_v2.h>
-#include <pouw_v2.h>
+#include <pouw_v2_keyder.h>
 
 #include <algorithm>
 #include <cassert>
@@ -1262,6 +1262,9 @@ MempoolAcceptResult MemPoolAccept::AcceptSingleTransaction(const CTransactionRef
 
     if (m_rbf && !ReplacementChecks(ws)) return MempoolAcceptResult::Failure(ws.m_state);
 
+    // SNTI H6: set chain ID for XMSS sighash_v2 before any script checks.
+    ws.m_precomputed_txdata.xmss_chain_id = args.m_chainparams.GetConsensus().nXMSSChainId;
+
     // Perform the inexpensive checks first and avoid hashing and signature verification unless
     // those checks pass, to mitigate CPU exhaustion denial-of-service attacks.
     if (!PolicyScriptChecks(args, ws)) return MempoolAcceptResult::Failure(ws.m_state);
@@ -2076,25 +2079,35 @@ DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIn
         return DISCONNECT_FAILED;
     }
 
-    // SNTI Fix2: unmark PoUW leaf index on reorg
+    // SNTI Fix2: unmark PoUW leaf index on reorg (v1 and v2 — M7 fix)
     {
         const Consensus::Params& cp = m_chainman.GetParams().GetConsensus();
         if (cp.fPoUW) {
             const CTransaction& cbTx = *block.vtx[0];
-            std::vector<uint8_t> cb_pk, cb_sig;
+            std::vector<uint8_t> cb_pk;
+            uint32_t cb_leaf = 0;
+            bool cb_found = false;
             for (const auto& out : cbTx.vout) {
                 const CScript& s = out.scriptPubKey;
                 CScript::const_iterator pc = s.begin();
                 opcodetype opc; std::vector<uint8_t> d;
                 while (s.GetOp(pc, opc, d)) {
                     if (opc == OP_RETURN) continue;
-                    if (d.size() == 64 && cb_pk.empty()) cb_pk = d;
-                    else if (d.size() > 64 && cb_sig.empty()) cb_sig = d;
+                    if (d.size() >= 68 && d[0]=='P' && d[1]=='W' && d[2]=='2' && d[3]==0x02) {
+                        cb_pk.assign(d.begin()+4, d.begin()+68);
+                        cb_leaf = block.nLeafIndex;
+                        cb_found = true;
+                    } else if (d.size() == 64 && cb_pk.empty()) {
+                        cb_pk = d;
+                    } else if (d.size() > 64 && !cb_found && cb_pk.size() == 64) {
+                        cb_leaf = ((uint32_t)d[0]<<24)|((uint32_t)d[1]<<16)|
+                                  ((uint32_t)d[2]<<8)|(uint32_t)d[3];
+                        cb_found = true;
+                    }
                 }
+                if (cb_found) break;
             }
-            if (cb_pk.size() == 64 && cb_sig.size() >= 4) {
-                uint32_t cb_leaf = ((uint32_t)cb_sig[0]<<24)|((uint32_t)cb_sig[1]<<16)|
-                                   ((uint32_t)cb_sig[2]<<8)|(uint32_t)cb_sig[3];
+            if (cb_pk.size() == 64 && cb_found) {
                 uint256 cb_key = MakePoUWLeafKey(cb_pk, cb_leaf);
                 m_chainman.m_blockman.m_block_tree_db->Erase(std::make_pair(DB_POUW_LEAF, cb_key));
                 LogPrint(BCLog::VALIDATION, "PoUW Fix2: unmarked leaf=%u reorg h=%d\n",
@@ -2494,6 +2507,8 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
             std::vector<CScriptCheck> vChecks;
             bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
             TxValidationState tx_state;
+            // SNTI H6: propagate chain ID into sighash_v2 verification.
+            txsdata[i].xmss_chain_id = params.GetConsensus().nXMSSChainId;
             if (fScriptChecks && !CheckInputScripts(tx, tx_state, view, flags, fCacheResults, fCacheResults, txsdata[i], parallel_script_checks ? &vChecks : nullptr)) {
                 // Any transaction validation failure in ConnectBlock is a block consensus failure
                 state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
@@ -2561,20 +2576,32 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
     // SNTI Fix2: mark PoUW leaf index as used
     if (!fJustCheck && m_chainman.GetParams().GetConsensus().fPoUW) {
         const CTransaction& cbTx = *block.vtx[0];
-        std::vector<uint8_t> cb_pk, cb_sig;
+        std::vector<uint8_t> cb_pk;
+        uint32_t cb_leaf = 0;
+        bool cb_found = false;
         for (const auto& out : cbTx.vout) {
             const CScript& s = out.scriptPubKey;
             CScript::const_iterator pc = s.begin();
             opcodetype opc; std::vector<uint8_t> d;
             while (s.GetOp(pc, opc, d)) {
                 if (opc == OP_RETURN) continue;
-                if (d.size() == 64 && cb_pk.empty()) cb_pk = d;
-                else if (d.size() > 64 && cb_sig.empty()) cb_sig = d;
+                // M7: v2 proof — magic PW2\x02 followed by 64-byte xmss_pk
+                if (d.size() >= 68 && d[0]=='P' && d[1]=='W' && d[2]=='2' && d[3]==0x02) {
+                    cb_pk.assign(d.begin()+4, d.begin()+68);
+                    cb_leaf = block.nLeafIndex;
+                    cb_found = true;
+                }
+                // v1 proof — separate 64-byte pubkey push, then sig with leaf_idx in first 4 bytes
+                else if (d.size() == 64 && cb_pk.empty()) cb_pk = d;
+                else if (d.size() > 64 && !cb_found && cb_pk.size() == 64) {
+                    cb_leaf = ((uint32_t)d[0]<<24)|((uint32_t)d[1]<<16)|
+                              ((uint32_t)d[2]<<8)|(uint32_t)d[3];
+                    cb_found = true;
+                }
             }
+            if (cb_found) break;
         }
-        if (cb_pk.size() == 64 && cb_sig.size() >= 4) {
-            uint32_t cb_leaf = ((uint32_t)cb_sig[0]<<24)|((uint32_t)cb_sig[1]<<16)|
-                               ((uint32_t)cb_sig[2]<<8)|(uint32_t)cb_sig[3];
+        if (cb_pk.size() == 64 && cb_found) {
             uint256 cb_key = MakePoUWLeafKey(cb_pk, cb_leaf);
             uint256 bh = block.GetHash();
             m_chainman.m_blockman.m_block_tree_db->Write(std::make_pair(DB_POUW_LEAF, cb_key), bh);
@@ -3980,40 +4007,75 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
                                  "PoUW v2: invalid proof (root check or WOTS+ verify failed)");
         }
 
-        // SNTI consensus rule: leaf index reuse prevention
-        // Use CBlockIndex fields (xmssRoot + nLeafIndex now stored there)
-        // Scan recent chain for same xmssRoot + nLeafIndex combination
+        // SNTI M7: leaf index reuse prevention via persistent DB (DB_POUW_LEAF).
+        // ConnectBlock writes MakePoUWLeafKey(xmss_pk, nLeafIndex) → block_hash
+        // for every PoUW block; DisconnectBlock erases it on reorg.
+        // This replaces the previous 1024-block in-memory chain scan with an
+        // O(1) DB read that covers the full chain history.
         {
-            uint256 block_root = v2_proof.GetRoot();
-            uint32_t block_leaf = block.nLeafIndex;
+            std::vector<uint8_t> xmss_pk_vec(v2_proof.xmss_pk, v2_proof.xmss_pk + 64);
+            uint256 leaf_key = MakePoUWLeafKey(xmss_pk_vec, block.nLeafIndex);
+            uint256 existing_block;
+            if (chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaf_key), existing_block)) {
+                LogPrintf("PoUW v2: REJECTED leaf reuse! root=%s leaf=%u already in block %s\n",
+                          HexStr(xmss_pk_vec).substr(0, 16), block.nLeafIndex, existing_block.GetHex());
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
+                                     "pouw-leaf-reuse",
+                                     strprintf("PoUW v2: XMSS leaf index %u already used in block %s",
+                                               block.nLeafIndex, existing_block.GetHex()));
+            }
+        }
 
-            const CBlockIndex* pindex = chainman.ActiveChain().Tip();
-            int scan_depth = 0;
-            while (pindex && scan_depth < 1024) {
-                // Skip blocks without PoUW v2 (genesis, pre-activation)
-                if (!pindex->xmssRoot.IsNull()) {
-                    if (pindex->xmssRoot == block_root) {
-                        // Same tree — check leaf reuse
-                        if (pindex->nLeafIndex == block_leaf) {
-                            LogPrintf("PoUW v2: REJECTED leaf reuse! root=%s leaf=%u at height=%d\n",
-                                      block_root.GetHex().substr(0,16), block_leaf, pindex->nHeight);
-                            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
-                                                 "pouw-leaf-reuse",
-                                                 "PoUW v2: XMSS leaf index reuse detected");
-                        }
-                    } else {
-                        // Different tree — no reuse possible before this point
-                        break;
-                    }
+        // SNTI C2: verify commitmentsRoot matches the Failed-Seed-List in coinbase.
+        // Every PoUW v2 block must include a coinbase OP_RETURN with magic FSL\x01
+        // containing the list of failed SK_SEEDs; its Merkle root must equal
+        // block.commitmentsRoot (which is committed in the block header and therefore
+        // covered by the XMSS proof itself).
+        {
+            bool fsl_found = false;
+            for (const auto& txout : coinbase.vout) {
+                const CScript& script = txout.scriptPubKey;
+                if (script.empty() || script[0] != OP_RETURN) continue;
+                CScript::const_iterator pc2 = script.begin() + 1;
+                opcodetype opc2;
+                std::vector<unsigned char> fsl_data;
+                if (!script.GetOp(pc2, opc2, fsl_data)) continue;
+                if (fsl_data.size() < 4) continue;
+                if (fsl_data[0]!='F' || fsl_data[1]!='S' || fsl_data[2]!='L' || fsl_data[3]!=0x01) continue;
+
+                PoUWv2KeyDer::FailedSeedList fsl;
+                if (!fsl.Deserialize(fsl_data.data(), fsl_data.size())) {
+                    return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-fsl-malformed",
+                                         "PoUW v2: failed seed list (FSL) is malformed");
                 }
-                pindex = pindex->pprev;
-                scan_depth++;
+                if (!fsl.VerifyAgainstHeader(block.commitmentsRoot)) {
+                    return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-commitments-mismatch",
+                                         "PoUW v2: commitmentsRoot does not match coinbase FSL Merkle root");
+                }
+                fsl_found = true;
+                break;
+            }
+            if (!fsl_found) {
+                // No FSL in coinbase — commitmentsRoot must be null
+                if (!block.commitmentsRoot.IsNull()) {
+                    return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-commitments-spurious",
+                                         "PoUW v2: non-null commitmentsRoot but no FSL in coinbase");
+                }
             }
         }
 
         LogPrint(BCLog::VALIDATION, "PoUW v2: block %s verified (root=%s leaf=%u)\n",
                  block.GetHash().GetHex(), HexStr(xmss_pk).substr(0, 16), block.nLeafIndex);
         return true;
+    }
+
+    // SNTI H8: height-gate — reject v1 proofs once v2 is mandatory.
+    // is_v2 == false here (the if(is_v2) block above returned true for v2).
+    if (nHeight >= consensusParams.nPoUWv2StartHeight) {
+        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-v1-deprecated",
+                             strprintf("PoUW: v1 proof rejected at height %d "
+                                       "(v2 mandatory from height %d)",
+                                       nHeight, consensusParams.nPoUWv2StartHeight));
     }
 
     // SNTI FIX (17/Jun/2026): signature is carried in a dedicated OP_RETURN

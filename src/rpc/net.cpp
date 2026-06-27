@@ -708,6 +708,19 @@ static RPCHelpMan getnetworkinfo()
     }
     obj.pushKV("localaddresses", localAddresses);
     obj.pushKV("warnings",       GetWarnings(false).original);
+
+    // SNTI R5: expose protocol version and active PoUW status for governance
+    // and mining software compatibility checks.
+    {
+        const Consensus::Params& cp = Params().GetConsensus();
+        UniValue snti(UniValue::VOBJ);
+        snti.pushKV("protocol_version", SNTI_PROTOCOL_VERSION);
+        snti.pushKV("pouw_enabled",     cp.fPoUW);
+        snti.pushKV("pouw_v2_height",   (int64_t)cp.nPoUWv2StartHeight);
+        snti.pushKV("xmss_chain_id",    (int64_t)cp.nXMSSChainId);
+        obj.pushKV("snti", snti);
+    }
+
     return obj;
 },
     };

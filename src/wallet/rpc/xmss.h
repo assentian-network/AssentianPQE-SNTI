@@ -12,6 +12,7 @@ namespace wallet {
 // SNTI XMSS RPC commands
 RPCHelpMan getnewxmssaddress();
 RPCHelpMan listxmsskeys();
+RPCHelpMan getxmsskeypool();
 RPCHelpMan getxmssaddressinfo();
 RPCHelpMan sendtoxmssaddress();
 RPCHelpMan sendfromxmssaddress();

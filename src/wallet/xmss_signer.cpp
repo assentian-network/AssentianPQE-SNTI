@@ -4,6 +4,7 @@
 
 #include <wallet/xmss_signer.h>
 
+#include <chainparams.h>
 #include <hash.h>
 #include <key.h>
 #include <logging.h>
@@ -179,6 +180,19 @@ bool CXMSSSigner::SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubk
         return false;
     }
 
+    // SNTI L4: warn when signing with a nearly-exhausted key.
+    {
+        uint32_t idx = it->second.leaf_index;
+        uint32_t remaining = (idx <= 1024) ? (1024 - idx) : 0;
+        if (remaining < 200) {
+            LogPrintf("XMSS WARNING: signing with key that has only %u signature(s) remaining "
+                      "(pk[0]=%02x%02x...). Generate a new XMSS key to avoid exhaustion.\n",
+                      remaining,
+                      pubkey.size() > 0 ? pubkey[0] : 0u,
+                      pubkey.size() > 1 ? pubkey[1] : 0u);
+        }
+    }
+
     // Convert uint256 to vector
     std::vector<uint8_t> hash_vec(hash.begin(), hash.end());
 
@@ -202,6 +216,11 @@ uint32_t CXMSSSigner::GetXMSSLeafIndex(const std::vector<uint8_t>& pubkey) const
     auto it = xmss_keys.find(pubkey);
     if (it == xmss_keys.end()) return 0;
     return it->second.leaf_index;
+}
+
+uint32_t CXMSSSigner::GetXMSSChainId() const
+{
+    return Params().GetConsensus().nXMSSChainId;
 }
 
 bool CXMSSSigner::IsXMSSKeyRetired(const std::vector<uint8_t>& pubkey) const
@@ -375,6 +394,16 @@ bool CXMSSSigner::HasExhaustedKeys() const
         if (entry.leaf_index >= 1024) return true;  // XMSS-SHA2_10_256 max
     }
     return false;
+}
+
+uint32_t CXMSSSigner::CountFreshKeys() const
+{
+    LOCK(cs_xmss_signer);
+    uint32_t count = 0;
+    for (const auto& [pubkey, entry] : xmss_keys) {
+        if (!entry.retired) count++;
+    }
+    return count;
 }
 
 // ---------------------------------------------------------------------------

@@ -20,7 +20,9 @@ class CFeeRate;
 class CScript;
 
 /** Default for -blockmaxweight, which controls the range of block weights the mining code will create **/
-static constexpr unsigned int DEFAULT_BLOCK_MAX_WEIGHT{MAX_BLOCK_WEIGHT - 4000};
+// SNTI R1: reserve 16 000 weight units (proportional to the 16 MB cap) for the
+// coinbase and block header overhead, the same 0.1 % ratio Bitcoin uses.
+static constexpr unsigned int DEFAULT_BLOCK_MAX_WEIGHT{MAX_BLOCK_WEIGHT - 16000};
 /** Default for -blockmintxfee, which sets the minimum feerate for a transaction in blocks created by mining code **/
 static constexpr unsigned int DEFAULT_BLOCK_MIN_TX_FEE{1000};
 /** The maximum weight for transactions we're willing to relay/mine */
@@ -75,6 +77,15 @@ static const bool DEFAULT_ACCEPT_DATACARRIER = true;
  * +2 for the pushdata opcodes.
  */
 static const unsigned int MAX_OP_RETURN_RELAY = 83;
+/**
+ * SNTI M6: maximum OP_RETURN payload in a PoUW v2 coinbase output.
+ * Coinbase txs are exempt from MAX_OP_RETURN_RELAY and the single-OP_RETURN
+ * rule; see the early return in IsStandardTx() for the implementation.
+ *
+ * PoUW v2 proof: magic(4)+xmss_pk(64)+auth_path(320)+wots_sig(2144)+r(32)=2564 bytes
+ * FSL commitment: variable, bounded by nPoUWMaxSigSize; +36 bytes margin = 2600 bytes
+ */
+static constexpr unsigned int POUW_COINBASE_OP_RETURN_MAX_BYTES{2600};
 /**
  * An extra transaction can be added to a package, as long as it only has one
  * ancestor and is no larger than this. Not really any reason to make this

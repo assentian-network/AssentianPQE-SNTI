@@ -1,7 +1,12 @@
-// Copyright (c) 2025 The Quant developers
+// Copyright (c) 2025-2026 The Assentian-PQE developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+// SNTI M1/M2: CXMSSKeyStore is a legacy class from the "Quant" codebase era.
+// The canonical wallet signing path uses wallet::CXMSSSigner (xmss_signer.h),
+// which integrates with SigningProvider and persists state via CWallet.
+// CXMSSKeyStore does NOT fsync after signing and must not be used for
+// transaction signing — XMSS leaf reuse from a missed persist leaks the key.
 #ifndef BITCOIN_WALLET_XMSS_KEYSTORE_H
 #define BITCOIN_WALLET_XMSS_KEYSTORE_H
 

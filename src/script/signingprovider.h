@@ -167,6 +167,9 @@ public:
     // SNTI FIX (sighash-v2, 21/Jun/2026): leaf_index needed at signing
     // time to construct sighash_v2 = SHA256(sighash_v1 || leaf_index_BE)
     virtual uint32_t GetXMSSLeafIndex(const std::vector<uint8_t>& pubkey) const { return 0; }
+    // SNTI H6: chain ID for sighash_v2 cross-chain replay protection.
+    // Mainnet=1, Testnet=2, Signet/Regtest=3.
+    virtual uint32_t GetXMSSChainId() const { return 1; }
 
     bool GetKeyByXOnly(const XOnlyPubKey& pubkey, CKey& key) const
     {

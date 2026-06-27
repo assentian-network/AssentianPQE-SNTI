@@ -2186,6 +2186,14 @@ bool CWallet::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint,
     // MAX_SCRIPT_ELEMENT_SIZE=520 limit) plus a redundant pubkey push.
     // The generic path below uses the corrected chunked signing logic in
     // script/sign.cpp's SignStep()/CreateXMSSSig() instead.
+    // SNTI H7: pre-sign check — warn early if key pool is dry so the error
+    // message is actionable rather than a generic signing failure.
+    if (m_xmss_signer && m_xmss_signer->CountFreshKeys() == 0) {
+        LogPrintf("QNT: SignTransaction: no fresh XMSS keys available — "
+                  "auto-generating one now\n");
+        const_cast<CWallet*>(this)->EnsureXMSSKeyAvailable();
+    }
+
     if (m_xmss_signer && ::SignTransaction(tx, m_xmss_signer.get(), coins, sighash, input_errors)) {
         // SNTI FIX (write-before-use, 23/Jun/2026): persist XMSS state
         // immediately after signing — before the tx is broadcast or committed.
@@ -2193,6 +2201,8 @@ bool CWallet::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint,
         // and retired flag are already on disk, preventing double-use of the
         // same leaf index on restart.
         const_cast<CWallet*>(this)->PersistXMSSState();
+        // SNTI H7: auto-rotate — ensure a fresh key exists for the next tx.
+        const_cast<CWallet*>(this)->EnsureXMSSKeyAvailable();
         return true;
     }
     // SNTI DEBUG: log input_errors to diagnose signing failures
@@ -3016,6 +3026,10 @@ std::shared_ptr<CWallet> CWallet::Create(WalletContext& context, const std::stri
     // is encrypted and locked, this becomes a no-op until Unlock() succeeds)
     if (nLoadWalletRet == DBErrors::LOAD_OK) {
         walletInstance->LoadXMSSStateIfPossible();
+        // SNTI H7: ensure at least one fresh key is ready to sign.
+        // On a brand-new wallet this generates the first key; on an existing
+        // wallet it refills if the previous session used up all keys.
+        walletInstance->EnsureXMSSKeyAvailable();
     }
 
     if (nLoadWalletRet != DBErrors::LOAD_OK) {
@@ -4624,6 +4638,37 @@ void CWallet::PersistXMSSState()
     // (private-key recovery from two signatures), so we pay the fsync cost
     // on every sign rather than risk stale state after a crash.
     GetDatabase().Flush();
+}
+
+void CWallet::EnsureXMSSKeyAvailable()
+{
+    // SNTI H7: auto-rotate XMSS key pool so the wallet can always sign.
+    //
+    // Each XMSS key is one-time-use (retired after one signature to prevent
+    // leaf-index reuse attacks). Without this, the wallet silently fails to
+    // sign after the last key is used — the user has no feedback and is stuck.
+    //
+    // Policy:
+    //  0 fresh keys → auto-generate one now and persist it (rotation)
+    //  1 fresh key  → log a warning so the user can top up proactively
+    if (!m_xmss_signer) return;
+
+    uint32_t fresh = m_xmss_signer->CountFreshKeys();
+
+    if (fresh == 0) {
+        LogPrintf("QNT: XMSS key pool empty — auto-generating replacement key\n");
+        std::vector<uint8_t> new_pk = m_xmss_signer->GenerateKey("auto-rotated");
+        if (new_pk.empty()) {
+            LogPrintf("QNT: ERROR: XMSS auto key generation failed — wallet cannot sign!\n");
+            return;
+        }
+        PersistXMSSState();
+        LogPrintf("QNT: Auto-generated XMSS key (%u bytes pubkey) — wallet ready to sign\n",
+                  (unsigned)new_pk.size());
+    } else if (fresh == 1) {
+        LogPrintf("QNT: WARNING: only 1 fresh XMSS key remaining — "
+                  "run 'getnewxmssaddress' to pre-generate a replacement\n");
+    }
 }
 
 void CWallet::LoadXMSSStateIfPossible()

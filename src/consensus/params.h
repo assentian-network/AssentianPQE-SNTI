@@ -124,7 +124,13 @@ struct Params {
     /** QNT: PoUW (Proof-of-Useful-Work) parameters */
     bool fPoUW{false};                    //!< Enable PoUW: blocks must be XMSS-signed
     int nPoUWStartHeight{0};             //!< Block height at which PoUW activates (0 = always)
+    int nPoUWv2StartHeight{1};           //!< H8: height at which v1 proofs are rejected (v2 mandatory)
     size_t nPoUWMaxSigSize{4096};        //!< Maximum XMSS signature size in coinbase scriptSig
+
+    /** SNTI: XMSS sighash chain ID — prevents cross-chain tx replay.
+     *  Mainnet=1, Testnet=2, Signet/Regtest=3.
+     *  Included in sighash_v2 = SHA256(sighash_v1 || leaf_index_BE || chain_id_BE). */
+    uint32_t nXMSSChainId{1};
 
     /**
      * If true, witness commitments contain a payload equal to a Bitcoin Script solution

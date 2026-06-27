@@ -93,6 +93,12 @@ bool IsStandard(const CScript& scriptPubKey, const std::optional<unsigned>& max_
 
 bool IsStandardTx(const CTransaction& tx, const std::optional<unsigned>& max_datacarrier_bytes, bool permit_bare_multisig, const CFeeRate& dust_relay_fee, std::string& reason)
 {
+    // SNTI M6: coinbase transactions are exempt from all relay-policy checks.
+    // PoUW v2 coinbases carry two OP_RETURNs (v2 proof + FSL) each exceeding
+    // MAX_OP_RETURN_RELAY. Consensus validation in CheckPoUW() enforces their
+    // correctness; policy must not inadvertently block them here.
+    if (tx.IsCoinBase()) return true;
+
     if (tx.nVersion > TX_MAX_STANDARD_VERSION || tx.nVersion < 1) {
         reason = "version";
         return false;

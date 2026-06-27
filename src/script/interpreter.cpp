@@ -1087,60 +1087,89 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 case OP_XMSS_CHECKSIG:
                 case OP_XMSS_CHECKSIGVERIFY:
                 {
-                    // Stack (bottom->top): <chunk1> <chunk2> <chunk3> <chunk4> <chunk5> <pubkey>
-                    // chunk1..chunk5 concatenate to the XMSS signature (~2500 bytes for
-                    // SHA2_10_256), split into <=520-byte pushes so none of them trip
-                    // the consensus MAX_SCRIPT_ELEMENT_SIZE limit.
-                    // pubkey: 64-byte XMSS public key (root || PUB_SEED)
-                    static const unsigned int XMSS_SIG_CHUNK_SIZE = 500;
-                    static const unsigned int XMSS_SIG_NUM_CHUNKS = 5;
-                    static const unsigned int XMSS_SIG_TOTAL_BYTES = XMSS_SIG_CHUNK_SIZE * XMSS_SIG_NUM_CHUNKS;
+                    // SNTI C4 fix: dynamic chunk reassembly — works for any XMSS OID.
+                    //
+                    // Stack layout at OP_XMSS_CHECKSIG:
+                    //   ... <chunk1> <chunkN-1> ... <chunk2> <chunk_last> <pubkey>
+                    // stacktop(-1) = pubkey (64 bytes)
+                    // stacktop(-2) = last chunk (1–500 bytes, pushed last by scriptSig)
+                    // stacktop(-k) = chunk pushed k-1 ago
+                    //
+                    // We count chunks dynamically: every item below the pubkey that is
+                    // 1–520 bytes is a chunk, up to XMSS_MAX_SIG_BYTES total. This
+                    // handles SHA2_10_256 (2500 B / 5 chunks), SHA2_16_256 (2692 B /
+                    // 6 chunks), SHA2_20_256 (2820 B / 6 chunks), etc. without any
+                    // hardcoded OID-specific constant.
+                    static const size_t XMSS_SIG_CHUNK_SIZE  = 500;
+                    static const size_t XMSS_MAX_SIG_BYTES   = 4096; // covers all XMSS OIDs
+                    static const size_t XMSS_MAX_CHUNKS =
+                        (XMSS_MAX_SIG_BYTES + XMSS_SIG_CHUNK_SIZE - 1) / XMSS_SIG_CHUNK_SIZE; // = 9
 
-                    if (stack.size() < XMSS_SIG_NUM_CHUNKS + 1)
+                    // Need at least pubkey + 1 chunk
+                    if (stack.size() < 2)
                         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
                     valtype& vchPubKey = stacktop(-1);
 
-                    // Validate pubkey size (must be 64 bytes for XMSS-SHA2_10_256)
+                    // Validate pubkey size (64 bytes for all XMSS OIDs: root || PUB_SEED)
                     if (vchPubKey.size() != 64) {
-                        for (unsigned int i = 0; i < XMSS_SIG_NUM_CHUNKS + 1; i++) popstack(stack);
+                        // Pop pubkey; we don't know chunk count so pop up to MAX_CHUNKS more
+                        size_t to_pop = 1;
+                        for (size_t d = 2; d <= stack.size() && to_pop <= XMSS_MAX_CHUNKS; d++) {
+                            const valtype& item = stacktop(-(int)d);
+                            if (item.size() == 0 || item.size() > 520) break;
+                            to_pop++;
+                        }
+                        for (size_t i = 0; i < to_pop; i++) popstack(stack);
                         stack.push_back(vchFalse);
                         if (opcode == OP_XMSS_CHECKSIGVERIFY)
                             return set_error(serror, SCRIPT_ERR_XMSS_CHECKSIGVERIFY);
                         break;
                     }
 
-                    // SNTI: Reassemble signature from chunked scriptSig pushes.
-                    // Stack below pubkey (bottom->top): chunk1 chunk2 chunk3 chunk4 chunk5
-                    // stacktop(-(N+1)) = chunk1 (pushed first) ... stacktop(-2) = chunk5 (pushed last)
-                    // Each chunk is <=520 bytes so none of them trip MAX_SCRIPT_ELEMENT_SIZE.
+                    // Count chunks: items below pubkey that are 1–520 bytes each,
+                    // stopping at a non-chunk item, the byte cap, or stack boundary.
+                    //
+                    // NOTE: chunks are pushed oldest-first, so stacktop(-2) is the
+                    // LAST chunk (possibly partial / < 500 bytes). Do NOT terminate on
+                    // partial size — that would stop before collecting the full chunks
+                    // below it. Simply consume all ≤520-byte items up to the cap.
+                    size_t nchunks = 0;
+                    size_t total_bytes = 0;
+                    for (size_t depth = 2;
+                         depth <= stack.size() && nchunks < XMSS_MAX_CHUNKS;
+                         depth++) {
+                        const valtype& item = stacktop(-(int)depth);
+                        if (item.size() == 0 || item.size() > 520) break;
+                        total_bytes += item.size();
+                        nchunks++;
+                        if (total_bytes >= XMSS_MAX_SIG_BYTES) break;
+                    }
+
+                    if (nchunks == 0) {
+                        popstack(stack); // pop pubkey
+                        stack.push_back(vchFalse);
+                        if (opcode == OP_XMSS_CHECKSIGVERIFY)
+                            return set_error(serror, SCRIPT_ERR_XMSS_CHECKSIGVERIFY);
+                        break;
+                    }
+
+                    // Reassemble: stacktop(-(nchunks+1)) = chunk1, ..., stacktop(-2) = last chunk
                     valtype vchSig;
-                    vchSig.reserve(XMSS_SIG_TOTAL_BYTES);
-                    for (int p = (int)XMSS_SIG_NUM_CHUNKS + 1; p >= 2; p--) {
+                    vchSig.reserve(total_bytes);
+                    for (int p = (int)(nchunks + 1); p >= 2; p--) {
                         const valtype& chunk = stacktop(-p);
                         vchSig.insert(vchSig.end(), chunk.begin(), chunk.end());
                     }
-                    if (vchSig.size() != XMSS_SIG_TOTAL_BYTES) {
-                        for (unsigned int i = 0; i < XMSS_SIG_NUM_CHUNKS + 1; i++) popstack(stack);
-                        stack.push_back(vchFalse);
-                        if (opcode == OP_XMSS_CHECKSIGVERIFY)
-                            return set_error(serror, SCRIPT_ERR_XMSS_CHECKSIGVERIFY);
-                        break;
-                    }
 
-                    // XMSS signatures are ~2500 bytes, skip DER encoding check
-                    // Validation is done by the XMSS verify function itself
-                    // Compute sighash via the checker (same pattern as Schnorr/Tapscript)
-                    // The checker has access to txTo, nIn, amount — we don't
+                    // CheckXMSSSignature validates sig length internally via XMSS::Verify
                     bool fSuccess = false;
                     {
-                        // Subset of script starting at the most recent codeseparator
                         CScript scriptCode(pbegincodehash, pend);
-                        // Drop the signature (XMSS sigs are not in scriptCode)
                         fSuccess = checker.CheckXMSSSignature(vchSig, vchPubKey, scriptCode, sigversion);
                     }
 
-                    for (unsigned int i = 0; i < XMSS_SIG_NUM_CHUNKS + 1; i++) popstack(stack);
+                    for (size_t i = 0; i < nchunks + 1; i++) popstack(stack);
                     stack.push_back(fSuccess ? vchTrue : vchFalse);
                     if (opcode == OP_XMSS_CHECKSIGVERIFY)
                     {
@@ -1754,22 +1783,26 @@ bool GenericTransactionSignatureChecker<T>::CheckXMSSSignature(const std::vector
     const CAmount amount_check = (sigversion == SigVersion::BASE || sigversion == SigVersion::WITNESS_V0) ? amount : 0;
     uint256 sighash = SignatureHash(scriptCode, *txTo, nIn, SIGHASH_ALL, amount_check, sigversion, nullptr);
 
-    // SNTI FIX (sighash-v2, 21/Jun/2026): include leaf_index in the data
-    // being signed to prevent cross-index recombination attacks.
-    // RFC 8391 XMSS signature format embeds the OTS index as the first
-    // 4 bytes of the signature -- extract it here so the verifier does
-    // not need wallet access (consensus layer must stay wallet-free).
-    // sighash_v2 = SHA256(sighash_v1 || leaf_index_4_bytes_BE)
+    // SNTI sighash-v2: SHA256(sighash_v1 || leaf_index_BE || chain_id_BE).
+    // leaf_index is the first 4 bytes of the RFC 8391 XMSS signature —
+    // no wallet access needed at verify time.
+    // chain_id comes from PrecomputedTransactionData (set in ConnectBlock /
+    // AcceptSingleTransaction from Consensus::Params::nXMSSChainId).
     if (sig.size() >= 4) {
         uint32_t leaf_index_be = ((uint32_t)sig[0] << 24) |
                                   ((uint32_t)sig[1] << 16) |
                                   ((uint32_t)sig[2] << 8)  |
                                   ((uint32_t)sig[3]);
+        uint32_t chain_id = txdata ? txdata->xmss_chain_id : 1u;
         std::vector<uint8_t> sighash_v2_preimage(sighash.begin(), sighash.end());
         sighash_v2_preimage.push_back((leaf_index_be >> 24) & 0xFF);
         sighash_v2_preimage.push_back((leaf_index_be >> 16) & 0xFF);
-        sighash_v2_preimage.push_back((leaf_index_be >> 8)  & 0xFF);
-        sighash_v2_preimage.push_back(leaf_index_be & 0xFF);
+        sighash_v2_preimage.push_back((leaf_index_be >>  8) & 0xFF);
+        sighash_v2_preimage.push_back( leaf_index_be        & 0xFF);
+        sighash_v2_preimage.push_back((chain_id     >> 24) & 0xFF);
+        sighash_v2_preimage.push_back((chain_id     >> 16) & 0xFF);
+        sighash_v2_preimage.push_back((chain_id     >>  8) & 0xFF);
+        sighash_v2_preimage.push_back( chain_id            & 0xFF);
         CSHA256().Write(sighash_v2_preimage.data(), sighash_v2_preimage.size()).Finalize(sighash.begin());
     }
 

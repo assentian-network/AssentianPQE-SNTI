@@ -128,8 +128,10 @@ RPCHelpMan listxmsskeys()
                     {
                         {RPCResult::Type::STR, "address", "XMSS address"},
                         {RPCResult::Type::STR_HEX, "pubkey", "64-byte public key (hex)"},
-                        {RPCResult::Type::NUM, "leaf_index", "Current leaf index"},
-                        {RPCResult::Type::NUM, "remaining", "Remaining signatures"},
+                        {RPCResult::Type::NUM, "leaf_index", "Current leaf index (signatures used)"},
+                        {RPCResult::Type::NUM, "remaining", "Remaining signatures (1024 max per key)"},
+                        {RPCResult::Type::BOOL, "retired", "True if key is one-time-spent (cannot sign again)"},
+                        {RPCResult::Type::STR, "warning", "Non-empty when key is spent or near exhaustion"},
                         {RPCResult::Type::STR, "label", "Key label"},
                     },
                 },
@@ -159,16 +161,108 @@ RPCHelpMan listxmsskeys()
 
             std::string addr = XMSSAddr::Encode(pubkey, Params().IsTestChain());
             uint32_t idx = signer->GetLeafIndex(pubkey);
+            uint32_t remaining = (idx <= 1024) ? (1024 - idx) : 0;
+            bool retired = signer->IsXMSSKeyRetired(pubkey);
+
+            // SNTI L4: generate warning string for operator monitoring.
+            std::string warning;
+            if (retired) {
+                warning = "SPENT: one-time address already used — key cannot sign again";
+            } else if (remaining == 0) {
+                warning = "CRITICAL: key fully exhausted (0 signatures remaining)";
+            } else if (remaining < 10) {
+                warning = strprintf("CRITICAL: only %u signature(s) remaining", remaining);
+            } else if (remaining < 200) {
+                warning = strprintf("WARNING: only %u signatures remaining — generate a new key soon", remaining);
+            }
 
             UniValue entry(UniValue::VOBJ);
             entry.pushKV("address", addr);
             entry.pushKV("pubkey", HexStr(pubkey));
             entry.pushKV("leaf_index", (int)idx);
-            entry.pushKV("remaining", (int)(1024 - idx));
+            entry.pushKV("remaining", (int)remaining);
+            entry.pushKV("retired", retired);
+            entry.pushKV("warning", warning);
             entry.pushKV("label", "");
             result.push_back(entry);
         }
 
+        return result;
+    },
+    };
+}
+
+// ---------------------------------------------------------------------------
+// getxmsskeypool  (SNTI R2: key lifecycle management)
+// ---------------------------------------------------------------------------
+RPCHelpMan getxmsskeypool()
+{
+    return RPCHelpMan{"getxmsskeypool",
+        "\nReturns a summary of the XMSS key pool status.\n"
+        "Use this to monitor available signing capacity before it is exhausted.\n"
+        "When fresh_keys reaches 0, new transactions cannot be signed until\n"
+        "a new XMSS key is generated via getnewxmssaddress.\n",
+        {},
+        RPCResult{
+            RPCResult::Type::OBJ, "", "Key pool summary",
+            {
+                {RPCResult::Type::NUM, "total_keys",    "Total XMSS keys in wallet"},
+                {RPCResult::Type::NUM, "fresh_keys",    "Keys that have never signed (available for use)"},
+                {RPCResult::Type::NUM, "retired_keys",  "Keys that have signed once (one-time address model)"},
+                {RPCResult::Type::NUM, "exhausted_keys","Keys with 0 remaining signatures"},
+                {RPCResult::Type::STR, "pool_status",   "\"ok\", \"low\" (<=1 fresh key), or \"empty\" (0 fresh keys)"},
+                {RPCResult::Type::STR_HEX, "next_fresh_pubkey", "Pubkey of the next available signing key, or empty"},
+            },
+        },
+        RPCExamples{
+            HelpExampleCli("getxmsskeypool", "")
+            + HelpExampleRpc("getxmsskeypool", "")
+        },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
+    {
+        std::shared_ptr<CWallet> const pwallet = GetWalletForJSONRPCRequest(request);
+        if (!pwallet) return UniValue::VNULL;
+
+        LOCK(pwallet->cs_wallet);
+
+        auto* signer = pwallet->GetXMSSSigner();
+        if (!signer) {
+            throw JSONRPCError(RPC_WALLET_ERROR, "XMSS signer not initialized");
+        }
+
+        auto keys = signer->GetXMSSKeys();
+        int total = 0, fresh = 0, retired = 0, exhausted = 0;
+        std::string next_fresh_pubkey;
+
+        for (const auto& pubkey : keys) {
+            if (pubkey.size() != 64) continue;
+            total++;
+            uint32_t idx = signer->GetLeafIndex(pubkey);
+            bool is_retired = signer->IsXMSSKeyRetired(pubkey);
+            if (is_retired) {
+                retired++;
+            } else if (idx >= 1024) {
+                exhausted++;
+            } else {
+                fresh++;
+                if (next_fresh_pubkey.empty()) {
+                    next_fresh_pubkey = HexStr(pubkey);
+                }
+            }
+        }
+
+        std::string status;
+        if (fresh == 0)      status = "empty";
+        else if (fresh <= 1) status = "low";
+        else                 status = "ok";
+
+        UniValue result(UniValue::VOBJ);
+        result.pushKV("total_keys",     total);
+        result.pushKV("fresh_keys",     fresh);
+        result.pushKV("retired_keys",   retired);
+        result.pushKV("exhausted_keys", exhausted);
+        result.pushKV("pool_status",    status);
+        result.pushKV("next_fresh_pubkey", next_fresh_pubkey);
         return result;
     },
     };

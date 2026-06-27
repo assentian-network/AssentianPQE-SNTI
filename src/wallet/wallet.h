@@ -669,6 +669,10 @@ public:
     // memory only — a node crash before the first CommitTransaction would
     // otherwise make any funds received at that address unrecoverable.
     void PersistXMSSState();
+    // SNTI H7: Ensure at least one fresh (non-retired) XMSS key exists.
+    // Auto-generates and persists a new key if the pool is empty.
+    // Call after every sign and at wallet startup.
+    void EnsureXMSSKeyAvailable();
     // SNTI: Load XMSS state from wallet DB, decrypting if necessary. Called
     // both at wallet load (CWallet::Create) and after Unlock() succeeds, so
     // encrypted XMSS state becomes available as soon as the master key is.

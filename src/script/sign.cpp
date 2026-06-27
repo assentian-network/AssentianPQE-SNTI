@@ -170,20 +170,23 @@ static bool CreateXMSSSig(const BaseSignatureCreator& creator, SignatureData& si
         return false;
     }
 
-    // SNTI FIX (sighash-v2, 21/Jun/2026): include leaf_index in sighash
-    // to prevent cross-index recombination. We sign a modified hash:
-    // sighash_v2 = SHA256(sighash_v1 || leaf_index_4_bytes_BE)
-    // The leaf_index is the CURRENT index before signing (same value
-    // that will be embedded as the first 4 bytes of the resulting XMSS
-    // signature per RFC 8391, allowing the verifier to reconstruct
-    // sighash_v2 without wallet access).
+    // SNTI FIX sighash-v2: sign SHA256(sighash_v1 || leaf_index_BE || chain_id_BE).
+    // leaf_index prevents cross-index recombination; chain_id (H6) prevents
+    // cross-chain replay (mainnet=1, testnet=2, signet/regtest=3).
+    // leaf_index is embedded as the first 4 bytes of the XMSS sig (RFC 8391),
+    // so the verifier can reconstruct sighash_v2 without wallet access.
     {
-        uint32_t leaf_idx = provider.GetXMSSLeafIndex(pubkey);
+        uint32_t leaf_idx  = provider.GetXMSSLeafIndex(pubkey);
+        uint32_t chain_id  = provider.GetXMSSChainId();
         std::vector<uint8_t> preimage(sighash.begin(), sighash.end());
-        preimage.push_back((leaf_idx >> 24) & 0xFF);
-        preimage.push_back((leaf_idx >> 16) & 0xFF);
-        preimage.push_back((leaf_idx >> 8)  & 0xFF);
-        preimage.push_back(leaf_idx & 0xFF);
+        preimage.push_back((leaf_idx  >> 24) & 0xFF);
+        preimage.push_back((leaf_idx  >> 16) & 0xFF);
+        preimage.push_back((leaf_idx  >>  8) & 0xFF);
+        preimage.push_back( leaf_idx         & 0xFF);
+        preimage.push_back((chain_id  >> 24) & 0xFF);
+        preimage.push_back((chain_id  >> 16) & 0xFF);
+        preimage.push_back((chain_id  >>  8) & 0xFF);
+        preimage.push_back( chain_id         & 0xFF);
         CSHA256().Write(preimage.data(), preimage.size()).Finalize(sighash.begin());
     }
 
@@ -483,17 +486,19 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
         if (!CreateXMSSSig(creator, sigdata, provider, sig, pubkey, scriptPubKey, sigversion)) {
             return false;
         }
-        // SNTI: split the ~2500-byte XMSS signature into <=520-byte chunks
-        // so no single scriptSig push trips the consensus
-        // MAX_SCRIPT_ELEMENT_SIZE limit. Chunk size/count MUST match
-        // XMSS_SIG_CHUNK_SIZE / XMSS_SIG_NUM_CHUNKS in script/interpreter.cpp
-        // exactly.
+        // SNTI C4 fix: split XMSS signature into <=520-byte chunks so no
+        // single scriptSig push trips MAX_SCRIPT_ELEMENT_SIZE (520 bytes).
+        // Chunk size is 500; the LAST chunk may be shorter than 500 bytes —
+        // this handles every XMSS OID (SHA2_10/16/20_256 etc.) without
+        // hardcoding the total length. The verifier (interpreter.cpp) uses
+        // the same dynamic approach to reassemble.
         static const size_t XMSS_SIG_CHUNK_SIZE = 500;
-        if (sig.empty() || sig.size() % XMSS_SIG_CHUNK_SIZE != 0) {
-            return false; // unexpected signature length
+        if (sig.empty()) {
+            return false;
         }
         for (size_t off = 0; off < sig.size(); off += XMSS_SIG_CHUNK_SIZE) {
-            ret.push_back(valtype(sig.begin() + off, sig.begin() + off + XMSS_SIG_CHUNK_SIZE));
+            size_t chunk_len = std::min(XMSS_SIG_CHUNK_SIZE, sig.size() - off);
+            ret.push_back(valtype(sig.begin() + off, sig.begin() + off + chunk_len));
         }
         // Bare P2XMSS: pubkey is already embedded in scriptPubKey,
         // OP_XMSS_CHECKSIG reads it from there once scriptPubKey itself

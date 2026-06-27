@@ -1109,6 +1109,29 @@ static RPCHelpMan getblocktemplate()
         result.pushKV("default_witness_commitment", HexStr(pblocktemplate->vchCoinbaseCommitment));
     }
 
+    // SNTI R4: PoUW v2 extension fields for mining software.
+    // These fields describe what a miner must produce to construct a valid SNTI block.
+    if (consensusParams.fPoUW) {
+        int64_t next_height = (int64_t)(pindexPrev->nHeight + 1);
+        bool pouw_v2_active = (next_height >= consensusParams.nPoUWv2StartHeight);
+
+        // xmss_target: the nBits target expressed as a 32-byte big-endian hex integer.
+        // The miner's XMSS tree root (first 32 bytes of xmss_pk) must be numerically
+        // less than this value.
+        arith_uint256 xmss_target;
+        xmss_target.SetCompact(pblock->nBits);
+
+        UniValue pouw(UniValue::VOBJ);
+        pouw.pushKV("active",            true);
+        pouw.pushKV("version",           pouw_v2_active ? 2 : 1);
+        pouw.pushKV("xmss_target",       xmss_target.GetHex());
+        pouw.pushKV("xmss_chain_id",     (int64_t)consensusParams.nXMSSChainId);
+        pouw.pushKV("coinbase_magic_v2", "50573202"); // "PW2\x02" hex — required OP_RETURN prefix
+        pouw.pushKV("fsl_magic",         "46534c01"); // "FSL\x01" hex — required FSL OP_RETURN prefix
+        pouw.pushKV("proof_size_bytes",  (int64_t)2564); // magic(4)+xmss_pk(64)+auth_path(320)+wots_sig(2144)+r(32)
+        result.pushKV("pouw",            pouw);
+    }
+
     return result;
 },
     };

@@ -171,6 +171,10 @@ struct PrecomputedTransactionData
     //! Whether m_spent_outputs is initialized.
     bool m_spent_outputs_ready = false;
 
+    // SNTI H6: chain ID for XMSS sighash_v2 replay protection.
+    // Set from Consensus::Params::nXMSSChainId before CheckInputScripts.
+    uint32_t xmss_chain_id{1};
+
     PrecomputedTransactionData() = default;
 
     /** Initialize this PrecomputedTransactionData with transaction data.

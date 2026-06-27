@@ -109,6 +109,7 @@ public:
     bool HaveXMSSKey(const std::vector<uint8_t>& pubkey) const override;
     std::vector<uint8_t> GetXMSSPubKey(const CKeyID& address) const override;
     uint32_t GetXMSSLeafIndex(const std::vector<uint8_t>& pubkey) const override;
+    uint32_t GetXMSSChainId() const override;
 
     // SNTI: State persistence — save/load all key states to/from a blob
     // Returns serialized state for all keys (QXMSS format from xmss_state.h)
@@ -117,6 +118,8 @@ public:
     bool LoadState(const std::vector<uint8_t>& data);
     // Check if any key is near exhaustion (< 10% remaining)
     bool HasExhaustedKeys() const;
+    // Count keys that have not yet been used (retired == false)
+    uint32_t CountFreshKeys() const;
 
     // SNTI (gap #3): check if a key has already signed once and is
     // therefore permanently retired (one-time-address enforcement).

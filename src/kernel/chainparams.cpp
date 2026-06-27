@@ -122,13 +122,22 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0;
 
+        // SNTI L1 TODO-MAINNET: set after ~10 000 mainnet blocks.
+        // nMinimumChainWork prevents long-range reorg attacks from genesis.
+        // Derive: snti-cli getblockheader <hash_at_10k> → copy "chainwork".
+        // defaultAssumeValid: hash of a deeply buried mainnet block whose scripts
+        // may be skipped during IBD to speed up initial sync.
+        // SNTI L2 TODO-MAINNET: add checkpoint entries here alongside genesis
+        // every ~10 000 blocks, e.g. {10000, uint256S("0x...")}.
         consensus.nMinimumChainWork = uint256{};
         consensus.defaultAssumeValid = uint256{};
 
         // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
+        consensus.nPoUWv2StartHeight = 1; // v1 proofs never valid on mainnet
         consensus.nPoUWMaxSigSize = 4096;
+        consensus.nXMSSChainId = 1; // mainnet
 
         // Quant magic bytes: "QUAN" = 0x5155414E
         pchMessageStart[0] = 0x53;
@@ -170,6 +179,9 @@ public:
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
 
+        // SNTI L2 TODO-MAINNET: add checkpoints after every ~10 000 mainnet blocks.
+        // Format: { height, uint256S("0x...block_hash...") }
+        // Run: snti-cli getblockhash <height> then getblockheader <hash>
         checkpointData = {
             {
                 {0, consensus.hashGenesisBlock},
@@ -205,7 +217,7 @@ public:
         // TESTNET: minimum difficulty for easy genesis mining during dev
         // TODO: change to 0x1d00ffff before public testnet launch
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"); // testnet: max
-        consensus.nPowTargetTimespan = 14 * 24 * 60 * 60;
+        consensus.nPowTargetTimespan = 60;  // H5 fix: match mainnet EMA per-block
         consensus.nPowTargetSpacing = 60;  // 60 seconds (whitepaper)
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
@@ -226,7 +238,9 @@ public:
         // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
+        consensus.nPoUWv2StartHeight = 1; // v1 proofs never valid on testnet
         consensus.nPoUWMaxSigSize = 4096;
+        consensus.nXMSSChainId = 2; // testnet
 
         // Testnet magic: "qTST" = 0x71545354
         pchMessageStart[0] = 0x73;
@@ -309,7 +323,9 @@ public:
         // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
+        consensus.nPoUWv2StartHeight = 1; // v1 proofs never valid on signet
         consensus.nPoUWMaxSigSize = 4096;
+        consensus.nXMSSChainId = 3; // signet
 
         if (options.seeds) {
             vSeeds = *options.seeds;
@@ -459,7 +475,9 @@ public:
         // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
+        consensus.nPoUWv2StartHeight = 1; // v1 proofs never valid on regtest
         consensus.nPoUWMaxSigSize = 4096;
+        consensus.nXMSSChainId = 3; // regtest
 
         vFixedSeeds.clear();
         vSeeds.clear();

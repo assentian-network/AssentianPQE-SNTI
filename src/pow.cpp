@@ -33,7 +33,25 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
             return nProofOfWorkLimit;
     }
 
-    return CalculateNextWorkRequired(pindexLast, pindexLast->pprev->GetBlockTime(), params);
+    // SNTI M5: 3-block moving average to dampen oscillation on small networks.
+    // Computes the average of the last min(3, available) inter-block spacings
+    // and back-calculates a virtual nFirstBlockTime so that
+    // CalculateNextWorkRequired() sees the smoothed actual_spacing.
+    int64_t nFirstBlockTime;
+    const CBlockIndex* p2 = pindexLast->pprev->pprev; // 2 blocks back from tip
+    if (p2 && p2->pprev) {
+        // avg = (t_N - t_{N-3}) / 3
+        int64_t avg3 = (pindexLast->GetBlockTime() - p2->pprev->GetBlockTime()) / 3;
+        nFirstBlockTime = pindexLast->GetBlockTime() - avg3;
+    } else if (p2) {
+        // avg = (t_N - t_{N-2}) / 2
+        int64_t avg2 = (pindexLast->GetBlockTime() - p2->GetBlockTime()) / 2;
+        nFirstBlockTime = pindexLast->GetBlockTime() - avg2;
+    } else {
+        nFirstBlockTime = pindexLast->pprev->GetBlockTime();
+    }
+
+    return CalculateNextWorkRequired(pindexLast, nFirstBlockTime, params);
 }
 
 // SNTI PoUW v2: EMA implementation

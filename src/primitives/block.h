@@ -27,7 +27,12 @@ public:
     uint256 hashMerkleRoot;
     uint32_t nTime;
     uint32_t nBits;
-    uint32_t nNonce;     // legacy field — set to 0 in PoUW v2
+    // SNTI L3 TODO-POST-MAINNET: nNonce is a Bitcoin legacy field repurposed as
+    // a 4-byte zero pad in SNTI. PoUW v2 replaces SHA256d nonce mining with XMSS
+    // tree building, so this field carries no entropy. Removing it requires a hard
+    // fork (changes serialized block size and all existing block hashes). Schedule
+    // for a post-mainnet protocol upgrade once the network is established.
+    uint32_t nNonce;     // legacy field — always 0 in PoUW v2 blocks
     // SNTI PoUW v2: xmssRoot field
     // XMSS tree root hash — this IS the proof of work.
     // Miner searches SK_SEED until xmssRoot < target.

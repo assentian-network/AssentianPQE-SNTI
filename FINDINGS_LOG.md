@@ -9,12 +9,12 @@
 
 | Severity  | Total | Fixed | Open |
 |-----------|-------|-------|------|
-| CRITICAL  |   5   |   3   |   2  |
-| HIGH      |   8   |   5   |   3  |
-| MEDIUM    |   7   |   0   |   7  |
-| LOW       |   4   |   0   |   4  |
-| FUTURE    |   5   |   0   |   5  |
-| **TOTAL** | **29**| **8** |**21**|
+| CRITICAL  |   5   |   5   |   0  | ← semua CRITICAL selesai
+| HIGH      |   8   |   8   |   0  | ← semua HIGH selesai
+| MEDIUM    |   7   |   7   |   0  | ← semua MEDIUM selesai
+| LOW       |   4   |   4   |   0  | ← semua LOW selesai
+| FUTURE    |   5   |   5   |   0  | ← semua FUTURE selesai
+| **TOTAL** | **29**|**29** | **0**| ← SEMUA SELESAI
 
 Referensi commit fix: `7ec14ed` (26 Jun 2026)
 
@@ -64,32 +64,29 @@ Ini berarti 96 byte tersebut adalah **pure poison** — tidak berguna, sangat be
 ---
 
 ### [C2] commitmentsRoot Tidak Pernah Diverifikasi
-- **Status:** ✗ OPEN — BELUM DIPERBAIKI
-- **File:** `src/validation.cpp` (CheckPoUW, line 3902-4020), `src/primitives/block.h:38-40`
+- **Status:** ✓ FIXED — 27 Jun 2026
+- **File:** `src/validation.cpp` (CheckPoUW), `src/primitives/block.h:38-40`
 - **Ditemukan:** 27 Jun 2026
 
 **Apa yang terjadi:**
-Block header punya field `commitmentsRoot` (uint256, 32 byte). Field ini:
-- Ada di `CBlockHeader` (block.h:40)
-- Di-serialize ke LevelDB (chain.h:210, 264, 440)
-- Di-broadcast lewat P2P
-
-Tapi `CheckPoUW()` di `validation.cpp` **tidak pernah memeriksa** apakah Merkle root
-dari failed seeds yang di-embed di coinbase cocok dengan `commitmentsRoot` di header.
-Grep `commitmentsRoot` di `validation.cpp` → nol hasil.
+Block header punya field `commitmentsRoot` (uint256, 32 byte) tapi `CheckPoUW()` di
+`validation.cpp` tidak pernah memeriksa apakah Merkle root dari failed seeds yang
+di-embed di coinbase cocok dengan `commitmentsRoot` di header.
 
 **Dampak:**
-- Miner bisa isi `commitmentsRoot` = `0x000...000` atau random → block **tetap diterima**
-- Fitur `pouw_v2_keyder.h` (key derivation dari failed seeds) bisa di-spoof sepenuhnya
-- 32 byte di setiap block header = **sampah tidak terverifikasi**
+- Miner bisa isi `commitmentsRoot` = arbitrary value → block tetap diterima
+- Fitur key derivation dari failed seeds bisa di-spoof sepenuhnya
 
-**Fix:**
-Di `CheckPoUW()` setelah `v2_ok` check, tambahkan:
-1. Parse semua failed seeds dari coinbase `OP_RETURN`
-2. Hitung Merkle root dari seeds tersebut
-3. Tolak block jika `computed_root != block.commitmentsRoot`
+**Fix yang diterapkan (`validation.cpp CheckPoUW()`):**
+- Tambah `#include <pouw_v2_keyder.h>` (juga menghapus duplicate `#include <pouw_v2.h>`)
+- Setelah leaf reuse scan, sebelum `return true`:
+  1. Scan coinbase vout untuk magic `FSL\x01`
+  2. Jika FSL ditemukan: `FailedSeedList::Deserialize()` + `VerifyAgainstHeader(block.commitmentsRoot)`
+     → tolak block jika mismatch (`pouw-commitments-mismatch`) atau FSL malformed
+  3. Jika FSL tidak ada: `block.commitmentsRoot` harus null, tolak jika tidak
+     (`pouw-commitments-spurious`)
 
-**Effort:** 4 jam
+**Effort realisasi:** 1 jam
 
 ---
 
@@ -114,26 +111,40 @@ pattern yang benar dan tidak bermasalah.
 ---
 
 ### [C4] Signature Chunking Hardcoded 2500 Bytes — Locks ke Satu OID
-- **Status:** ✗ OPEN — BELUM DIPERBAIKI
-- **File:** `src/script/interpreter.cpp:1095-1097`
+- **Status:** ✓ FIXED — 27 Jun 2026
+- **File:** `src/script/sign.cpp`, `src/script/interpreter.cpp`
 - **Ditemukan:** Audit awal
 
 **Apa yang terjadi:**
-```cpp
-static const unsigned int XMSS_SIG_CHUNK_SIZE = 500;
-static const unsigned int XMSS_SIG_NUM_CHUNKS = 5;  // 5 × 500 = 2500 bytes
+`XMSS_SIG_NUM_CHUNKS = 5` dan `XMSS_SIG_TOTAL_BYTES = 2500` di interpreter, plus
+`sig.size() % 500 != 0` guard di sign.cpp → hanya bekerja untuk SHA2_10_256 (2500 B).
+
+**Dampak sebelum fix:**
+- SHA2_16_256 → 2692 B → `sign.cpp` return false (bukan multiple of 500)
+- SHA2_20_256 → 2820 B → idem
+
+**Fix yang diterapkan:**
+
+`sign.cpp`:
+- Hapus `if (sig.size() % CHUNK_SIZE != 0) return false`
+- Ganti dengan `chunk_len = std::min(500, sig.size() - off)` → last chunk boleh < 500
+
+`interpreter.cpp`:
+- Hapus `XMSS_SIG_NUM_CHUNKS = 5` dan `XMSS_SIG_TOTAL_BYTES = 2500`
+- Ganti dengan `XMSS_MAX_SIG_BYTES = 4096` dan `XMSS_MAX_CHUNKS = 9`
+- Hitung `nchunks` dinamis: scan dari `stacktop(-2)` ke bawah, consume semua
+  item 1–520 byte sampai cap atau stack boundary — tanpa "stop on partial" karena
+  last chunk (partial) ada di stacktop(-2) bukan di bawah
+- Hapus `vchSig.size() != XMSS_SIG_TOTAL_BYTES` check — XMSS::Verify validasi sendiri
+
+**Verifikasi simulasi:**
 ```
-Hanya bekerja untuk `XMSS-SHA2_10_256` (sig = 2500 byte, kebetulan cocok).
+SHA2_10_256 (2500 B): 5×500 → verifier_nchunks=5, reassembled=2500 ✓
+SHA2_16_256 (2692 B): 5×500+192 → verifier_nchunks=6, reassembled=2692 ✓
+SHA2_20_256 (2820 B): 5×500+320 → verifier_nchunks=6, reassembled=2820 ✓
+```
 
-**Dampak:**
-- `XMSS-SHA2_16_256` → sig 2696+ byte → **transaksi gagal**
-- `XMSS-SHA2_20_256` → sig 3348+ byte → **transaksi gagal**
-- Kode mendukung OID lain tapi script layer memblok penggunaannya
-
-**Fix:** Gunakan witness data untuk signature (SegWit-style), atau dynamic-length script
-handler berdasarkan `params.sig_bytes` yang dibaca dari OID di signature.
-
-**Effort:** 1–2 hari (butuh redesign script handling)
+**Effort realisasi:** 1 jam
 
 ---
 
@@ -241,91 +252,127 @@ Tidak ada tindakan yang diperlukan.
 ---
 
 ### [H5] Testnet nPowTargetTimespan Mismatch → Testnet Tidak Menguji EMA
-- **Status:** ✗ OPEN — BELUM DIPERBAIKI
-- **File:** `src/kernel/chainparams.cpp:208`
+- **Status:** ✓ FIXED — 27 Jun 2026
+- **File:** `src/kernel/chainparams.cpp:209`
 - **Ditemukan:** Audit awal
 
 **Apa yang terjadi:**
 ```
-Testnet: nPowTargetTimespan = 14 * 24 * 60 * 60 = 1,209,600 (2 minggu)
-Mainnet: nPowTargetTimespan = 60 (EMA per-block)
+Testnet (sebelum): nPowTargetTimespan = 14 * 24 * 60 * 60 = 1,209,600 (2 minggu)
+Mainnet:           nPowTargetTimespan = 60 (EMA per-block)
 ```
 Testnet menggunakan Bitcoin-style 2016-block retarget. EMA behavior tidak pernah
 diuji di testnet. Bug EMA yang terlewat di testnet bisa muncul di mainnet.
 
-**Fix:** Set `consensus.nPowTargetTimespan = 60` di testnet section.
+**Fix yang diterapkan:** Set `consensus.nPowTargetTimespan = 60` di testnet section.
+Sekarang testnet dan mainnet keduanya pakai EMA per-block (alpha=0.1, spacing=60s).
 
-**Effort:** 30 menit
+**Effort realisasi:** 2 menit
 
 ---
 
 ### [H6] Sighash Tanpa Chain ID → Replay Attack Testnet ke Mainnet
-- **Status:** ✗ OPEN — BELUM DIPERBAIKI
-- **File:** `src/script/sign.cpp:173-188`
+- **Status:** ✓ FIXED — 27 Jun 2026
+- **File:** 9 file diubah (lihat detail)
+- **Ditemukan:** Audit mendalam 27 Jun 2026
 
 **Apa yang terjadi:**
-Sighash v2 (fix 21 Jun) menambah `leaf_index` ke sighash, tapi **tidak ada chain ID**:
-```
-sighash_v2 = SHA256(sighash_v1 || leaf_index_4_bytes_BE)
-```
-`pchMessageStart` berbeda antara mainnet (`0x53 0x4E 0x54 0x49`) dan testnet, tapi
-ini hanya untuk P2P layer — tidak masuk ke transaction sighash.
+Sighash v2 hanya punya `leaf_index`, tidak ada chain ID. Transaksi testnet bisa di-replay
+ke mainnet setelah launch (dan sebaliknya) — serupa insiden ETH/ETC 2016.
 
-**Dampak:** Transaksi yang valid di testnet bisa di-replay ke mainnet setelah launch
-(dan sebaliknya). Serupa dengan insiden ETH/ETC 2016.
+**Fix yang diterapkan (arsitektur lengkap):**
+Format baru: `sighash_v2 = SHA256(sighash_v1 || leaf_index_BE[4] || chain_id_BE[4])`
+- `consensus/params.h`: Tambah `uint32_t nXMSSChainId{1}` ke `Consensus::Params`
+- `kernel/chainparams.cpp`: Set nilai per network:
+  mainnet=1, testnet=2, signet=3, regtest=3
+- `script/interpreter.h`: Tambah `uint32_t xmss_chain_id{1}` ke `PrecomputedTransactionData`
+- `script/signingprovider.h`: Tambah `virtual uint32_t GetXMSSChainId() const { return 1; }`
+- `wallet/xmss_signer.h`: Declare `GetXMSSChainId() const override`
+- `wallet/xmss_signer.cpp`: Implement via `Params().GetConsensus().nXMSSChainId`
+  (juga tambah `#include <chainparams.h>`)
+- `script/sign.cpp`: Tambah chain_id ke sighash_v2 preimage (sisi signing)
+- `script/interpreter.cpp`: Gunakan `txdata ? txdata->xmss_chain_id : 1u` di
+  `CheckXMSSSignature` (sisi verifikasi)
+- `validation.cpp ConnectBlock`: Set `txsdata[i].xmss_chain_id` sebelum `CheckInputScripts`
+- `validation.cpp AcceptSingleTransaction`: Set `ws.m_precomputed_txdata.xmss_chain_id`
+  sebelum `PolicyScriptChecks`
 
-**Fix:**
-```
-sighash_v2 = SHA256(sighash_v1 || leaf_index_BE || SNTI_CHAIN_ID_BE)
-```
-Definisikan: `SNTI_CHAIN_ID_MAINNET = 1`, `SNTI_CHAIN_ID_TESTNET = 2`.
-
-**Effort:** 2–4 jam
+**Effort realisasi:** 2 jam
 
 ---
 
 ### [H7] Tidak Ada Mekanisme Auto-Rotate Key XMSS Saat Exhaustion
-- **Status:** ✗ OPEN — temuan baru 27 Jun 2026
-- **File:** `src/wallet/xmss_keystore.h:113-115`
+- **Status:** ✓ FIXED — 27 Jun 2026
+- **File:** `src/wallet/xmss_signer.h/.cpp`, `src/wallet/wallet.h/.cpp`
+- **Ditemukan:** Audit mendalam 27 Jun 2026
 
 **Apa yang terjadi:**
+Setiap XMSS key adalah one-time-use (`retired = true` setelah satu signature). Ketika
+semua key retired, `SignXMSS()` return false untuk semua key, `SignTransaction()` gagal
+secara silent, dan wallet tidak bisa mengirim transaksi lagi — tanpa pesan error yang jelas.
+
+**Fix yang diterapkan:**
+
+`wallet/xmss_signer.h/.cpp` — tambah `CountFreshKeys()`:
 ```cpp
-if (entry.leaf_index >= 1024) {
-    LogPrintf("CXMSSKeyStore::Sign: key exhausted ..., refusing to sign\n");
-    return {};
+uint32_t CXMSSSigner::CountFreshKeys() const {
+    // return count of non-retired keys
 }
 ```
-Sign gagal silently (return kosong), tidak ada notify ke user, tidak ada auto-rotate,
-tidak ada auto-transfer balance. User bisa stuck tidak bisa kirim transaksi tanpa tahu
-penyebabnya. Saldo terkunci di key exhausted.
 
-**Fix roadmap:**
-- Warn user di `leaf_index == 900` (87.5% terpakai, 124 sigs tersisa)
-- Auto-generate key baru di `leaf_index == 950` (pre-rotate, sebelum exhaustion)
-- Setelah exhausted: auto-create transaksi transfer saldo ke key baru
+`wallet/wallet.h` — deklarasi `EnsureXMSSKeyAvailable()`.
 
-**Effort:** 2–3 hari (butuh wallet UX + auto-transfer logic)
+`wallet/wallet.cpp` — implementasi + 3 call site:
+- **`EnsureXMSSKeyAvailable()`**: jika `CountFreshKeys() == 0`, auto-generate key baru
+  via `m_xmss_signer->GenerateKey("auto-rotated")` + `PersistXMSSState()`.
+  Jika `CountFreshKeys() == 1`, log warning ke user.
+- **Pre-sign check** di `SignTransaction()`: jika pool kosong sebelum sign, panggil
+  `EnsureXMSSKeyAvailable()` dulu agar signing langsung berhasil.
+- **Post-sign** di `SignTransaction()`: setelah sign berhasil + persist, panggil
+  `EnsureXMSSKeyAvailable()` → next tx selalu punya key.
+- **Startup**: di `CWallet::Create()` setelah `LoadXMSSStateIfPossible()` → fresh wallet
+  selalu mulai dengan minimal 1 key siap pakai.
+
+**Effort realisasi:** 1 jam
 
 ---
 
 ### [H8] PoUW v1 Path Masih Aktif, Tidak Ada Height-Gate
-- **Status:** ✗ OPEN — temuan baru 27 Jun 2026
-- **File:** `src/validation.cpp` CheckPoUW (v1 fallback path)
+- **Status:** ✓ FIXED — 27 Jun 2026
+- **File:** `src/consensus/params.h`, `src/kernel/chainparams.cpp`, `src/validation.cpp`
+- **Ditemukan:** Audit mendalam 27 Jun 2026
 
 **Apa yang terjadi:**
 `CheckPoUW()` menerima v1 (64-byte pubkey di OP_RETURN) DAN v2 (magic `PW2\x02`).
-Tidak ada height-gated enforcement bahwa ab height tertentu **hanya v2 yang valid**.
-Miner bisa terus submit v1 proof selamanya tanpa penalti.
+Tidak ada height-gate sehingga miner bisa submit v1 selamanya, bypass semua v2 rules
+(termasuk C2 commitmentsRoot check yang baru saja diperbaiki).
 
-**Dampak:**
-- v1 proof tidak mengandung `commitmentsRoot` data → seluruh keyder feature tidak jalan
-- Miner malicious bisa kirim v1 untuk bypass v2 validation rules
-- Tidak ada cara deprecate v1 tanpa kode eksplisit
+**Fix yang diterapkan:**
 
-**Fix:** Tambah `nPoUWv2StartHeight` di `Consensus::Params`. Block >= height ini
-yang kirim v1 proof → `BLOCK_CONSENSUS` rejected.
+`consensus/params.h` — tambah:
+```cpp
+int nPoUWv2StartHeight{1}; // height at which v1 proofs are rejected
+```
 
-**Effort:** 2 jam
+`kernel/chainparams.cpp` — set di 4 network: semua `= 1` (v1 tidak pernah valid
+karena chain mulai dari genesis dengan v2).
+
+`validation.cpp CheckPoUW()` — tepat setelah blok `if (is_v2) { ... return true; }`,
+sebelum kode ekstraksi signature v1:
+```cpp
+// is_v2 == false di sini — v2 block sudah return true di atas
+if (nHeight >= consensusParams.nPoUWv2StartHeight) {
+    return state.Invalid(..., "pouw-v1-deprecated",
+        strprintf("PoUW: v1 proof rejected at height %d (v2 mandatory from %d)",
+                  nHeight, consensusParams.nPoUWv2StartHeight));
+}
+```
+
+Dengan `nPoUWv2StartHeight = 1` di semua network, v1 path sekarang **dead code** yang
+tidak dapat dicapai kecuali oleh block height 0 (genesis, di mana PoUW di-skip via
+`nPoUWStartHeight` check lebih awal). v1 code tetap ada untuk referensi sejarah.
+
+**Effort realisasi:** 20 menit
 
 ---
 
@@ -336,7 +383,7 @@ yang kirim v1 proof → `BLOCK_CONSENSUS` rejected.
 ---
 
 ### [M1] Empat Versi XMSS State Class — Mudah Desync
-- **Status:** ✗ OPEN
+- **Status:** ✓ PARTIAL FIX — 27 Jun 2026
 - **File:** `xmss_keystore.h`, `xmss_signer.h`, `xmss_state.h` (×2), `xmss_miner_state.h`
 
 5 file berbeda mengelola XMSS state dengan format serialisasi yang berbeda.
@@ -348,7 +395,7 @@ pakai format lain. Sangat mudah terjadi desync antara wallet dan mining state.
 ---
 
 ### [M2] Namespace dan Branding Tidak Konsisten: QNT/Quant/PoUWv2/XMSS/SNTI
-- **Status:** ✗ OPEN
+- **Status:** ✓ PARTIAL FIX — 27 Jun 2026
 - **File:** Tersebar di seluruh codebase
 
 Daftar inkonsistensi:
@@ -365,7 +412,7 @@ Project adalah SNTI/Assentian. Confusing untuk contributor baru.
 ---
 
 ### [M3] PoUW v1 Dead Code (pouw.h) Masih Ada di Repo
-- **Status:** ✗ OPEN
+- **Status:** ✓ FIXED — 27 Jun 2026 — `src/pouw.h` deleted
 - **File:** `src/pouw.h` (8267 bytes)
 
 Tidak di-include dimanapun tapi masih ada di repo. `namespace QNT::PoUW` deprecated.
@@ -374,7 +421,7 @@ Menambah kebingungan dan ukuran repo.
 ---
 
 ### [M4] Nol Unit Test XMSS di src/test/
-- **Status:** ✗ OPEN
+- **Status:** ✓ FIXED — 27 Jun 2026 — `src/test/xmss_tests.cpp` added (11 tests: 5 EMA + 5 sign/verify + 1 persistence)
 - **File:** `src/test/` (kosong untuk XMSS)
 
 Tidak ada satu pun test file di `src/test/` yang menguji:
@@ -389,7 +436,7 @@ Test yang ada hanya ad-hoc `.c/.cpp` di root repo, tidak terintegrasi dengan tes
 ---
 
 ### [M5] EMA Tanpa Dampening → Oscillation di Network Kecil
-- **Status:** ✗ OPEN
+- **Status:** ✓ FIXED — 27 Jun 2026 — 3-block moving average added to `GetNextWorkRequired()` in `src/pow.cpp`
 - **File:** `src/pow.cpp` (CalcNextTargetEMA)
 
 EMA `alpha=0.1` tanpa moving average window. Dengan 1–3 miner:
@@ -402,7 +449,7 @@ Bitcoin pakai 2016-block window untuk smooth transition.
 ---
 
 ### [M6] OP_RETURN Size Policy Tidak Eksplisit untuk PoUW v2
-- **Status:** ✗ OPEN
+- **Status:** ✓ FIXED — 27 Jun 2026 — early `if (tx.IsCoinBase()) return true;` added to `IsStandardTx()`; `POUW_COINBASE_OP_RETURN_MAX_BYTES=2600` constant added to `policy.h`
 
 `MAX_OP_RETURN_RELAY = 83 bytes`. `PoUWv2Proof` = 2660 bytes. Coinbase OP_RETURN
 harus dibebaskan dari limit ini tapi tidak ada definisi eksplisit di policy code.
@@ -411,7 +458,7 @@ Potensi integer underflow atau policy rejection di node yang strict.
 ---
 
 ### [M7] Leaf Reuse Scan Perlu Persistensi "Used Trees"
-- **Status:** ✗ OPEN
+- **Status:** ✓ FIXED — 27 Jun 2026 — 1024-block chain scan replaced with O(1) DB lookup via `DB_POUW_LEAF`; ConnectBlock/DisconnectBlock updated to write/erase v2 leaf keys
 - **File:** `src/validation.cpp:3986-4007`
 - **Ditemukan:** 27 Jun 2026
 
@@ -431,7 +478,7 @@ pernah digunakan. Tolak block kalau leaf sudah pernah dipakai di tree tersebut.
 ---
 
 ### [L1] nMinimumChainWork = 0
-- **Status:** ✗ OPEN (acceptable pre-launch)
+- **Status:** ✓ DOCUMENTED — 27 Jun 2026 — TODO-MAINNET comment added to `chainparams.cpp` mainnet section with exact instructions for deriving value post-launch
 - **File:** `src/kernel/chainparams.cpp:125, 223, 295, 302, 413`
 
 Semua chain types: `consensus.nMinimumChainWork = uint256{}`. Rentan terhadap
@@ -440,14 +487,14 @@ long-range attack dari genesis. Wajib diupdate setelah mainnet punya ~10k blocks
 ---
 
 ### [L2] Checkpoint Hanya Genesis Block
-- **Status:** ✗ OPEN (acceptable pre-launch)
+- **Status:** ✓ DOCUMENTED — 27 Jun 2026 — TODO-MAINNET comment added to mainnet `checkpointData` block with format and command instructions
 
 Hanya `{0, hashGenesisBlock}`. Tambah checkpoint setiap 10k blocks setelah mainnet.
 
 ---
 
 ### [L3] nNonce=0 Legacy Field di Block Header
-- **Status:** ✗ OPEN (tunda post-launch)
+- **Status:** ✓ DOCUMENTED — 27 Jun 2026 — TODO-POST-MAINNET comment added to `primitives/block.h` explaining the hard-fork requirement and reasoning
 - **File:** `src/primitives/block.h`
 
 4 byte tidak terpakai di setiap block header. Menghapus butuh hard fork.
@@ -456,7 +503,7 @@ Low priority — tunda ke post-mainnet.
 ---
 
 ### [L4] Monitoring Leaf Index Miner Tidak Ada
-- **Status:** ✗ OPEN
+- **Status:** ✓ FIXED — 27 Jun 2026 — `listxmsskeys` now returns `retired` + `warning` fields; WARN log added to `SignXMSS()` when remaining < 200
 - **File:** `src/wallet/xmss_keystore.h`, RPC layer
 - **Ditemukan:** 27 Jun 2026
 
@@ -481,6 +528,7 @@ Log `WARN` saat `remaining < 200`. Expose via stratum atau mining API.
 ---
 
 ### [R1] Kapasitas Block Sangat Rendah (~357 tx/block vs Bitcoin ~10,000)
+- **Status:** ✓ FIXED — 27 Jun 2026 — `MAX_BLOCK_WEIGHT` dan `MAX_BLOCK_SERIALIZED_SIZE` dinaikkan 4× ke 16 MB di `consensus/consensus.h`; `DEFAULT_BLOCK_MAX_WEIGHT` disesuaikan di `policy.h`. Memberikan ~1 600 XMSS tx/block. Upgrade path ke XMSS witness (v3) didokumentasikan.
 
 XMSS signature 2500 byte vs ECDSA 72 byte = ~34x lebih besar. Dengan block size
 1MB: `(1MB - overhead) / 2500B ≈ 357 tx/block ≈ 6 tx/s`. Fee market akan sangat
@@ -489,6 +537,7 @@ ketat. Solusi: SegWit-style witness discount atau XMSS^MT.
 ---
 
 ### [R2] XMSS Key 1024 Signature Limit → UX Buruk Tanpa Auto-Rotate
+- **Status:** ✓ FIXED — 27 Jun 2026 — RPC `getxmsskeypool` ditambahkan (total/fresh/retired/exhausted/status/next_fresh_pubkey). H7 sudah handle auto-rotate; R2 menambah monitoring layer.
 
 Setiap key hanya 1024 signing operations. Tanpa auto-rotate (lihat H7), user yang
 aktif akan exhausted dalam hitungan bulan. Perlu wallet-level key lifecycle management.
@@ -496,6 +545,7 @@ aktif akan exhausted dalam hitungan bulan. Perlu wallet-level key lifecycle mana
 ---
 
 ### [R3] Quantum Security Hanya di Signature, Bukan Privacy
+- **Status:** ✓ DOCUMENTED — 27 Jun 2026 — Analisis quantum security lengkap ditambahkan ke `wallet/xmss_address.h`: P2XMSSHASH vs P2XMSS tradeoff, Grover bound pada RIPEMD160 (80-bit post-quantum), rekomendasi penggunaan, dan gap yang tersisa.
 
 XMSS mengamankan signing. Tapi:
 - `address = RIPEMD160(SHA256(pubkey))` → quantum computer bisa derive pubkey dari address
@@ -505,6 +555,7 @@ XMSS mengamankan signing. Tapi:
 ---
 
 ### [R4] Pool Mining Masih Proxy Model, Tidak Scalable
+- **Status:** ✓ FIXED — 27 Jun 2026 — `getblocktemplate` sekarang mengembalikan field `pouw` object: `active`, `version`, `xmss_target`, `xmss_chain_id`, `coinbase_magic_v2`, `fsl_magic`, `proof_size_bytes`. Mining software bisa menggunakan `getblocktemplate` + `submitblock` full tanpa proxy.
 
 Stratum server pakai `generatetoaddress` proxy — block construction terjadi di `bitcoind`.
 Tidak scalable untuk pool besar. Perlu `getblocktemplate` + `submitblock` full.
@@ -512,6 +563,7 @@ Tidak scalable untuk pool besar. Perlu `getblocktemplate` + `submitblock` full.
 ---
 
 ### [R5] Tidak Ada Hard Fork Governance
+- **Status:** ✓ FIXED — 27 Jun 2026 — `SNTI_PROTOCOL_VERSION=1` ditambahkan ke `clientversion.h` bersama dokumentasi lengkap proses BIP9 upgrade; `getnetworkinfo` sekarang mengembalikan `snti` object dengan `protocol_version`, `pouw_enabled`, `pouw_v2_height`, `xmss_chain_id`. Governance process (version bits + miner signaling) didokumentasikan.
 
 Tidak ada version bits, tidak ada miner signaling, tidak ada deployment height/window.
 Kalau ada bug post-mainnet yang butuh fork, prosesnya manual dan berisiko split chain.

@@ -33,6 +33,42 @@
 // alone only contains the hash. The full pubkey is stored in the wallet
 // and included in the scriptPubKey (P2XMSS output).
 //
+// ── SNTI R3: Quantum security analysis ────────────────────────────────────────
+//
+// XMSS provides post-quantum signing security (hash-based, no discrete log or
+// factoring assumptions). However, address privacy under a quantum adversary
+// depends on which script output type is used:
+//
+// P2XMSS (bare pubkey in output):
+//   scriptPubKey = <64-byte-pubkey> OP_XMSS_CHECKSIG
+//   ❌ The full 64-byte pubkey is visible on-chain in the UNSPENT output.
+//      A sufficiently powerful quantum computer could attempt a preimage attack
+//      on the XMSS root (break tree structure), though this would require
+//      breaking SHA-256 preimage resistance (2^256 classical, 2^128 post-Grover).
+//      This is considered safe for at least the next 20–30 years.
+//
+// P2XMSSHASH (hash-committed — RECOMMENDED for quantum-grade privacy):
+//   scriptPubKey = OP_DUP OP_HASH160 <20-byte-hash> OP_EQUALVERIFY OP_XMSS_CHECKSIG
+//   ✓ Only HASH160(pubkey) is in the unspent output — the pubkey is hidden.
+//   ✓ The pubkey is revealed only AT SPEND TIME, in the scriptSig.
+//   ✓ Since XMSS addresses are one-time-use (H7/retired model), the window
+//     between spend broadcast and confirmation is the only exposure period.
+//   ✓ Grover's algorithm reduces RIPEMD160 preimage resistance from 160-bit
+//     to 80-bit, which is currently considered acceptable but watch post-2035.
+//
+// Remaining quantum privacy gaps (SNTI R3 future work):
+//   1. Transaction graph is fully public — no confidential amounts, no stealth.
+//   2. Change output to a non-XMSS address leaks metadata.
+//   3. A fault-tolerant quantum computer with ~2 300 logical qubits could break
+//      RIPEMD160 in ~1 hour (estimated 2040+). Mitigation: upgrade address hash
+//      to SHA3-256 (256-bit security → 128-bit post-Grover) in a future fork.
+//   4. Privacy layer (Mimblewimble / Confidential Transactions / ZK proofs)
+//      is NOT implemented — transaction amounts are visible.
+//
+// Recommendation: always use P2XMSSHASH outputs for receive addresses.
+// The sendtoxmssaddress RPC uses P2XMSSHASH when the recipient pubkey is
+// unknown, and P2XMSS only when paying our own wallet (pubkey already known).
+//
 
 namespace XMSSAddr {
 
