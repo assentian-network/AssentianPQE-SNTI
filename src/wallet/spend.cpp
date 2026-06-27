@@ -26,6 +26,7 @@
 #include <wallet/spend.h>
 #include <wallet/transaction.h>
 #include <wallet/wallet.h>
+#include <wallet/xmss_signer.h>
 
 #include <cmath>
 
@@ -490,6 +491,21 @@ CoinsResult AvailableCoins(const CWallet& wallet,
                 if (!provider->GetCScript(CScriptID(uint160(script_solutions[0])), script)) continue;
                 type = Solver(script, script_solutions);
                 is_from_p2sh = true;
+            }
+
+            // SNTI: Skip P2XMSSHASH UTXOs whose XMSS key is retired. XMSS keys
+            // are one-time-use; after signing once they cannot sign again, so
+            // these UTXOs are permanently unspendable from this wallet.
+            if (type == TxoutType::P2XMSSHASH && !script_solutions.empty() && script_solutions[0].size() == 20) {
+                const wallet::CXMSSSigner* signer = wallet.GetXMSSSigner();
+                if (signer) {
+                    uint160 xmss_hash;
+                    std::copy(script_solutions[0].begin(), script_solutions[0].end(), xmss_hash.begin());
+                    std::vector<uint8_t> pubkey = signer->GetPubKeyForHash(xmss_hash);
+                    if (!pubkey.empty() && signer->IsXMSSKeyRetired(pubkey)) {
+                        continue;
+                    }
+                }
             }
 
             result.Add(GetOutputType(type, is_from_p2sh),
