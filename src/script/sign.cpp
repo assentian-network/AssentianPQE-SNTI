@@ -898,6 +898,10 @@ bool SignTransaction(CMutableTransaction& mtx, const SigningProvider* keystore, 
     const CTransaction txConst(mtx);
 
     PrecomputedTransactionData txdata;
+    // SNTI H6: set chain_id for sighash_v2 so the internal VerifyScript check
+    // uses the same chain_id as CreateXMSSSig. Without this, txdata.xmss_chain_id
+    // stays 0 while signing uses the real chain_id → signature fails internal verify.
+    txdata.xmss_chain_id = keystore ? keystore->GetXMSSChainId() : 1u;
     std::vector<CTxOut> spent_outputs;
     for (unsigned int i = 0; i < mtx.vin.size(); ++i) {
         CTxIn& txin = mtx.vin[i];
