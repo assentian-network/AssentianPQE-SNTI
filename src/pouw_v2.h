@@ -7,7 +7,9 @@
 // Verify: node rebuilds root from auth_path and checks root < target
 //
 // "Nonce" = SK_SEED (32 bytes) + SK_PRF (32 bytes) + PUB_SEED (32 bytes)
-// Total seed = 96 bytes, deterministic tree build via xmssmt_core_seed_keypair()
+// The seed is used LOCALLY by the miner to build the XMSS tree.
+// It is NOT included in the serialized proof — only the resulting
+// xmss_pk (root+PUB_SEED), auth_path, wots_sig, and r are broadcast.
 
 #ifndef ASSENTIAN_POUW_V2_H
 #define ASSENTIAN_POUW_V2_H
@@ -36,30 +38,30 @@ static constexpr size_t   N                = 32;          // hash bytes
 static constexpr size_t   WOTS_SIG_BYTES   = 2144;       // WOTS+ sig
 static constexpr size_t   AUTH_PATH_BYTES  = 320;        // 10 * 32
 static constexpr size_t   PK_BYTES         = 64;         // root(32)+PUB_SEED(32)
-static constexpr size_t   SEED_BYTES       = 96;         // SK_SEED+SK_PRF+PUB_SEED
+static constexpr size_t   SEED_BYTES       = 96;         // SK_SEED+SK_PRF+PUB_SEED (miner-local, not in proof)
 static constexpr size_t   R_BYTES          = 32;         // randomness in sig
 
 // Magic bytes for coinbase identification
 static constexpr uint8_t MAGIC[4] = {'P','W','2',0x02};
 
 // ── PoUWv2Proof struct ───────────────────────────────────────────────────────
+// Contains only the data needed for verification. The 96-byte seed
+// (SK_SEED|SK_PRF|PUB_SEED) is NEVER included — it is private to the miner.
 struct PoUWv2Proof {
-    uint8_t seed[SEED_BYTES];           // 96 bytes: SK_SEED|SK_PRF|PUB_SEED
     uint8_t xmss_pk[PK_BYTES];         // 64 bytes: root|PUB_SEED
     uint8_t auth_path[AUTH_PATH_BYTES]; // 320 bytes: 10 node hashes
     uint8_t wots_sig[WOTS_SIG_BYTES];  // 2144 bytes: WOTS+ signature
     uint8_t r[R_BYTES];                // 32 bytes: signature randomness
 
     // Total serialized size
-    static constexpr size_t SERIAL_SIZE = 4 + SEED_BYTES + PK_BYTES +
+    static constexpr size_t SERIAL_SIZE = 4 + PK_BYTES +
                                           AUTH_PATH_BYTES + WOTS_SIG_BYTES + R_BYTES;
-    // = 4 + 96 + 64 + 320 + 2144 + 32 = 2660 bytes
+    // = 4 + 64 + 320 + 2144 + 32 = 2564 bytes
 
     std::vector<uint8_t> Serialize() const {
         std::vector<uint8_t> out;
         out.reserve(SERIAL_SIZE);
         out.insert(out.end(), MAGIC, MAGIC + 4);
-        out.insert(out.end(), seed, seed + SEED_BYTES);
         out.insert(out.end(), xmss_pk, xmss_pk + PK_BYTES);
         out.insert(out.end(), auth_path, auth_path + AUTH_PATH_BYTES);
         out.insert(out.end(), wots_sig, wots_sig + WOTS_SIG_BYTES);
@@ -71,7 +73,6 @@ struct PoUWv2Proof {
         if (len < SERIAL_SIZE) return false;
         if (memcmp(data, MAGIC, 4) != 0) return false;
         size_t off = 4;
-        memcpy(seed,      data + off, SEED_BYTES);      off += SEED_BYTES;
         memcpy(xmss_pk,   data + off, PK_BYTES);        off += PK_BYTES;
         memcpy(auth_path, data + off, AUTH_PATH_BYTES); off += AUTH_PATH_BYTES;
         memcpy(wots_sig,  data + off, WOTS_SIG_BYTES);  off += WOTS_SIG_BYTES;

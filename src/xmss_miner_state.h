@@ -249,15 +249,10 @@ inline bool SignWithState(XMSSMinerState& state,
     memcpy(proof.auth_path, sm.data() + off, AUTH_PATH_BYTES);
 
     // SK fast format: OID(4) | idx(4) | SK_SEED(32) | SK_PRF(32) | root(32) | PUB_SEED(32) | BDS(...)
-    // seed96 for proof = SK_SEED(32) | SK_PRF(32) | PUB_SEED(32)
-    size_t sk_seed_off  = 4 + params.index_bytes;           // 4+4=8
-    size_t sk_prf_off   = sk_seed_off + params.n;           // 8+32=40
-    size_t sk_root_off  = sk_prf_off + params.n;            // 40+32=72
-    size_t sk_pubseed_off = sk_root_off + params.n;         // 72+32=104
-
-    memcpy(proof.seed,        sk_data + sk_seed_off,   params.n); // SK_SEED
-    memcpy(proof.seed + 32,   sk_data + sk_prf_off,    params.n); // SK_PRF
-    memcpy(proof.seed + 64,   sk_data + sk_pubseed_off, params.n); // PUB_SEED
+    // Seed material stays private to the miner — NOT written to proof (C1 fix).
+    size_t sk_prf_off     = 4 + params.index_bytes + params.n;  // 4+4+32=40
+    size_t sk_root_off    = sk_prf_off + params.n;              // 40+32=72
+    size_t sk_pubseed_off = sk_root_off + params.n;             // 72+32=104
 
     // xmss_pk = root(32) | PUB_SEED(32)
     memcpy(proof.xmss_pk,      state.xmssRoot.begin(), 32);
