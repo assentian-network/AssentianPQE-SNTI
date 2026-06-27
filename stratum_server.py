@@ -46,8 +46,8 @@ from decimal import Decimal
 # ---------------------------------------------------------------------------
 DEFAULT_PORT = 3333
 DEFAULT_RPC_PORT = 39332
-DEFAULT_RPC_USER = "user"
-DEFAULT_RPC_PASS = "password"
+DEFAULT_RPC_USER = os.environ.get("SNTI_RPC_USER", "user")
+DEFAULT_RPC_PASS = os.environ.get("SNTI_RPC_PASS", "")  # N1 fix: never hardcode — set SNTI_RPC_PASS env var
 DEFAULT_RPC_HOST = "127.0.0.1"
 DEFAULT_MINER_ADDRESS = ""
 DEFAULT_SHARES_PER_BLOCK = 5
@@ -616,6 +616,10 @@ def main():
     parser.add_argument("--shares-per-block", type=int, default=DEFAULT_SHARES_PER_BLOCK,
                         help="Shares required before mining attempt")
     args = parser.parse_args()
+
+    if not args.rpc_pass:
+        log.error("RPC password not set. Use --rpc-pass or export SNTI_RPC_PASS=<password>")
+        sys.exit(1)
 
     rpc = BitcoinRPC(args.rpc_host, args.rpc_port, args.rpc_user, args.rpc_pass)
 

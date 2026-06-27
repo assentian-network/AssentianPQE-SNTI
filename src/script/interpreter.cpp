@@ -1812,10 +1812,6 @@ bool GenericTransactionSignatureChecker<T>::CheckXMSSSignature(const std::vector
 
     XMSS::CXMSSKey xmss;
     bool xmss_ok = xmss.Verify(hash_vec, sig_vec, pubkey_vec);
-    // SNTI DEBUG: log XMSS signature verification result
-    fprintf(stderr, "QNT: CheckXMSSSignature: sig_size=%u pubkey[0..3]=%02x%02x%02x%02x result=%d\n",
-        (unsigned)sig_vec.size(), pubkey_vec.size()>=4?pubkey_vec[0]:0, pubkey_vec.size()>=4?pubkey_vec[1]:0,
-        pubkey_vec.size()>=4?pubkey_vec[2]:0, pubkey_vec.size()>=4?pubkey_vec[3]:0, xmss_ok);
     return xmss_ok;
 }
 

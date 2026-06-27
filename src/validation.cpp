@@ -3994,6 +3994,15 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
 
     // PoUW v2: verify root < target + wots_sig
     if (is_v2) {
+        // SNTI N4-fix: nLeafIndex must be in [0, XMSS_MAX_LEAVES-1] = [0, 1023].
+        // XMSS-SHA2_10_256 has height=10 → 2^10 = 1024 leaves. A malicious block
+        // with nLeafIndex >= 1024 would fail cryptographic verification below, but
+        // rejecting early prevents any DB lookup with a nonsensical key.
+        if (block.nLeafIndex >= 1024u) {
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-leaf-oob",
+                                 strprintf("PoUW v2: nLeafIndex %u out of range [0,1023]", block.nLeafIndex));
+        }
+
         arith_uint256 target;
         target.SetCompact(block.nBits);
         // SNTI PoUW v2: preimage excludes hashMerkleRoot (same as miner)

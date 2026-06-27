@@ -341,7 +341,7 @@ public:
         consensus.BIP66Height = 1;
         consensus.CSVHeight = 1;
         consensus.SegwitHeight = 0;
-        consensus.nPowTargetTimespan = 14 * 24 * 60 * 60;
+        consensus.nPowTargetTimespan = 60;  // N2 fix: match mainnet EMA per-block (was 14*24*60*60)
         consensus.nPowTargetSpacing = 60;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
