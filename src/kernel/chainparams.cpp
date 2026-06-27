@@ -174,7 +174,7 @@ public:
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};        // xpub-like
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};        // xprv-like
 
-        bech32_hrp = "qn";  // whitepaper: native segwit-style addresses
+        bech32_hrp = "snti";  // SNTI: mainnet address prefix → snti1q...
 
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
@@ -274,7 +274,7 @@ public:
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
 
-        bech32_hrp = "tq";
+        bech32_hrp = "tsnti";  // SNTI: testnet/signet address prefix → tsnti1q...
 
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
@@ -377,7 +377,7 @@ public:
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
 
-        bech32_hrp = "tq";
+        bech32_hrp = "tsnti";  // SNTI: testnet/signet address prefix → tsnti1q...
 
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
@@ -503,7 +503,7 @@ public:
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
 
-        bech32_hrp = "qnr";
+        bech32_hrp = "sntirt";  // SNTI: regtest address prefix → sntirt1q...
     }
 };
 
