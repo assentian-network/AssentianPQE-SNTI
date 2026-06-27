@@ -10,11 +10,11 @@
 | Severity  | Total | Fixed | Open |
 |-----------|-------|-------|------|
 | CRITICAL  |   5   |   3   |   2  |
-| HIGH      |   8   |   4   |   4  |
+| HIGH      |   8   |   5   |   3  |
 | MEDIUM    |   7   |   0   |   7  |
 | LOW       |   4   |   0   |   4  |
 | FUTURE    |   5   |   0   |   5  |
-| **TOTAL** | **29**| **7** |**22**|
+| **TOTAL** | **29**| **8** |**21**|
 
 Referensi commit fix: `7ec14ed` (26 Jun 2026)
 
@@ -162,29 +162,27 @@ Membolehkan swing EMA yang legitimate, menolak yang di luar batas reasonable.
 ---
 
 ### [H1] Wallet Tidak Flush ke Disk Setelah XMSS Sign
-- **Status:** ✗ OPEN — BELUM DIPERBAIKI
-- **File:** `src/wallet/xmss_keystore.h:128-133`
+- **Status:** ✓ FIXED — 27 Jun 2026
+- **File:** `src/wallet/wallet.cpp:PersistXMSSState()`, `src/wallet/xmss_keystore.h`
 - **Ditemukan:** Audit mendalam 27 Jun 2026
 
-**Apa yang terjadi:**
-```cpp
-entry.leaf_index++;
-entry.seckey = key.GetPrivKey();
-return sig;   // ← tidak ada Flush() / persist ke disk
-```
-`CXMSSKeyStore::Sign()` mengupdate `leaf_index` dan `seckey` di memori saja.
-Kalau node crash sebelum periodic wallet flush:
-- Disk masih menyimpan SK dengan `leaf_index` lama
-- Saat reload, node akan sign dengan **leaf yang sama lagi**
-- WOTS+ key reuse → **private key bisa direcovery**
+**Klarifikasi setelah investigasi:**
+`CXMSSKeyStore::Sign()` (yang disebut di audit awal) ternyata **dead code** — tidak ada
+satu pun caller di seluruh codebase. Jalur signing aktual adalah:
+`CXMSSSigner::SignXMSS()` → `CWallet::PersistXMSSState()` di `wallet.cpp:2195`.
 
-**Fix:**
-Panggil persist ke wallet database setelah update. Opsi:
-- (a) Inject wallet DB handle ke `CXMSSKeyStore::Sign()` dan tulis langsung
-- (b) Return "needs-persist" flag, caller yang panggil flush
-- (c) File `leaf_index.dat` yang `fsync()` setelah setiap sign
+`PersistXMSSState()` sudah menulis state ke `WalletBatch`, tapi hanya sampai ke DB buffer
+layer. Crash antara `WriteXmssState()` dan database flush bisa meninggalkan stale state
+di disk — leaf_index di memori sudah advance tapi disk masih yang lama.
 
-**Effort:** 1–2 jam
+**Fix yang diterapkan:**
+- `wallet.cpp PersistXMSSState()`: scope `WalletBatch` ke dalam block `{}` agar destructs
+  sebelum `GetDatabase().Flush()` dipanggil. `Flush()` memaksa fsync ke disk.
+- `xmss_keystore.h CXMSSKeyStore::Sign()`: tambah komentar peringatan bahwa fungsi ini
+  bukan jalur aktif dan butuh persist callback kalau ever digunakan.
+- Build: **PASS**
+
+**Effort realisasi:** 30 menit
 
 ---
 

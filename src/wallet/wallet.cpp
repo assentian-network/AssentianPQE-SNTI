@@ -4588,31 +4588,42 @@ void CWallet::PersistXMSSState()
     std::vector<uint8_t> state = m_xmss_signer->SaveState();
     if (state.empty()) return;
 
-    WalletBatch batch(GetDatabase());
+    // Scope the batch so it destructs (and commits to the DB layer) before
+    // the Flush() call below.  Leaf-index reuse lets an attacker recover the
+    // XMSS private key from two signatures, so we force an fsync here rather
+    // than relying on the periodic background flush.
+    {
+        WalletBatch batch(GetDatabase());
 
-    if (IsCrypted()) {
-        LOCK(cs_wallet);
-        if (vMasterKey.empty()) {
-            LogPrintf("QNT: wallet is locked, skipping XMSS state persist (will retry after unlock)\n");
-            return;
+        if (IsCrypted()) {
+            LOCK(cs_wallet);
+            if (vMasterKey.empty()) {
+                LogPrintf("QNT: wallet is locked, skipping XMSS state persist (will retry after unlock)\n");
+                return;
+            }
+            CKeyingMaterial plaintext(state.begin(), state.end());
+            uint256 iv = GetRandHash();
+            std::vector<unsigned char> ciphertext;
+            if (!EncryptSecret(vMasterKey, plaintext, iv, ciphertext)) {
+                LogPrintf("QNT: ERROR - failed to encrypt XMSS state, not persisting\n");
+                return;
+            }
+            std::vector<uint8_t> encrypted_blob;
+            encrypted_blob.insert(encrypted_blob.end(), {'X','E','N','C'});
+            encrypted_blob.insert(encrypted_blob.end(), iv.begin(), iv.end());
+            encrypted_blob.insert(encrypted_blob.end(), ciphertext.begin(), ciphertext.end());
+            batch.WriteXmssState(encrypted_blob);
+            LogPrint(BCLog::WALLETDB, "QNT: Saved ENCRYPTED XMSS state (%u bytes)\n", (unsigned)encrypted_blob.size());
+        } else {
+            batch.WriteXmssState(state);
+            LogPrint(BCLog::WALLETDB, "QNT: Saved XMSS state (%u bytes)\n", (unsigned)state.size());
         }
-        CKeyingMaterial plaintext(state.begin(), state.end());
-        uint256 iv = GetRandHash();
-        std::vector<unsigned char> ciphertext;
-        if (!EncryptSecret(vMasterKey, plaintext, iv, ciphertext)) {
-            LogPrintf("QNT: ERROR - failed to encrypt XMSS state, not persisting\n");
-            return;
-        }
-        std::vector<uint8_t> encrypted_blob;
-        encrypted_blob.insert(encrypted_blob.end(), {'X','E','N','C'});
-        encrypted_blob.insert(encrypted_blob.end(), iv.begin(), iv.end());
-        encrypted_blob.insert(encrypted_blob.end(), ciphertext.begin(), ciphertext.end());
-        batch.WriteXmssState(encrypted_blob);
-        LogPrint(BCLog::WALLETDB, "QNT: Saved ENCRYPTED XMSS state (%u bytes)\n", (unsigned)encrypted_blob.size());
-    } else {
-        batch.WriteXmssState(state);
-        LogPrint(BCLog::WALLETDB, "QNT: Saved XMSS state (%u bytes)\n", (unsigned)state.size());
-    }
+    } // batch destructs here — write committed to DB
+
+    // Force the write all the way to disk.  XMSS leaf reuse is catastrophic
+    // (private-key recovery from two signatures), so we pay the fsync cost
+    // on every sign rather than risk stale state after a crash.
+    GetDatabase().Flush();
 }
 
 void CWallet::LoadXMSSStateIfPossible()

@@ -98,6 +98,13 @@ public:
     /** Sign a hash with the XMSS key identified by pubkey.
      *  Updates the leaf_index after signing (stateful!).
      *  Returns the signature, or empty vector on failure.
+     *
+     *  NOTE: This method is NOT the active transaction-signing path.
+     *  Real transaction signing goes through CXMSSSigner::SignXMSS() which
+     *  calls CWallet::PersistXMSSState() (with fsync) immediately after.
+     *  Do NOT call this directly without arranging persistent storage of the
+     *  updated leaf_index and seckey — XMSS leaf reuse allows private-key
+     *  recovery from two signatures with the same index.
      */
     std::vector<uint8_t> Sign(const std::vector<uint8_t>& pubkey, const std::vector<uint8_t>& hash)
     {
