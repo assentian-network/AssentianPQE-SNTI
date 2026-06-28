@@ -263,11 +263,23 @@ private:
 /**
  * Verify an XMSS signature against a public key.
  * This is the node-side verification — no secret key needed.
+ *
+ * XMSS-SHA2_10_256 sig_bytes = idx(4) + R(32) + WOTS(2144) + auth(320) = 2500.
+ * xmss_sign_open writes (smlen - sig_bytes) bytes into the output buffer.
+ * With smlen = sig.size() + 32, that is (sig.size() + 32 - 2500) bytes written.
+ * For sig.size() > 2500 this exceeds the 32-byte message buffer → heap overflow.
+ * Guard: reject any signature whose size != 2500 before calling the library.
  */
 inline bool VerifySignature(const uint8_t* hash32,
                             const std::vector<uint8_t>& sig,
                             const uint8_t* pk64)
 {
+    // XMSS-SHA2_10_256 signatures are exactly 2500 bytes.
+    // Reject early to prevent xmss_sign_open writing past the 32-byte output buffer.
+    xmss_params params;
+    if (xmss_parse_oid(&params, QNT_XMSS_OID) != 0) return false;
+    if (sig.size() != params.sig_bytes) return false;
+
     // Build pk with OID prefix
     std::vector<uint8_t> pk(QNT_XMSS_OID_LEN + QNT_XMSS_PK_SIZE);
     pk[0] = (QNT_XMSS_OID >> 24) & 0xFF;
@@ -276,7 +288,8 @@ inline bool VerifySignature(const uint8_t* hash32,
     pk[3] = QNT_XMSS_OID & 0xFF;
     memcpy(pk.data() + QNT_XMSS_OID_LEN, pk64, QNT_XMSS_PK_SIZE);
 
-    // Build sm = [signature || message]
+    // Build sm = [signature || message]. smlen = sig_bytes + 32,
+    // so xmss_sign_open writes exactly 32 bytes into m — safe.
     std::vector<uint8_t> sm(sig.size() + 32);
     memcpy(sm.data(), sig.data(), sig.size());
     memcpy(sm.data() + sig.size(), hash32, 32);
@@ -287,7 +300,7 @@ inline bool VerifySignature(const uint8_t* hash32,
     int ret = xmss_sign_open(m.data(), &mlen, sm.data(),
                              (unsigned long long)sm.size(), pk.data());
 
-    return (ret == 0);
+    return (ret == 0 && mlen == 32);
 }
 
 } // namespace XMSS

@@ -5,12 +5,94 @@ Proxies bitcoind RPC calls for the Quant post-quantum cryptocurrency block explo
 """
 
 import os
+import re
 import json
+import sqlite3
+import hashlib
+import secrets
+import time
 import requests
+import jwt as pyjwt
 from flask import Flask, jsonify, request, send_from_directory
+from functools import wraps
+
+_EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SNTI_DIR = os.path.dirname(BASE_DIR)
 app = Flask(__name__)
+
+JWT_EXP_HOURS = 24
+DB_PATH = os.path.join(BASE_DIR, "wallet.db")
+_JWT_SECRET_FILE = os.path.join(BASE_DIR, ".jwt_secret")
+
+def _load_jwt_secret() -> str:
+    """Return JWT secret from env var, falling back to a file-persisted secret.
+    Using a random secret per-process-start (secrets.token_hex) would invalidate
+    all existing tokens on every restart. The file ensures the secret survives
+    restarts without requiring the operator to set an env var manually.
+    Production deployments should set SNTI_JWT_SECRET via systemd Environment=.
+    """
+    env_secret = os.environ.get("SNTI_JWT_SECRET", "")
+    if env_secret:
+        return env_secret
+    if os.path.exists(_JWT_SECRET_FILE):
+        with open(_JWT_SECRET_FILE, "r") as f:
+            stored = f.read().strip()
+        if len(stored) >= 32:
+            return stored
+    new_secret = secrets.token_hex(32)
+    try:
+        with open(_JWT_SECRET_FILE, "w") as f:
+            f.write(new_secret)
+        os.chmod(_JWT_SECRET_FILE, 0o600)
+    except OSError:
+        pass
+    return new_secret
+
+JWT_SECRET = _load_jwt_secret()
+
+# ---------------------------------------------------------------------------
+# Wallet DB init
+# ---------------------------------------------------------------------------
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        xmss_address TEXT,
+        created_at INTEGER NOT NULL
+    )""")
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def _hash_pw(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+def _make_token(user_id, username):
+    payload = {"sub": user_id, "usr": username, "exp": int(time.time()) + JWT_EXP_HOURS * 3600}
+    return pyjwt.encode(payload, JWT_SECRET, algorithm="HS256")
+
+def jwt_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            payload = pyjwt.decode(auth[7:], JWT_SECRET, algorithms=["HS256"])
+        except pyjwt.ExpiredSignatureError:
+            return jsonify({"error": "token expired"}), 401
+        except Exception:
+            return jsonify({"error": "invalid token"}), 401
+        request.user_id = payload["sub"]
+        request.username = payload["usr"]
+        return f(*args, **kwargs)
+    return decorated
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -501,6 +583,178 @@ def stratum_stats():
             "blocks_found": 0,
             "worker_list": [],
         })
+
+
+# ---------------------------------------------------------------------------
+# Serve wallet pages
+# ---------------------------------------------------------------------------
+
+@app.route("/wallet/")
+@app.route("/wallet")
+def wallet_index():
+    return send_from_directory(os.path.join(SNTI_DIR, "wallet"), "index.html")
+
+@app.route("/wallet/nc")
+@app.route("/wallet/nc/")
+def wallet_nc():
+    return send_from_directory(os.path.join(SNTI_DIR, "wallet"), "nc.html")
+
+# ---------------------------------------------------------------------------
+# API: Wallet auth
+# ---------------------------------------------------------------------------
+
+@app.route("/api/wallet/signup", methods=["POST"])
+def wallet_signup():
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+    if not username or not email or not password:
+        return jsonify({"error": "username, email, and password required"}), 400
+    if len(username) < 3:
+        return jsonify({"error": "username must be at least 3 characters"}), 400
+    if not _EMAIL_RE.match(email):
+        return jsonify({"error": "invalid email address"}), 400
+    if len(password) < 8:
+        return jsonify({"error": "password must be at least 8 characters"}), 400
+
+    # Generate XMSS address via node RPC
+    addr_result = rpc_call("getnewxmssaddress")
+    if isinstance(addr_result, dict) and "error" in addr_result:
+        return jsonify({"error": "node unavailable, cannot create wallet address"}), 503
+    # getnewxmssaddress returns {"address": "tsnti1...", "pubkey": "..."}
+    if isinstance(addr_result, dict):
+        xmss_address = addr_result.get("address", "")
+    else:
+        xmss_address = str(addr_result)
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "INSERT INTO users (username, email, password_hash, xmss_address, created_at) VALUES (?,?,?,?,?)",
+            (username, email, _hash_pw(password), xmss_address, int(time.time()))
+        )
+        row = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+        conn.commit()
+        conn.close()
+        token = _make_token(row[0], username)
+        return jsonify({"token": token, "username": username, "address": xmss_address})
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "username or email already taken"}), 409
+
+@app.route("/api/wallet/login", methods=["POST"])
+def wallet_login():
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT id, username, xmss_address, password_hash FROM users WHERE username=?",
+        (username,)
+    ).fetchone()
+    conn.close()
+    if not row or row[3] != _hash_pw(password):
+        return jsonify({"error": "invalid username or password"}), 401
+    token = _make_token(row[0], row[1])
+    return jsonify({"token": token, "username": row[1], "address": row[2]})
+
+@app.route("/api/wallet/me")
+@jwt_required
+def wallet_me():
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT username, email, xmss_address, created_at FROM users WHERE id=?",
+        (request.user_id,)
+    ).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "user not found"}), 404
+    return jsonify({"username": row[0], "email": row[1], "address": row[2], "created_at": row[3]})
+
+@app.route("/api/wallet/balance")
+@jwt_required
+def wallet_balance():
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute("SELECT xmss_address FROM users WHERE id=?", (request.user_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "user not found"}), 404
+    address = row[0]
+    result = rpc_call("getaddressinfo", [address])
+    utxos = rpc_call("listunspent", [0, 9999999, [address]])
+    if isinstance(utxos, dict) and "error" in utxos:
+        utxos = []
+    balance = sum(u.get("amount", 0) for u in (utxos or []))
+    return jsonify({"address": address, "balance": balance, "utxo_count": len(utxos or [])})
+
+@app.route("/api/wallet/send", methods=["POST"])
+@jwt_required
+def wallet_send():
+    data = request.get_json(silent=True) or {}
+    to_address = (data.get("to") or "").strip()
+    amount = data.get("amount")
+    if not to_address or not amount:
+        return jsonify({"error": "to and amount required"}), 400
+    try:
+        amount = float(amount)
+        if amount <= 0:
+            raise ValueError()
+    except (ValueError, TypeError):
+        return jsonify({"error": "invalid amount"}), 400
+
+    result = rpc_call("sendtoxmssaddress", [to_address, amount])
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify({"txid": result})
+
+@app.route("/api/wallet/txs")
+@jwt_required
+def wallet_txs():
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute("SELECT xmss_address FROM users WHERE id=?", (request.user_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "user not found"}), 404
+    address = row[0]
+    result = rpc_call("listunspent", [0, 9999999, [address]])
+    if isinstance(result, dict) and "error" in result:
+        return jsonify({"txs": []})
+    return jsonify({"txs": result or []})
+
+# ---------------------------------------------------------------------------
+# API: Non-custodial tools
+# ---------------------------------------------------------------------------
+
+@app.route("/api/nc/newaddress", methods=["POST"])
+def nc_new_address():
+    """Generate a fresh XMSS keypair — returned once, not stored server-side."""
+    result = rpc_call("getnewxmssaddress")
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 503
+    if isinstance(result, dict):
+        return jsonify({"address": result.get("address", ""), "pubkey": result.get("pubkey", "")})
+    return jsonify({"address": str(result)})
+
+@app.route("/api/nc/balance/<address>")
+def nc_balance(address):
+    # scantxoutset scans the full UTXO set for any address (no wallet import needed)
+    result = rpc_call("scantxoutset", ["start", [f"addr({address})"]])
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 502
+    utxos = result.get("unspents", []) if isinstance(result, dict) else []
+    balance = result.get("total_amount", 0) if isinstance(result, dict) else 0
+    return jsonify({"address": address, "balance": balance, "utxos": utxos})
+
+@app.route("/api/nc/broadcast", methods=["POST"])
+def nc_broadcast():
+    data = request.get_json(silent=True) or {}
+    rawtx = (data.get("hex") or "").strip()
+    if not rawtx:
+        return jsonify({"error": "hex required"}), 400
+    result = rpc_call("sendrawtransaction", [rawtx])
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify({"txid": result})
 
 
 if __name__ == "__main__":
