@@ -102,13 +102,19 @@ public:
         consensus.CSVHeight = 1;
         consensus.SegwitHeight = 0; // No Segwit in Quant v1 — XMSS keys are 64 bytes
         consensus.MinBIP9WarningHeight = 0;
-        // PoW: Low difficulty for fair launch, will adjust
-        // SNTI PoUW v2: powLimit = 2^256/156
-        // Target: 1 of 156 XMSS trees valid per block (4 cores, 6.17s/tree, 60s block)
-        consensus.powLimit = uint256S("01a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a4");
-        // SNTI PoUW v2: EMA per-block — nPowTargetTimespan = nPowTargetSpacing
-        consensus.nPowTargetTimespan = 60; // EMA uses per-block spacing
-        consensus.nPowTargetSpacing = 60;  // 60 seconds target block time
+        // SNTI PoUW v2: powLimit must exactly match what nBits=0x2001a41a encodes.
+        // nBits decode: mantissa=0x01a41a, exponent=0x20(32) →
+        //   target = 0x01a41a * 256^(32-3) = 0x01a41a followed by 29 zero bytes.
+        // The old repeating value "01a41a41a41a..." was larger than the genesis
+        // target, making powLimit inconsistent with the genesis nBits (C-2 audit fix).
+        consensus.powLimit = uint256S("01a41a0000000000000000000000000000000000000000000000000000000000");
+        // SNTI PoUW v2: EMA smoothing over 10 blocks (H-1 audit fix).
+        // nPowTargetTimespan=60 gave DifficultyAdjustmentInterval=1 (retarget every
+        // block), which caused 4x difficulty swings per block under variable XMSS
+        // tree-build times. 10-block smoothing keeps fast response while damping
+        // single-block outliers — still much faster than Bitcoin's 2016-block window.
+        consensus.nPowTargetTimespan = 600; // 10-block EMA window
+        consensus.nPowTargetSpacing = 60;   // 60 seconds target block time
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1815;  // ~90% of 2016
@@ -139,7 +145,7 @@ public:
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 1; // mainnet
 
-        // Quant magic bytes: "QUAN" = 0x5155414E
+        // SNTI magic bytes: "SNTI" = 0x534E5449
         pchMessageStart[0] = 0x53;
         pchMessageStart[1] = 0x4E;
         pchMessageStart[2] = 0x54;
@@ -159,11 +165,14 @@ public:
         consensus.hashGenesisBlock = genesis.GetHash();
 
         vSeeds.clear();
-        // SNTI DNS seeds (to be registered at launch)
-        // vSeeds.emplace_back("seed.qnt.io.");
-        // vSeeds.emplace_back("testnet-seed.qnt.io.");
+        // SNTI DNS seeds — register before mainnet launch:
+        //   seed.assentian-pqe.org → multiple A records (US/EU/APAC)
+        // Eclipse attack mitigation: DNS seed with multiple A records in
+        // different ASes ensures no single point of failure for peer discovery.
+        // vSeeds.emplace_back("seed.assentian-pqe.org.");
 
-        // SNTI hardcoded seed nodes (104.234.26.7)
+        // SNTI mainnet hardcoded seed nodes.
+        // TODO(mainnet): add 2+ nodes in EU and APAC before public launch.
         vFixedSeeds = std::vector<uint8_t>(chainparams_seed_main, chainparams_seed_main + sizeof(chainparams_seed_main));
 
         // Quant address prefixes — different from Bitcoin
@@ -232,8 +241,13 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0;
 
-        consensus.nMinimumChainWork = uint256{};
-        consensus.defaultAssumeValid = uint256{};
+        // SNTI: minimum chain work at testnet block 100 — prevents attacker from
+        // creating a fake low-work chain from genesis (51% / long-range reorg defence).
+        // Chainwork at block 100: derived from getblockheader <hash_100>.chainwork
+        consensus.nMinimumChainWork = uint256S("0000000000000000000000000000000000000000000000000000000000031006");
+        // defaultAssumeValid: block 100 — scripts in blocks 0..100 are skipped
+        // during IBD to speed up initial sync.
+        consensus.defaultAssumeValid = uint256S("6f91d530d998eb317196b655bb7be59f55f1241fdce415df3cbae039aae1ec0c");
 
         // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
@@ -262,11 +276,16 @@ public:
         vFixedSeeds.clear();
         vSeeds.clear();
 
-        // SNTI testnet hardcoded seed nodes (104.234.26.7)
+        // SNTI testnet hardcoded seed nodes.
+        // Eclipse attack mitigation: maintain at least 3 seed nodes in
+        // different AS/regions. Current node: 104.234.26.7 (AS — US).
+        // TODO(mainnet): add 2+ nodes in EU and APAC before public launch.
         vFixedSeeds = std::vector<uint8_t>(chainparams_seed_test, chainparams_seed_test + sizeof(chainparams_seed_test));
 
-        // SNTI testnet DNS seeds (to be registered)
-        // vSeeds.emplace_back("testnet-seed.qnt.io.");
+        // SNTI testnet DNS seeds — register before mainnet launch:
+        //   testnet-seed.assentian-pqe.org → multiple A records (different regions)
+        //   This provides automatic peer discovery without a single point of failure.
+        // vSeeds.emplace_back("testnet-seed.assentian-pqe.org.");
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
@@ -279,15 +298,20 @@ public:
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
 
+        // SNTI: checkpoints — hardcoded block hashes from testnet (Jun 27 2026).
+        // A node that diverges from these hashes at these heights is on a fork.
+        // Update every ~500 blocks by running: bitcoin-cli getblockhash <height>
         checkpointData = {
             {
-                {0, consensus.hashGenesisBlock},
+                {0,   consensus.hashGenesisBlock},
+                {50,  uint256S("ca854a860b36b8a5bee587304998f94debbd7b20d272a767e0b18a24d994e7d7")},
+                {100, uint256S("6f91d530d998eb317196b655bb7be59f55f1241fdce415df3cbae039aae1ec0c")},
             }
         };
 
         // SNTI PoUW v2: chainTxData
         chainTxData = ChainTxData{
-            .nTime    = 1782275807,
+            .nTime    = 1782556387,
             .nTxCount = 1,
             .dTxRate  = 0,
         };
