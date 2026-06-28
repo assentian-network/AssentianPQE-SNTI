@@ -8,9 +8,9 @@ import os
 import re
 import json
 import sqlite3
-import hashlib
 import secrets
 import time
+import bcrypt
 import requests
 import jwt as pyjwt
 from flask import Flask, jsonify, request, send_from_directory
@@ -70,8 +70,11 @@ def init_db():
 
 init_db()
 
-def _hash_pw(pw):
-    return hashlib.sha256(pw.encode()).hexdigest()
+def _hash_pw(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt(rounds=12)).decode()
+
+def _check_pw(pw: str, stored: str) -> bool:
+    return bcrypt.checkpw(pw.encode(), stored.encode())
 
 def _make_token(user_id, username):
     payload = {"sub": user_id, "usr": username, "exp": int(time.time()) + JWT_EXP_HOURS * 3600}
@@ -653,7 +656,7 @@ def wallet_login():
         (username,)
     ).fetchone()
     conn.close()
-    if not row or row[3] != _hash_pw(password):
+    if not row or not _check_pw(password, row[3]):
         return jsonify({"error": "invalid username or password"}), 401
     token = _make_token(row[0], row[1])
     return jsonify({"token": token, "username": row[1], "address": row[2]})
