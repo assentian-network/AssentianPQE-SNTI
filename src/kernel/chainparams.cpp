@@ -91,7 +91,7 @@ public:
         // at 60s/block gives ~146 days between halvings, not the "~4 years"
         // the whitepaper promises (and not even the "~2 years" the old
         // comment here claimed -- both were wrong, and disagreed with each
-        // other). Bitcoin's 210,000-block halving assumes 600s/block; QNT
+        // other). Bitcoin's 210,000-block halving assumes 600s/block; SNTI
         // blocks are 10x faster (60s), so the interval must be 10x more
         // blocks (2,100,000) to land on the same ~4-year real-world cadence.
         consensus.nSubsidyHalvingInterval = 2100000;
@@ -128,20 +128,17 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0;
 
-        // SNTI L1 TODO-MAINNET: set after ~10 000 mainnet blocks.
-        // nMinimumChainWork prevents long-range reorg attacks from genesis.
-        // Derive: snti-cli getblockheader <hash_at_10k> → copy "chainwork".
-        // defaultAssumeValid: hash of a deeply buried mainnet block whose scripts
-        // may be skipped during IBD to speed up initial sync.
-        // SNTI L2 TODO-MAINNET: add checkpoint entries here alongside genesis
-        // every ~10 000 blocks, e.g. {10000, uint256S("0x...")}.
-        consensus.nMinimumChainWork = uint256{};
-        consensus.defaultAssumeValid = uint256{};
+        // Derived from: snti-cli getblockheader $(snti-cli getblockhash 90)
+        // Block 90 — 2026-06-28, chainwork 0x725d, hash da8569ca...
+        consensus.nMinimumChainWork = uint256S("000000000000000000000000000000000000000000000000000000000000725d");
+        // Scripts in blocks 0–90 are skipped during IBD (safe: deeply buried).
+        consensus.defaultAssumeValid = uint256S("da8569ca75a811dc36ea22849ae53ad95ae643ff764e2960519e236b84952d96");
 
         // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
-        consensus.nPoUWv2StartHeight = 1; // v1 proofs never valid on mainnet
+        consensus.nPoUWv2StartHeight = 1;   // v1 proofs never valid on mainnet
+        consensus.nPoUWv3StartHeight = 200; // hashMerkleRoot included in preimage from block 200
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 1; // mainnet
 
@@ -165,11 +162,9 @@ public:
         consensus.hashGenesisBlock = genesis.GetHash();
 
         vSeeds.clear();
-        // SNTI DNS seeds — register before mainnet launch:
-        //   seed.assentian-pqe.org → multiple A records (US/EU/APAC)
-        // Eclipse attack mitigation: DNS seed with multiple A records in
-        // different ASes ensures no single point of failure for peer discovery.
-        // vSeeds.emplace_back("seed.assentian-pqe.org.");
+        // SNTI DNS seeds — assentian.network (registered 28/Jun/2026)
+        // A record: seed.assentian.network → 104.234.26.7
+        vSeeds.emplace_back("seed.assentian.network.");
 
         // SNTI mainnet hardcoded seed nodes.
         // TODO(mainnet): add 2+ nodes in EU and APAC before public launch.
@@ -188,12 +183,11 @@ public:
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
 
-        // SNTI L2 TODO-MAINNET: add checkpoints after every ~10 000 mainnet blocks.
-        // Format: { height, uint256S("0x...block_hash...") }
-        // Run: snti-cli getblockhash <height> then getblockheader <hash>
+        // Update every ~500 blocks: snti-cli getblockhash <h> then getblockheader <hash>
         checkpointData = {
             {
-                {0, consensus.hashGenesisBlock},
+                {0,  consensus.hashGenesisBlock},
+                {90, uint256S("da8569ca75a811dc36ea22849ae53ad95ae643ff764e2960519e236b84952d96")},
             }
         };
 
@@ -252,7 +246,8 @@ public:
         // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
-        consensus.nPoUWv2StartHeight = 1; // v1 proofs never valid on testnet
+        consensus.nPoUWv2StartHeight = 1;   // v1 proofs never valid on testnet
+        consensus.nPoUWv3StartHeight = 200; // hashMerkleRoot included in preimage from block 200
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 2; // testnet
 
@@ -282,10 +277,9 @@ public:
         // TODO(mainnet): add 2+ nodes in EU and APAC before public launch.
         vFixedSeeds = std::vector<uint8_t>(chainparams_seed_test, chainparams_seed_test + sizeof(chainparams_seed_test));
 
-        // SNTI testnet DNS seeds — register before mainnet launch:
-        //   testnet-seed.assentian-pqe.org → multiple A records (different regions)
-        //   This provides automatic peer discovery without a single point of failure.
-        // vSeeds.emplace_back("testnet-seed.assentian-pqe.org.");
+        // SNTI testnet DNS seeds — assentian.network
+        // A record: testnet-seed.assentian.network → 104.234.26.7
+        vSeeds.emplace_back("testnet-seed.assentian.network.");
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
@@ -348,6 +342,7 @@ public:
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
         consensus.nPoUWv2StartHeight = 1; // v1 proofs never valid on signet
+        consensus.nPoUWv3StartHeight = 1; // signet: use new preimage from genesis
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 3; // signet
 
@@ -391,7 +386,7 @@ public:
         nPruneAfterHeight = 1000;
 
         genesis = CreateGenesisBlock(1781545300, 0, 0x1e0377ae, 1, 50 * COIN);
-        consensus.hashGenesisBlock = uint256S("743c2849738436a7c96451e5bbe51be98fb676fde212abf56c9d7a7a727f1efc");
+        consensus.hashGenesisBlock = genesis.GetHash();
 
         vFixedSeeds.clear();
 
@@ -500,8 +495,9 @@ public:
         consensus.fPoUW = true;
         consensus.nPoUWStartHeight = 1;
         consensus.nPoUWv2StartHeight = 1; // v1 proofs never valid on regtest
+        consensus.nPoUWv3StartHeight = 1; // regtest: use new preimage from genesis
         consensus.nPoUWMaxSigSize = 4096;
-        consensus.nXMSSChainId = 3; // regtest
+        consensus.nXMSSChainId = 4; // regtest (3=signet, avoid chain_id collision)
 
         vFixedSeeds.clear();
         vSeeds.clear();

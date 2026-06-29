@@ -214,12 +214,16 @@ bool CXMSSKey::Verify(const std::vector<uint8_t>& hash,
         pk.data()
     );
 
+    bool ok = (ret == 0) &&
+              (mlen == hash.size()) &&
+              (std::memcmp(m.data(), hash.data(), hash.size()) == 0);
+
     // Clean up temp buffers
     std::memset(sm.data(), 0, sm.size());
     std::memset(m.data(), 0, m.size());
     std::memset(pk.data(), 0, pk.size());
 
-    return (ret == 0);
+    return ok;
 }
 
 std::vector<uint8_t> CXMSSKey::GetPubKey() const

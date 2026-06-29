@@ -173,12 +173,50 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
             }
         }
 
-        // Preimage = block fields yang di-sign (tanpa xmssRoot dan hashMerkleRoot)
+        // Preimage signed by miner must match CheckPoUW in validation.cpp.
+        // From nPoUWv3StartHeight the preimage includes hashMerkleRoot so the
+        // proof binds to the block's transaction set (audit fix #1).
+        int next_height;
+        {
+            LOCK(cs_main);
+            const CBlockIndex* tip = chainman.ActiveChain().Tip();
+            next_height = tip ? tip->nHeight + 1 : 1;
+        }
+        const Consensus::Params& cp = chainman.GetParams().GetConsensus();
         uint256 preimage_hash;
         {
             HashWriter hw{};
-            hw << block.nVersion << block.hashPrevBlock
-               << block.nTime << block.nBits;
+            if (next_height >= cp.nPoUWv3StartHeight) {
+                // v3 preimage: explicitly compute the "base" merkle root by
+                // stripping any PW2/FSL OP_RETURN outputs that may already be
+                // in the coinbase. This mirrors ComputePoUWBaseMerkleRoot() in
+                // validation.cpp and is order-independent: the same value is
+                // produced whether proof/FSL are in the coinbase or not.
+                CMutableTransaction base_cb(*block.vtx[0]);
+                base_cb.vout.erase(
+                    std::remove_if(base_cb.vout.begin(), base_cb.vout.end(),
+                        [](const CTxOut& out) -> bool {
+                            const CScript& s = out.scriptPubKey;
+                            if (s.empty() || s[0] != OP_RETURN) return false;
+                            CScript::const_iterator pc = s.begin() + 1;
+                            opcodetype opc;
+                            std::vector<unsigned char> d;
+                            if (!s.GetOp(pc, opc, d) || d.size() < 4) return false;
+                            return (d[0]=='P' && d[1]=='W' && d[2]=='2' && d[3]==0x02) ||
+                                   (d[0]=='F' && d[1]=='S' && d[2]=='L' && d[3]==0x01);
+                        }),
+                    base_cb.vout.end());
+                std::vector<uint256> leaves;
+                leaves.push_back(MakeTransactionRef(std::move(base_cb))->GetHash());
+                for (size_t i = 1; i < block.vtx.size(); i++)
+                    leaves.push_back(block.vtx[i]->GetHash());
+                uint256 base_merkle = ComputeMerkleRoot(std::move(leaves));
+                hw << block.nVersion << block.hashPrevBlock
+                   << base_merkle << block.nTime << block.nBits;
+            } else {
+                hw << block.nVersion << block.hashPrevBlock
+                   << block.nTime << block.nBits;
+            }
             preimage_hash = hw.GetHash();
         }
 
@@ -266,9 +304,14 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
                 LogPrintf("PoUW v2: root > target, building new tree (attempt %llu)\n",
                           (unsigned long long)(DEFAULT_MAX_TRIES - max_tries));
                 // SNTI PoUW v2: collect failed seed
+                // SK layout: OID(4)+idx(4)+SK_SEED(32)+SK_PRF(32)+root(32)+PUB_SEED(32)+BDS(...)
+                // SEED_BYTES = SK_SEED(32)+SK_PRF(32)+PUB_SEED(32) = 96 bytes (non-contiguous in SK)
                 if (failed_seeds.entries.size() < PoUWv2KeyDer::MAX_FAILED_SEEDS) {
+                    uint8_t fsl_seed[PoUWv2KeyDer::SEED_BYTES];
+                    memcpy(fsl_seed,      state.sk.data() + 8,   64); // SK_SEED + SK_PRF
+                    memcpy(fsl_seed + 64, state.sk.data() + 104, 32); // PUB_SEED (skip root at 72)
                     failed_seeds.AddFailedSeed(
-                        state.sk.data() + 8,
+                        fsl_seed,
                         state.xmssRoot.begin(),
                         failed_seeds.block_height);
                 }

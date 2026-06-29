@@ -98,6 +98,7 @@ bool PermittedDifficultyTransition(const Consensus::Params& params, int64_t heig
     if (max_target > pow_limit) max_target = pow_limit;
 
     arith_uint256 min_target = old_target / 4;
+    if (min_target == arith_uint256(0)) min_target = arith_uint256(1); // prevent underflow to 0
 
     if (observed_new_target > max_target) return false;
     if (observed_new_target < min_target) return false;

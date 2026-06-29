@@ -1704,7 +1704,7 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
         return 0;
 
     CAmount nSubsidy = 50 * COIN;
-    // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
+    // Subsidy is cut in half every 2,100,000 blocks (~4 years at 60s/block).
     nSubsidy >>= halvings;
     return nSubsidy;
 }
@@ -2045,6 +2045,36 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
  *  When FAILED is returned, view is left in an indeterminate state. */
 // SNTI Fix2: PoUW leaf index tracking helpers
 static const uint8_t DB_POUW_LEAF = 'L';
+
+// Reconstruct the merkle root as it was BEFORE the miner embedded the PoUW
+// proof (PW2\x02) and FSL (FSL\x01) into the coinbase.  The miner signs this
+// "base" root; those outputs are appended afterwards, so we strip them to
+// reproduce the same preimage (audit fix #1).
+static uint256 ComputePoUWBaseMerkleRoot(const CBlock& block)
+{
+    if (block.vtx.empty()) return uint256{};
+
+    CMutableTransaction base_cb(*block.vtx[0]);
+    base_cb.vout.erase(
+        std::remove_if(base_cb.vout.begin(), base_cb.vout.end(),
+            [](const CTxOut& out) -> bool {
+                const CScript& s = out.scriptPubKey;
+                if (s.empty() || s[0] != OP_RETURN) return false;
+                CScript::const_iterator pc = s.begin() + 1;
+                opcodetype opc;
+                std::vector<unsigned char> d;
+                if (!s.GetOp(pc, opc, d) || d.size() < 4) return false;
+                return (d[0]=='P' && d[1]=='W' && d[2]=='2' && d[3]==0x02) ||
+                       (d[0]=='F' && d[1]=='S' && d[2]=='L' && d[3]==0x01);
+            }),
+        base_cb.vout.end());
+
+    std::vector<uint256> leaves;
+    leaves.push_back(MakeTransactionRef(std::move(base_cb))->GetHash());
+    for (size_t i = 1; i < block.vtx.size(); i++)
+        leaves.push_back(block.vtx[i]->GetHash());
+    return ComputeMerkleRoot(std::move(leaves));
+}
 
 static uint256 MakePoUWLeafKey(const std::vector<uint8_t>& pubkey64, uint32_t leaf_idx)
 {
@@ -3978,6 +4008,11 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
         // v2 magic: P W 2 \x02
         if (data.size() >= 4 &&
             data[0]=='P' && data[1]=='W' && data[2]=='2' && data[3]==0x02) {
+            if (data.size() > consensusParams.nPoUWMaxSigSize) {
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-sig-too-large",
+                    strprintf("PoUW v2: proof size %u exceeds nPoUWMaxSigSize %u",
+                              (unsigned)data.size(), (unsigned)consensusParams.nPoUWMaxSigSize));
+            }
             if (v2_proof.Deserialize(data.data(), data.size())) {
                 is_v2 = true;
                 xmss_pk.assign(v2_proof.xmss_pk, v2_proof.xmss_pk + PoUWv2::PK_BYTES);
@@ -4005,11 +4040,23 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
 
         arith_uint256 target;
         target.SetCompact(block.nBits);
-        // SNTI PoUW v2: preimage excludes hashMerkleRoot (same as miner)
-        HashWriter hw_v2{};
-        hw_v2 << block.nVersion << block.hashPrevBlock
-              << block.nTime << block.nBits;
-        uint256 preimage_v2 = hw_v2.GetHash();
+        // PoUW v2 preimage. From nPoUWv3StartHeight the preimage includes the
+        // "base" hashMerkleRoot (block without proof/FSL outputs in coinbase),
+        // binding the proof to the block's transaction set (audit fix #1).
+        // Below that height the old preimage is kept for backward-compat.
+        uint256 preimage_v2;
+        {
+            HashWriter hw_v2{};
+            if (nHeight >= consensusParams.nPoUWv3StartHeight) {
+                uint256 base_merkle = ComputePoUWBaseMerkleRoot(block);
+                hw_v2 << block.nVersion << block.hashPrevBlock
+                      << base_merkle << block.nTime << block.nBits;
+            } else {
+                hw_v2 << block.nVersion << block.hashPrevBlock
+                      << block.nTime << block.nBits;
+            }
+            preimage_v2 = hw_v2.GetHash();
+        }
         bool v2_ok = PoUWv2::CheckPoUWv2(v2_proof, preimage_v2.begin(), target, block.nLeafIndex);
         if (!v2_ok) {
             return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-v2-invalid",
@@ -4051,6 +4098,11 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
                 if (!script.GetOp(pc2, opc2, fsl_data)) continue;
                 if (fsl_data.size() < 4) continue;
                 if (fsl_data[0]!='F' || fsl_data[1]!='S' || fsl_data[2]!='L' || fsl_data[3]!=0x01) continue;
+                if (fsl_data.size() > consensusParams.nPoUWMaxSigSize) {
+                    return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-fsl-too-large",
+                        strprintf("PoUW v2: FSL size %u exceeds nPoUWMaxSigSize %u",
+                                  (unsigned)fsl_data.size(), (unsigned)consensusParams.nPoUWMaxSigSize));
+                }
 
                 PoUWv2KeyDer::FailedSeedList fsl;
                 if (!fsl.Deserialize(fsl_data.data(), fsl_data.size())) {
@@ -4060,6 +4112,17 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
                 if (!fsl.VerifyAgainstHeader(block.commitmentsRoot)) {
                     return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-commitments-mismatch",
                                          "PoUW v2: commitmentsRoot does not match coinbase FSL Merkle root");
+                }
+                // Each "failed" seed's root MUST be strictly above the target —
+                // a root <= target would be a valid proof, not a failure (audit fix #7).
+                for (const auto& entry : fsl.entries) {
+                    uint256 failed_root;
+                    memcpy(failed_root.begin(), entry.xmss_root, 32);
+                    if (UintToArith256(failed_root) <= target) {
+                        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-fsl-root-valid",
+                            strprintf("PoUW v2: FSL entry has root <= target (would be a valid proof, "
+                                      "not a failed seed): root=%s", failed_root.GetHex()));
+                    }
                 }
                 fsl_found = true;
                 break;

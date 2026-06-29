@@ -176,7 +176,7 @@ bool CXMSSSigner::SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubk
     // leaf index lets an attacker reconstruct the private key from two
     // signatures, so this is a hard block, not just leaf_index bookkeeping.
     if (it->second.retired) {
-        LogPrintf("QNT: SignXMSS refused -- key is retired (one-time XMSS address already used)\n");
+        LogPrintf("SNTI: SignXMSS refused -- key is retired (one-time XMSS address already used)\n");
         return false;
     }
 
@@ -288,7 +288,7 @@ std::vector<uint8_t> CXMSSSigner::SaveState() const
         data.push_back((entry.leaf_index >> 8) & 0xFF);
         data.push_back(entry.leaf_index & 0xFF);
 
-        // Retired flag (QNT gap #3)
+        // Retired flag (SNTI gap #3)
         data.push_back(entry.retired ? 1 : 0);
 
         // Secret key via CXMSSKey::GetPrivKey()
@@ -412,9 +412,8 @@ uint32_t CXMSSSigner::CountFreshKeys() const
 
 bool IsXMSSScript(const CScript& script)
 {
-    // P2XMSS: <64-byte-pubkey> OP_XMSS_CHECKSIG
-    // Total size: 64 (pubkey) + 1 (opcode) = 65 bytes
-    if (script.size() == XMSS_PUBKEY_SIZE + 1) {
+    // P2XMSS: PUSH64(1) <64-byte-pubkey> OP_XMSS_CHECKSIG(1) = 66 bytes
+    if (script.size() == XMSS_PUBKEY_SIZE + 2) {
         opcodetype opcode;
         CScript::const_iterator pc = script.begin();
         std::vector<unsigned char> vch;
