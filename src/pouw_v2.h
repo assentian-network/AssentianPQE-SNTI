@@ -156,9 +156,12 @@ inline arith_uint256 CalcNextTargetEMA(const arith_uint256& old_target,
                                        int64_t target_spacing,
                                        const arith_uint256& pow_limit)
 {
-    // Clamp actual to [target/4, target*4]
-    if (actual_spacing < target_spacing / 4) actual_spacing = target_spacing / 4;
-    if (actual_spacing > target_spacing * 4) actual_spacing = target_spacing * 4;
+    // Clamp actual to [target/4, target*20]
+    // Lower clamp (target/4 = 15s) limits difficulty from spiking too fast on bursts.
+    // Upper clamp raised from 4× to 20× so a stuck chain recovers in ~5 blocks instead
+    // of ~30 blocks.  Max recovery ratio per slow block: (900T+100×20T)/(1000T) = 2.9×.
+    if (actual_spacing < target_spacing / 4)  actual_spacing = target_spacing / 4;
+    if (actual_spacing > target_spacing * 20) actual_spacing = target_spacing * 20;
 
     // Integer EMA: multiply by 1000 to avoid float
     // new = old * (900*T + 100*A) / (1000*T)

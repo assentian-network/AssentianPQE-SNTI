@@ -110,6 +110,13 @@ nav a:hover{color:var(--text)}
 .modal-close{width:100%;padding:10px;border:none;border-radius:8px;background:var(--border);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;margin-top:8px;font-family:inherit}
 .modal-close:hover{background:#3a4a65}
 .copy-flash{color:var(--green);font-size:11px;margin-top:4px;min-height:14px}
+/* Miner status */
+.miner-status-bar{display:flex;align-items:center;gap:12px;margin-top:16px;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:13px}
+.miner-dot{width:10px;height:10px;border-radius:50%;background:var(--dim);flex-shrink:0;transition:.3s}
+.miner-dot.online{background:var(--green);box-shadow:0 0 8px rgba(34,197,94,.6)}
+.miner-dot.offline{background:var(--red)}
+.miner-label{font-weight:700;color:var(--text)}
+.miner-info{color:var(--dim);font-size:11px;flex:1}
 /* Watch addresses */
 .watch-section{margin-top:24px}
 .watch-section h3{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:14px}
@@ -223,6 +230,13 @@ nav a:hover{color:var(--text)}
         <div style="font-size:11px;color:var(--dim);margin-bottom:8px">Atau jalankan langsung di terminal:</div>
         <div class="cmd" id="installCmdText"></div>
         <div class="hint">Script sudah berisi kredensial akun Anda. Jangan dibagikan ke orang lain.</div>
+      </div>
+
+      <!-- Miner Status -->
+      <div class="miner-status-bar" id="minerStatusBar">
+        <div class="miner-dot" id="minerDot"></div>
+        <div class="miner-label" id="minerLabel">Miner Status</div>
+        <div class="miner-info" id="minerInfo">Memuat...</div>
       </div>
     </div>
 
@@ -624,6 +638,40 @@ async function showDashboard() {
   loadBalance();
   loadUTXOs();
   loadWatches();
+  loadMinerStatus();
+  setInterval(loadMinerStatus, 30000);
+}
+
+let _minerStatusInterval = null;
+async function loadMinerStatus() {
+  const dot  = document.getElementById('minerDot');
+  const lbl  = document.getElementById('minerLabel');
+  const info = document.getElementById('minerInfo');
+  try {
+    const res = await apiCall('/api/wallet/miner-status');
+    if (res.online) {
+      dot.className  = 'miner-dot online';
+      lbl.textContent = 'Miner ONLINE';
+      lbl.style.color = 'var(--green)';
+      const host = res.hostname ? ` — ${res.hostname}` : '';
+      const ago  = res.seconds_ago < 60 ? `${res.seconds_ago}s lalu` : `${Math.floor(res.seconds_ago/60)}m lalu`;
+      info.textContent = `Heartbeat terakhir: ${ago}${host}`;
+    } else {
+      dot.className  = 'miner-dot offline';
+      lbl.textContent = 'Miner OFFLINE';
+      lbl.style.color = 'var(--red)';
+      if (res.last_seen) {
+        const ago = Math.floor((Date.now()/1000 - res.last_seen) / 60);
+        info.textContent = `Terakhir aktif: ${ago} menit lalu${res.hostname ? ' — ' + res.hostname : ''}`;
+      } else {
+        info.textContent = 'Miner belum pernah terhubung. Download installer untuk mulai mining.';
+      }
+    }
+  } catch(e) {
+    dot.className  = 'miner-dot';
+    lbl.textContent = 'Miner Status';
+    info.textContent = 'Tidak dapat memuat status.';
+  }
 }
 
 // Auto-login if token exists

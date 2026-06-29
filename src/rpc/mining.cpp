@@ -240,6 +240,13 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
         auto proof_ptr = std::make_unique<PoUWv2::PoUWv2Proof>();
         PoUWv2::PoUWv2Proof& proof = *proof_ptr;
 
+        // Hard limit on XMSS tree builds per RPC call (~2.5s each → ~50s max).
+        // Prevents the HTTP worker thread from being permanently blocked while
+        // the RPC work queue fills up and all other calls get rejected.
+        // The external miner loop (snti-miner.sh) retries immediately on false return.
+        static constexpr uint64_t POUW_MAX_TREES_PER_CALL = 20;
+        uint64_t trees_this_call = 0;
+
         while (max_tries > 0 && !chainman.m_interrupt) {
             // Cek apakah root tree aktif < target
             if (UintToArith256(state.xmssRoot) <= target) {
@@ -301,6 +308,11 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
                 break;
             } else {
                 // Root tree aktif > target — perlu tree baru
+                if (trees_this_call >= POUW_MAX_TREES_PER_CALL) {
+                    LogPrintf("PoUW v2: yielding after %llu trees (RPC throttle), will retry\n",
+                              (unsigned long long)trees_this_call);
+                    break; // return false → miner script loops immediately
+                }
                 LogPrintf("PoUW v2: root > target, building new tree (attempt %llu)\n",
                           (unsigned long long)(DEFAULT_MAX_TRIES - max_tries));
                 // SNTI PoUW v2: collect failed seed
@@ -321,6 +333,7 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
                 }
                 if (!state_mgr.Save(state)) break;
                 --max_tries;
+                ++trees_this_call;
             }
         }
 

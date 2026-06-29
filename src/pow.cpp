@@ -33,6 +33,20 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
             return nProofOfWorkLimit;
     }
 
+    // SNTI stuck-chain recovery: if the new block's timestamp shows the chain
+    // has been idle for >10× target_spacing (10 min), bypass the 3-block MA and
+    // feed the maximum EMA-deceleration spacing (20× target) so that difficulty
+    // falls at the fastest rate the EMA allows (2.9× per recovery block).
+    // This recovers the chain from a burst-induced difficulty spike in ~5 blocks
+    // instead of the ~30 blocks the old 4× clamp would have required.
+    int64_t real_elapsed = pblock->GetBlockTime() - pindexLast->GetBlockTime();
+    if (real_elapsed > params.nPowTargetSpacing * 10) {
+        // Force actual_spacing = 20 × target_spacing (EMA upper clamp after fix)
+        int64_t nFirstBlockTimeStuck =
+            pindexLast->GetBlockTime() - params.nPowTargetSpacing * 20;
+        return CalculateNextWorkRequired(pindexLast, nFirstBlockTimeStuck, params);
+    }
+
     // SNTI M5: 3-block moving average to dampen oscillation on small networks.
     // Computes the average of the last min(3, available) inter-block spacings
     // and back-calculates a virtual nFirstBlockTime so that
@@ -90,11 +104,15 @@ bool PermittedDifficultyTransition(const Consensus::Params& params, int64_t heig
     // New target must not exceed powLimit
     if (observed_new_target > pow_limit) return false;
 
-    // EMA bounds: new target must be within 4x of old target (matches alpha=0.1 max swing)
+    // EMA bounds: new target must be within 20× of old target.
+    // Upper bound raised from 4× to 20× to match the stuck-chain recovery path
+    // in GetNextWorkRequired() which can produce up to 2.9× per block (EMA with
+    // 20× spacing clamp).  Lower bound kept at 4× — fast-block clamping is still
+    // at target/4 = 15s so max difficulty increase is still 7.5% per block.
     arith_uint256 old_target;
     old_target.SetCompact(old_nbits);
 
-    arith_uint256 max_target = old_target * 4;
+    arith_uint256 max_target = old_target * 20;
     if (max_target > pow_limit) max_target = pow_limit;
 
     arith_uint256 min_target = old_target / 4;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QNT Mining Dashboard</title>
+<title>SNTI Mining Dashboard</title>
 <style>
 :root{--bg:#0a0e17;--card:#111827;--border:#2a3a55;--text:#e8edf5;--dim:#8899bb;--accent:#00d4aa;--blue:#3b82f6;--purple:#a855f7;--orange:#f59e0b;--green:#22c55e;--red:#ef4444}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -27,7 +27,9 @@ header{display:flex;justify-content:space-between;align-items:center;padding:16p
 .card:nth-child(3) .bar{background:var(--purple)}
 .card:nth-child(4) .bar{background:var(--orange)}
 .card:nth-child(5) .bar{background:var(--green)}
-.card:nth-child(6) .bar{background:var(--red)}
+.card:nth-child(6) .bar{background:var(--accent)}
+.info-box{background:var(--card);border:1px solid rgba(0,212,170,.2);border-radius:12px;padding:16px 20px;margin-bottom:20px;font-size:13px;color:var(--dim);line-height:1.8}
+.info-box span{color:var(--accent);font-weight:600}
 .log-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:20px}
 .log-entry{font-size:12px;line-height:2.2;padding:2px 0;border-bottom:1px solid rgba(42,58,85,.3)}
 .log-entry:last-child{border-bottom:none}
@@ -43,9 +45,9 @@ header{display:flex;justify-content:space-between;align-items:center;padding:16p
 <body>
 <div class="wrap">
   <header>
-    <div class="logo">QNT <small>MINING DASHBOARD</small></div>
+    <div class="logo">SNTI <small>MINING DASHBOARD</small></div>
     <div style="display:flex;align-items:center;gap:16px">
-      <a href="/dashboard" class="back-link">← Back to Dashboard</a>
+      <a href="/wallet/" class="back-link">← Back to Wallet</a>
       <div class="status">
         <div class="dot" id="statusDot" style="background:var(--dim)"></div>
         <span id="statusText">Connecting...</span>
@@ -53,14 +55,18 @@ header{display:flex;justify-content:space-between;align-items:center;padding:16p
     </div>
   </header>
 
+  <div class="info-box">
+    ⛏ SNTI menggunakan <span>XMSS Post-Quantum Solo Mining</span> — setiap miner memiliki node dan XMSS key sendiri, mining secara independen. Tidak ada pool, tidak ada stratum. Satu device = satu key = satu miner.
+  </div>
+
   <div class="grid">
     <div class="card">
-      <div class="label">Mining Uptime</div>
+      <div class="label">Node Uptime</div>
       <div class="value" id="mUptime" style="color:var(--accent)">—</div>
       <div class="bar"></div>
     </div>
     <div class="card">
-      <div class="label">Blocks Mined</div>
+      <div class="label">Block Height</div>
       <div class="value" id="mBlocks" style="color:var(--blue)">—</div>
       <div class="bar"></div>
     </div>
@@ -81,29 +87,9 @@ header{display:flex;justify-content:space-between;align-items:center;padding:16p
     </div>
     <div class="card">
       <div class="label">Signature Size</div>
-      <div class="value" id="mSigSize" style="color:var(--orange)">—</div>
+      <div class="value" id="mSigSize" style="color:var(--accent)">—</div>
       <div class="bar"></div>
     </div>
-  </div>
-
-  <!-- Stratum Stats -->
-  <div class="card" style="margin-bottom:20px;border-color:rgba(168,85,247,.3)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div class="label" style="margin-bottom:0">⛏ Stratum Server</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <div class="dot" id="stratumDot" style="background:var(--dim)"></div>
-        <span id="stratumStatus" style="font-size:12px;color:var(--dim)">—</span>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
-      <div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Status</div><div style="font-size:18px;font-weight:700" id="sStatus">—</div></div>
-      <div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Port</div><div style="font-size:18px;font-weight:700" id="sPort">—</div></div>
-      <div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Connections</div><div style="font-size:18px;font-weight:700" id="sConn">—</div></div>
-      <div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Workers</div><div style="font-size:18px;font-weight:700" id="sWorkers">—</div></div>
-      <div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Shares</div><div style="font-size:18px;font-weight:700" id="sShares">—</div></div>
-      <div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Blocks Found</div><div style="font-size:18px;font-weight:700;color:var(--green)" id="sBlocks">—</div></div>
-    </div>
-    <div id="workerList" style="margin-top:12px;font-size:12px;color:var(--dim)"></div>
   </div>
 
   <div class="log-box">
@@ -158,42 +144,8 @@ async function loadMining() {
 }
 
 async function refresh() {
-  await Promise.all([loadMining(), loadStratum()]);
+  await loadMining();
   document.getElementById('refreshTime').textContent = 'Last updated: ' + new Date().toLocaleString();
-}
-
-async function loadStratum() {
-  try {
-    const r = await fetch('/api/stratum/stats');
-    const d = await r.json();
-
-    if (d.stratum_active) {
-      document.getElementById('stratumDot').style.background = 'var(--green)';
-      document.getElementById('stratumStatus').textContent = 'Online';
-      document.getElementById('stratumStatus').style.color = 'var(--green)';
-    }
-
-    document.getElementById('sStatus').textContent = d.stratum_active ? 'Online' : 'Offline';
-    document.getElementById('sStatus').style.color = d.stratum_active ? 'var(--green)' : 'var(--red)';
-    document.getElementById('sPort').textContent = d.port || '—';
-    document.getElementById('sConn').textContent = d.connections ?? 0;
-    document.getElementById('sWorkers').textContent = d.workers ?? 0;
-    document.getElementById('sShares').textContent = d.total_shares ?? 0;
-    document.getElementById('sBlocks').textContent = d.blocks_found ?? 0;
-
-    if (d.worker_list && d.worker_list.length > 0) {
-      document.getElementById('workerList').innerHTML = '<strong>Workers:</strong> ' +
-        d.worker_list.map(w => `${w.name} (${w.shares} shares, ${w.accepted} accepted)`).join(', ');
-    } else {
-      document.getElementById('workerList').innerHTML = 'No workers connected';
-    }
-  } catch (e) {
-    document.getElementById('stratumDot').style.background = 'var(--red)';
-    document.getElementById('stratumStatus').textContent = 'Offline';
-    document.getElementById('stratumStatus').style.color = 'var(--red)';
-    document.getElementById('sStatus').textContent = 'Offline';
-    document.getElementById('sStatus').style.color = 'var(--red)';
-  }
 }
 
 refresh();
