@@ -128,11 +128,11 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0;
 
-        // Derived from: snti-cli getblockheader $(snti-cli getblockhash 90)
-        // Block 90 — 2026-06-28, chainwork 0x725d, hash da8569ca...
-        consensus.nMinimumChainWork = uint256S("000000000000000000000000000000000000000000000000000000000000725d");
-        // Scripts in blocks 0–90 are skipped during IBD (safe: deeply buried).
-        consensus.defaultAssumeValid = uint256S("da8569ca75a811dc36ea22849ae53ad95ae643ff764e2960519e236b84952d96");
+        // Derived from: snti-cli getblockheader $(snti-cli getblockhash 268)
+        // Block 268 — 2026-06-29, chainwork 0x38ab4, hash ec5b9b98...
+        consensus.nMinimumChainWork = uint256S("000000000000000000000000000000000000000000000000000000000038ab4");
+        // Scripts in blocks 0–268 are skipped during IBD (safe: deeply buried).
+        consensus.defaultAssumeValid = uint256S("ec5b9b9854e64d0982ea1e1a8046680d328d582d1d922127a34c794dcb4b07c7");
 
         // SNTI: PoUW — enable on all Quant chains from genesis
         consensus.fPoUW = true;

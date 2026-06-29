@@ -351,7 +351,7 @@ curl http://104.234.26.7:3334/
   -rpcuser=user -rpcpassword=password -rpcport=39332 getblockcount
 ```
 
-> **Status (Jun 26 2026)**: Stratum + cpuminer-multi confirmed working end-to-end. VM at 114.79.6.173 mining via stratum, all shares accepted. WOTS+ signature verification in `CheckPoUWv2()` is currently checking root < target only (WOTS verify disabled pending BDS state fix — see Architecture §Active Issues).
+> **Status (Jun 26 2026)**: Stratum + cpuminer-multi confirmed working end-to-end. VM at 114.79.6.173 mining via stratum, all shares accepted. WOTS+ signature verification in `CheckPoUWv2()` is **fully active** — `xmss_sign_open()` is called unconditionally on every block and must return 0 for the block to pass consensus. (BDS state issue resolved in commit 5409c3f — see Architecture §Active Issues.)
 
 ### Key Design Decision: One-Shot Mining Keys
 

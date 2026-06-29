@@ -24,15 +24,6 @@ namespace XMSS {
 // XMSS parameter set: SHA2, height=10, 256-bit security
 static constexpr uint32_t XMSS_OID_SHA2_10_256 = 0x00000001;
 
-// Secure memory deleter
-struct SecureDeleter {
-    void operator()(unsigned char* p) const {
-        if (p) {
-            std::free(p);
-        }
-    }
-};
-
 using SecureVec = std::vector<uint8_t>;
 
 /**

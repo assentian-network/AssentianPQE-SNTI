@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNTI Wallet — Assentian-PQE</title>
+<style>
+:root{--bg:#0a0e17;--card:#111827;--border:#2a3a55;--text:#e8edf5;--dim:#8899bb;--accent:#00d4aa;--blue:#3b82f6;--purple:#a855f7;--orange:#f59e0b;--green:#22c55e;--red:#ef4444}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:var(--bg);color:var(--text);min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1100px;margin:0 auto;padding:20px}
+header{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:24px}
+.logo{font-size:20px;font-weight:800;color:var(--accent)}
+.logo small{font-size:10px;color:var(--dim);display:block;letter-spacing:2px}
+nav a{color:var(--dim);font-size:13px;margin-left:16px}
+nav a:hover{color:var(--text)}
+/* Auth forms */
+.auth-wrap{display:flex;justify-content:center;align-items:center;min-height:60vh}
+.auth-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:36px;width:100%;max-width:420px}
+.auth-box h2{font-size:20px;margin-bottom:24px;color:var(--accent)}
+.tabs{display:flex;gap:4px;margin-bottom:24px;background:var(--bg);border-radius:8px;padding:4px}
+.tab{flex:1;padding:8px;text-align:center;border-radius:6px;cursor:pointer;font-size:13px;color:var(--dim);transition:.2s}
+.tab.active{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.field input{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:.2s}
+.field input:focus{border-color:var(--accent)}
+.btn{width:100%;padding:12px;border:none;border-radius:8px;background:var(--accent);color:#000;font-size:14px;font-weight:700;cursor:pointer;transition:.2s;font-family:inherit}
+.btn:hover{opacity:.85}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.secondary{background:transparent;border:1px solid var(--border);color:var(--text);margin-top:8px}
+.btn.danger{background:rgba(239,68,68,.15);border:1px solid var(--red);color:var(--red)}
+.err{color:var(--red);font-size:12px;margin-top:8px;min-height:18px}
+/* Dashboard */
+#dashboard{display:none}
+.d-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px}
+.d-header .greeting{font-size:16px;color:var(--dim)}
+.d-header .greeting strong{color:var(--text)}
+.balance-card{background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);border:1px solid var(--border);border-radius:16px;padding:32px;margin-bottom:24px;text-align:center}
+.balance-card .label{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
+.balance-card .amount{font-size:48px;font-weight:800;color:var(--accent)}
+.balance-card .unit{font-size:18px;color:var(--dim);margin-left:8px}
+.balance-card .addr{font-size:11px;color:var(--dim);margin-top:16px;word-break:break-all;padding:8px 16px;background:rgba(0,0,0,.3);border-radius:8px;cursor:pointer}
+.balance-card .addr:hover{color:var(--text)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:600px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px}
+.panel h3{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:16px}
+.send-result{display:none;margin-top:12px;padding:12px;border-radius:8px;font-size:13px;word-break:break-all}
+.send-result.ok{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+.send-result.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red)}
+.utxo-list{max-height:220px;overflow-y:auto}
+.utxo-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(42,58,85,.5);font-size:12px}
+.utxo-row:last-child{border-bottom:none}
+.utxo-hash{color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+.utxo-amt{color:var(--green);font-weight:700;white-space:nowrap;margin-left:8px}
+.empty{text-align:center;color:var(--dim);font-size:13px;padding:24px}
+.copy-hint{font-size:10px;color:var(--dim);margin-top:4px}
+.badge-chain{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(0,212,170,.15);color:var(--accent)}
+.loading{color:var(--dim);font-size:13px;text-align:center;padding:16px}
+/* Mining install panel */
+.mine-panel{background:linear-gradient(135deg,rgba(0,212,170,.06),rgba(59,130,246,.06));border:1px solid rgba(0,212,170,.25);border-radius:14px;padding:28px;margin-bottom:24px}
+.mine-panel h3{font-size:15px;font-weight:800;margin-bottom:6px;color:var(--accent)}
+.mine-panel p{font-size:13px;color:var(--dim);line-height:1.8;margin-bottom:16px}
+.mine-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+.mine-step{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
+.mine-step .snum{font-size:22px;font-weight:800;color:var(--accent);margin-bottom:4px}
+.mine-step .stxt{font-size:11px;color:var(--dim);line-height:1.6}
+.btn-dl{display:inline-flex;align-items:center;gap:8px;padding:13px 28px;border:none;border-radius:10px;background:var(--accent);color:#000;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;transition:.2s}
+.btn-dl:hover{opacity:.85}
+.btn-dl:disabled{opacity:.4;cursor:default}
+.install-cmd{margin-top:16px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:13px;display:none}
+.install-cmd .cmd{color:var(--green);word-break:break-all}
+.install-cmd .hint{font-size:11px;color:var(--dim);margin-top:8px}
+/* Change password */
+.chpw-form{display:none;margin-top:14px;padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:10px}
+.chpw-form .field{margin-bottom:12px}
+.chpw-row{display:flex;gap:8px;margin-top:4px}
+.chpw-row input{flex:1;padding:9px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;outline:none}
+.chpw-row input:focus{border-color:var(--accent)}
+.chpw-msg{font-size:12px;margin-top:8px;min-height:16px}
+.chpw-msg.ok{color:var(--green)}
+.chpw-msg.err{color:var(--red)}
+/* Backup section */
+.backup-section{margin-top:24px}
+.backup-section h3{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.backup-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:600px){.backup-grid{grid-template-columns:1fr}}
+.backup-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
+.backup-card h4{font-size:13px;font-weight:700;margin-bottom:6px}
+.backup-card p{font-size:12px;color:var(--dim);line-height:1.8;margin-bottom:14px}
+.backup-card .warn{font-size:11px;color:var(--orange);margin-bottom:12px;padding:8px 10px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:6px}
+.btn-backup{width:100%;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s}
+.btn-backup.dl{background:rgba(0,212,170,.15);border:1px solid rgba(0,212,170,.3);color:var(--accent)}
+.btn-backup.dl:hover{background:rgba(0,212,170,.25)}
+.btn-backup.key{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red)}
+.btn-backup.key:hover{background:rgba(239,68,68,.2)}
+/* Key reveal modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:32px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto}
+.modal h3{font-size:16px;font-weight:800;margin-bottom:8px;color:var(--red)}
+.modal .modal-warn{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:14px;font-size:12px;color:var(--orange);line-height:1.8;margin-bottom:20px}
+.modal .key-field{margin-bottom:14px}
+.modal .key-label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin-bottom:6px}
+.modal .key-val{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:11px;color:var(--accent);word-break:break-all;line-height:1.7;cursor:pointer;transition:.2s}
+.modal .key-val:hover{border-color:var(--accent)}
+.modal .key-hint{font-size:10px;color:var(--dim);margin-top:4px}
+.modal-close{width:100%;padding:10px;border:none;border-radius:8px;background:var(--border);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;margin-top:8px;font-family:inherit}
+.modal-close:hover{background:#3a4a65}
+.copy-flash{color:var(--green);font-size:11px;margin-top:4px;min-height:14px}
+/* Watch addresses */
+.watch-section{margin-top:24px}
+.watch-section h3{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:14px}
+.watch-add-row{display:flex;gap:8px;margin-bottom:16px}
+.watch-add-row input{flex:1;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;outline:none}
+.watch-add-row input:focus{border-color:var(--accent)}
+.watch-add-row button{padding:9px 16px;border:none;border-radius:8px;background:var(--accent);color:#000;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit}
+.watch-add-row button:hover{opacity:.85}
+.watch-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(42,58,85,.4);font-size:12px}
+.watch-row:last-child{border-bottom:none}
+.watch-label{color:var(--dim);font-size:11px;min-width:80px}
+.watch-addr{color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.watch-addr a{color:var(--accent)}
+.watch-bal{color:var(--green);font-weight:700;white-space:nowrap;margin:0 8px}
+.watch-bal.unknown{color:var(--dim)}
+.watch-del{background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:2px 6px;opacity:.6}
+.watch-del:hover{opacity:1}
+.watch-err{color:var(--red);font-size:12px;margin-top:4px;min-height:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">SNTI <small>CUSTODIAL WALLET</small></div>
+    <nav>
+      <a href="/">← Explorer</a>
+      <a href="/wallet/nc">Non-Custodial</a>
+      <a href="/mining/">Mining</a>
+    </nav>
+  </header>
+
+  <!-- Auth -->
+  <div class="auth-wrap" id="authSection">
+    <div class="auth-box">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('login')">Sign In</div>
+        <div class="tab" onclick="switchTab('signup')">Sign Up</div>
+      </div>
+
+      <!-- Login form -->
+      <div id="loginForm">
+        <div class="field"><label>Username</label><input type="text" id="l_user" placeholder="your_username" autocomplete="username"></div>
+        <div class="field"><label>Password</label><input type="password" id="l_pass" placeholder="••••••••" autocomplete="current-password"></div>
+        <button class="btn" onclick="doLogin()">Sign In</button>
+        <div class="err" id="loginErr"></div>
+      </div>
+
+      <!-- Signup form -->
+      <div id="signupForm" style="display:none">
+        <div class="field"><label>Username</label><input type="text" id="s_user" placeholder="your_username" autocomplete="username"></div>
+        <div class="field"><label>Email</label><input type="email" id="s_email" placeholder="you@example.com" autocomplete="email"></div>
+        <div class="field"><label>Password</label><input type="password" id="s_pass" placeholder="min 8 chars" autocomplete="new-password"></div>
+        <button class="btn" onclick="doSignup()">Create Wallet</button>
+        <div class="err" id="signupErr"></div>
+        <p style="font-size:11px;color:var(--dim);margin-top:16px;line-height:1.7">
+          A quantum-resistant XMSS address will be created and assigned to your account.
+          Your private key is managed server-side. For self-custody, use
+          <a href="/wallet/nc">Non-Custodial</a>.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard">
+    <div class="d-header">
+      <div class="greeting">Welcome back, <strong id="dUser"></strong> <span class="badge-chain">mainnet</span></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn secondary" style="width:auto;padding:8px 16px;font-size:12px" onclick="toggleChPw()">Ganti Password</button>
+        <button class="btn danger" style="width:auto;padding:8px 16px;font-size:12px" onclick="doLogout()">Sign Out</button>
+      </div>
+    </div>
+
+    <!-- Change Password (collapsible) -->
+    <div class="chpw-form" id="chpwForm">
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px">Ganti Password</div>
+      <div class="field"><label>Password Lama</label>
+        <div class="chpw-row"><input type="password" id="cp_old" placeholder="Password saat ini" autocomplete="current-password"></div>
+      </div>
+      <div class="field"><label>Password Baru</label>
+        <div class="chpw-row">
+          <input type="password" id="cp_new" placeholder="Min 8 karakter" autocomplete="new-password">
+          <input type="password" id="cp_new2" placeholder="Ulangi password baru" autocomplete="new-password">
+        </div>
+      </div>
+      <button class="btn" style="width:auto;padding:9px 20px;font-size:13px" onclick="doChangePassword()">Simpan Password</button>
+      <div class="chpw-msg" id="chpwMsg"></div>
+    </div>
+
+    <div class="balance-card">
+      <div class="label">Total Balance</div>
+      <div><span class="amount" id="dBalance">—</span><span class="unit">SNTI</span></div>
+      <div id="balanceDetail" style="margin-top:10px;font-size:12px;display:flex;justify-content:center;gap:20px;flex-wrap:wrap"></div>
+      <div id="balanceNote" style="margin-top:12px;font-size:11px;color:rgba(136,153,187,.8);line-height:1.7;padding:8px 12px;background:rgba(0,0,0,.2);border-radius:6px;display:none"></div>
+      <div class="addr" id="dAddr" onclick="copyAddr()" title="Klik untuk copy address Anda">—</div>
+      <div class="copy-hint" id="copyHint">Klik address untuk copy</div>
+    </div>
+
+    <!-- Mining Installer -->
+    <div class="mine-panel">
+      <h3>⛏ Start Mining SNTI</h3>
+      <p>Download installer script untuk Ubuntu/Debian. Jalankan 1 perintah — semua otomatis: install node, sync, generate address, dan mulai mining. Address Anda langsung muncul di bawah.</p>
+      <div class="mine-steps">
+        <div class="mine-step"><div class="snum">1</div><div class="stxt">Download installer script</div></div>
+        <div class="mine-step"><div class="snum">2</div><div class="stxt">Jalankan di terminal Ubuntu</div></div>
+        <div class="mine-step"><div class="snum">3</div><div class="stxt">Node sync otomatis</div></div>
+        <div class="mine-step"><div class="snum">4</div><div class="stxt">Mining dimulai, address muncul di sini</div></div>
+      </div>
+      <button class="btn-dl" id="dlBtn" onclick="downloadInstaller()">⬇ Download Installer</button>
+      <div class="install-cmd" id="installCmd">
+        <div style="font-size:11px;color:var(--dim);margin-bottom:8px">Atau jalankan langsung di terminal:</div>
+        <div class="cmd" id="installCmdText"></div>
+        <div class="hint">Script sudah berisi kredensial akun Anda. Jangan dibagikan ke orang lain.</div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <!-- Send -->
+      <div class="panel">
+        <h3>Send SNTI</h3>
+        <div class="field"><label>To Address (snti1...)</label><input type="text" id="sendTo" placeholder="snti1z..."></div>
+        <div class="field"><label>Amount (SNTI)</label><input type="number" id="sendAmt" placeholder="0.00000000" step="0.00000001" min="0"></div>
+        <button class="btn" onclick="doSend()">Send</button>
+        <div class="send-result" id="sendResult"></div>
+      </div>
+
+      <!-- UTXOs -->
+      <div class="panel">
+        <h3>Unspent Outputs</h3>
+        <div class="utxo-list" id="utxoList"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- Backup & Security -->
+    <div class="panel backup-section">
+      <h3>🔐 Backup &amp; Security <span style="font-size:10px;color:var(--red);font-weight:normal;margin-left:4px">simpan private key sebelum terlambat</span></h3>
+      <div class="backup-grid">
+        <div class="backup-card">
+          <h4>⬇ Download Backup File</h4>
+          <p>Download file <code>.json</code> berisi private key XMSS Anda. Simpan di tempat aman — USB drive, password manager, atau cloud terenkripsi.</p>
+          <div class="warn">⚠ Siapapun yang punya file ini bisa spend koin Anda.</div>
+          <button class="btn-backup dl" onclick="downloadBackup()">Download Backup (.json)</button>
+        </div>
+        <div class="backup-card">
+          <h4>👁 Lihat Private Key</h4>
+          <p>Tampilkan XMSS secret key dan public key dalam format hex. Gunakan untuk import ke node lain dengan <code>importxmsskey</code>.</p>
+          <div class="warn">⚠ Jangan screenshot di tempat umum. Jangan kirim ke siapapun.</div>
+          <button class="btn-backup key" onclick="showKeyModal()">Tampilkan Private Key</button>
+        </div>
+      </div>
+      <div style="margin-top:14px;font-size:11px;color:var(--dim);line-height:1.8;padding:12px;background:rgba(255,255,255,.02);border-radius:8px">
+        💡 <strong style="color:var(--text)">Watch address dari VirtualBox?</strong> Private key ada di mesin Anda sendiri.
+        Backup dengan: <code style="color:var(--accent)">cp -r ~/.snti_mainnet/wallets/ ~/backup_wallet/</code>
+        atau: <code style="color:var(--accent)">bitcoin-cli dumpwallet ~/snti_backup.txt</code>
+      </div>
+    </div>
+
+    <!-- Key Modal -->
+    <div class="modal-overlay" id="keyModal" onclick="if(event.target===this)closeKeyModal()">
+      <div class="modal">
+        <h3>⚠ XMSS Private Key</h3>
+        <div class="modal-warn">
+          Ini adalah private key XMSS Anda. Siapapun yang mendapatkan <strong>Secret Key</strong> ini dapat mengambil semua koin di address Anda.<br>
+          — Jangan bagikan ke siapapun<br>
+          — Jangan ketik ulang di tempat yang tidak aman<br>
+          — Simpan offline di tempat yang benar-benar aman
+        </div>
+        <div id="keyContent"><div class="loading">Loading...</div></div>
+        <div class="copy-flash" id="copyFlash"></div>
+        <button class="modal-close" onclick="closeKeyModal()">Tutup</button>
+      </div>
+    </div>
+
+    <!-- Watch Addresses -->
+    <div class="panel watch-section">
+      <h3>Watch Addresses <span style="font-size:10px;color:var(--blue);font-weight:normal;margin-left:8px">monitor address lain tanpa private key</span></h3>
+      <div class="watch-add-row">
+        <input type="text" id="watchAddr" placeholder="snti1z... (address dari VirtualBox/node lain)">
+        <input type="text" id="watchLabel" placeholder="Label (opsional)" style="max-width:160px">
+        <button onclick="addWatch()">+ Watch</button>
+      </div>
+      <div class="watch-err" id="watchErr"></div>
+      <div id="watchList"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let token = localStorage.getItem('snti_token') || '';
+let userData = {};
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', (i===0) === (tab==='login')));
+  document.getElementById('loginForm').style.display = tab === 'login' ? '' : 'none';
+  document.getElementById('signupForm').style.display = tab === 'signup' ? '' : 'none';
+}
+
+async function apiCall(path, opts={}) {
+  const headers = {'Content-Type':'application/json'};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const r = await fetch(API + path, {headers, ...opts});
+  return r.json();
+}
+
+async function doLogin() {
+  const username = document.getElementById('l_user').value.trim();
+  const password = document.getElementById('l_pass').value;
+  document.getElementById('loginErr').textContent = '';
+  const res = await apiCall('/api/wallet/login', {method:'POST', body:JSON.stringify({username, password})});
+  if (res.error) { document.getElementById('loginErr').textContent = res.error; return; }
+  token = res.token;
+  localStorage.setItem('snti_token', token);
+  userData = res;
+  showDashboard();
+}
+
+async function doSignup() {
+  const username = document.getElementById('s_user').value.trim();
+  const email = document.getElementById('s_email').value.trim();
+  const password = document.getElementById('s_pass').value;
+  document.getElementById('signupErr').textContent = '';
+  if (!username || username.length < 3) { document.getElementById('signupErr').textContent = 'Username min 3 characters'; return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { document.getElementById('signupErr').textContent = 'Enter a valid email address'; return; }
+  if (password.length < 8) { document.getElementById('signupErr').textContent = 'Password min 8 characters'; return; }
+  document.querySelector('#signupForm .btn').disabled = true;
+  document.querySelector('#signupForm .btn').textContent = 'Creating wallet…';
+  const res = await apiCall('/api/wallet/signup', {method:'POST', body:JSON.stringify({username, email, password})});
+  document.querySelector('#signupForm .btn').disabled = false;
+  document.querySelector('#signupForm .btn').textContent = 'Create Wallet';
+  if (res.error) { document.getElementById('signupErr').textContent = res.error; return; }
+  token = res.token;
+  localStorage.setItem('snti_token', token);
+  userData = res;
+  showDashboard();
+}
+
+function doLogout() {
+  token = '';
+  localStorage.removeItem('snti_token');
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('authSection').style.display = 'flex';
+}
+
+async function loadBalance() {
+  const res = await apiCall('/api/wallet/balance');
+  if (res.error) return;
+  const total = res.balance || 0;
+  const mature = res.mature || 0;
+  const immature = res.immature || 0;
+  document.getElementById('dBalance').textContent = total.toFixed(8);
+
+  // Detail row: mature + immature
+  const det = document.getElementById('balanceDetail');
+  if (total > 0) {
+    det.innerHTML = `
+      <span style="color:#22c55e">✓ Spendable: ${mature.toFixed(6)} SNTI</span>
+      ${immature > 0 ? `<span style="color:#f59e0b">⏳ Immature: ${immature.toFixed(6)} SNTI</span>` : ''}`;
+  } else {
+    det.innerHTML = '';
+  }
+
+  // Keterangan note
+  const note = document.getElementById('balanceNote');
+  note.style.display = 'block';
+  if (total === 0) {
+    note.innerHTML = `
+      ℹ Address ini belum menerima SNTI.<br>
+      • Mine ke address ini agar koin masuk ke sini<br>
+      • Atau tambahkan watch address di bawah untuk pantau koin dari VirtualBox`;
+  } else if (immature > 0 && mature === 0) {
+    const need = 100 - (res.tip_height - 0);
+    note.innerHTML = `
+      ⏳ Semua saldo masih <strong>immature</strong> — hasil mining butuh <strong>100 konfirmasi</strong> sebelum bisa digunakan.<br>
+      Saat ini: block ${res.tip_height}. Koin bisa dipakai setelah ~${immature / 50 * 100 | 0} blok lagi.`;
+  } else if (immature > 0) {
+    note.innerHTML = `⏳ ${immature.toFixed(6)} SNTI masih immature (menunggu 100 konfirmasi). Hanya ${mature.toFixed(6)} SNTI yang bisa dipakai sekarang.`;
+  } else {
+    note.style.display = 'none';
+  }
+}
+
+async function loadUTXOs() {
+  const res = await apiCall('/api/wallet/txs');
+  const list = document.getElementById('utxoList');
+  const txs = res.txs || [];
+  if (!txs.length) { list.innerHTML = '<div class="empty">No unspent outputs</div>'; return; }
+  list.innerHTML = txs.map(u => `
+    <div class="utxo-row">
+      <span class="utxo-hash" title="${u.txid}">${u.txid.slice(0,16)}…:${u.vout}</span>
+      <span class="utxo-amt">${(u.amount||0).toFixed(6)} SNTI</span>
+    </div>`).join('');
+}
+
+async function doSend() {
+  const to = document.getElementById('sendTo').value.trim();
+  const amount = document.getElementById('sendAmt').value;
+  const res = await apiCall('/api/wallet/send', {method:'POST', body:JSON.stringify({to, amount: parseFloat(amount)})});
+  const el = document.getElementById('sendResult');
+  el.style.display = 'block';
+  if (res.error) {
+    el.className = 'send-result err';
+    el.textContent = 'Error: ' + (res.error.message || res.error);
+  } else {
+    el.className = 'send-result ok';
+    el.textContent = 'Sent! txid: ' + res.txid;
+    loadBalance(); loadUTXOs();
+  }
+}
+
+function copyAddr() {
+  const addr = userData.address || document.getElementById('dAddr').textContent;
+  navigator.clipboard.writeText(addr).then(() => {
+    document.getElementById('copyHint').textContent = '✓ Copied!';
+    setTimeout(() => document.getElementById('copyHint').textContent = '', 2000);
+  });
+}
+
+function toggleChPw() {
+  const f = document.getElementById('chpwForm');
+  f.style.display = f.style.display === 'block' ? 'none' : 'block';
+  if (f.style.display === 'block') document.getElementById('cp_old').focus();
+  document.getElementById('chpwMsg').textContent = '';
+}
+
+async function doChangePassword() {
+  const old_password = document.getElementById('cp_old').value;
+  const new_password = document.getElementById('cp_new').value;
+  const new_password2 = document.getElementById('cp_new2').value;
+  const msg = document.getElementById('chpwMsg');
+  msg.className = 'chpw-msg';
+  if (!old_password) { msg.className='chpw-msg err'; msg.textContent='Masukkan password lama'; return; }
+  if (new_password.length < 8) { msg.className='chpw-msg err'; msg.textContent='Password baru minimal 8 karakter'; return; }
+  if (new_password !== new_password2) { msg.className='chpw-msg err'; msg.textContent='Password baru tidak sama'; return; }
+  const res = await apiCall('/api/wallet/change-password', {
+    method:'POST', body:JSON.stringify({old_password, new_password})
+  });
+  if (res.error) {
+    msg.className='chpw-msg err'; msg.textContent=res.error;
+  } else {
+    msg.className='chpw-msg ok'; msg.textContent='✓ Password berhasil diubah';
+    document.getElementById('cp_old').value='';
+    document.getElementById('cp_new').value='';
+    document.getElementById('cp_new2').value='';
+    setTimeout(() => { document.getElementById('chpwForm').style.display='none'; }, 2000);
+  }
+}
+
+async function downloadBackup() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Generating…';
+  try {
+    const headers = {'Content-Type':'application/json'};
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const r = await fetch('/api/wallet/backup-file', {headers});
+    if (!r.ok) {
+      const e = await r.json();
+      alert('Error: ' + (e.error || 'unknown'));
+      btn.disabled=false; btn.textContent='Download Backup (.json)'; return;
+    }
+    const blob = await r.blob();
+    const fname = r.headers.get('Content-Disposition')?.match(/filename=(.+)/)?.[1] || 'snti-backup.json';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=fname; a.click();
+    URL.revokeObjectURL(url);
+    btn.textContent = '✓ Downloaded — keep it safe!';
+    setTimeout(() => { btn.disabled=false; btn.textContent='Download Backup (.json)'; }, 4000);
+  } catch(e) {
+    btn.disabled=false; btn.textContent='Download Backup (.json)';
+    alert('Failed: ' + e.message);
+  }
+}
+
+async function showKeyModal() {
+  document.getElementById('keyModal').classList.add('open');
+  document.getElementById('keyContent').innerHTML = '<div class="loading">Loading key data…</div>';
+  document.getElementById('copyFlash').textContent = '';
+  try {
+    const res = await apiCall('/api/wallet/export-key');
+    if (res.error) {
+      document.getElementById('keyContent').innerHTML = `<div style="color:var(--red);font-size:13px">Error: ${res.error}</div>`;
+      return;
+    }
+    document.getElementById('keyContent').innerHTML = `
+      <div class="key-field">
+        <div class="key-label">Address</div>
+        <div class="key-val" onclick="copyField(this,'Address')">${res.address}</div>
+      </div>
+      <div class="key-field">
+        <div class="key-label">Public Key (64 bytes)</div>
+        <div class="key-val" onclick="copyField(this,'Public Key')">${res.pubkey}</div>
+        <div class="key-hint">Public — aman dibagikan untuk importxmsskey</div>
+      </div>
+      <div class="key-field">
+        <div class="key-label" style="color:var(--red)">⚠ Secret Key — RAHASIA</div>
+        <div class="key-val" onclick="copyField(this,'Secret Key')" style="color:var(--red);border-color:rgba(239,68,68,.3)">${res.seckey}</div>
+        <div class="key-hint" style="color:var(--red)">Klik untuk copy. Jangan bagikan.</div>
+      </div>
+      <div class="key-field" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
+        <div style="font-size:12px;color:var(--dim)">Leaf index used: <strong style="color:var(--text)">${res.leaf_index}</strong></div>
+        <div style="font-size:12px;color:var(--dim)">Remaining: <strong style="color:var(--green)">${res.remaining}</strong></div>
+      </div>
+      <div style="margin-top:14px;font-size:11px;color:var(--dim);line-height:1.8;padding:10px;background:rgba(0,0,0,.2);border-radius:6px">
+        Untuk import di node lain:<br>
+        <code style="color:var(--accent)">bitcoin-cli importxmsskey "${res.pubkey}" "${res.seckey}"</code>
+      </div>`;
+  } catch(e) {
+    document.getElementById('keyContent').innerHTML = `<div style="color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+function closeKeyModal() {
+  document.getElementById('keyModal').classList.remove('open');
+  document.getElementById('keyContent').innerHTML = '<div class="loading">Loading...</div>';
+}
+
+function copyField(el, label) {
+  navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+    document.getElementById('copyFlash').textContent = `✓ ${label} copied!`;
+    setTimeout(() => { document.getElementById('copyFlash').textContent = ''; }, 2000);
+  });
+}
+
+async function downloadInstaller() {
+  const btn = document.getElementById('dlBtn');
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+  try {
+    const headers = {'Content-Type':'application/json'};
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const r = await fetch('/api/wallet/install-script', {headers});
+    if (!r.ok) { btn.disabled=false; btn.innerHTML='⬇ Download Installer'; return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    // Trigger download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'snti-install.sh';
+    a.click();
+    URL.revokeObjectURL(url);
+    // Show one-liner command
+    const scriptUrl = window.location.origin + '/api/wallet/install-script';
+    document.getElementById('installCmd').style.display = 'block';
+    document.getElementById('installCmdText').textContent =
+      `curl -H "Authorization: Bearer ${token}" ${scriptUrl} | bash`;
+    btn.innerHTML = '✓ Downloaded';
+    // Start polling watch addresses (miner might register soon)
+    startWatchPolling();
+  } catch(e) {
+    btn.disabled=false; btn.innerHTML='⬇ Download Installer';
+  }
+}
+
+let _watchPoll = null;
+function startWatchPolling() {
+  if (_watchPoll) return;
+  _watchPoll = setInterval(() => loadWatches(), 15000);
+}
+
+async function addWatch() {
+  const address = document.getElementById('watchAddr').value.trim();
+  const label = document.getElementById('watchLabel').value.trim();
+  const errEl = document.getElementById('watchErr');
+  errEl.textContent = '';
+  if (!address) { errEl.textContent = 'Masukkan address'; return; }
+  const res = await apiCall('/api/wallet/watch', {method:'POST', body:JSON.stringify({address, label})});
+  if (res.error) { errEl.textContent = res.error; return; }
+  document.getElementById('watchAddr').value = '';
+  document.getElementById('watchLabel').value = '';
+  loadWatches();
+}
+
+async function removeWatch(address) {
+  await apiCall('/api/wallet/watch/' + encodeURIComponent(address), {method:'DELETE'});
+  loadWatches();
+}
+
+async function loadWatches() {
+  const container = document.getElementById('watchList');
+  container.innerHTML = '<div class="loading">Loading...</div>';
+  const res = await apiCall('/api/wallet/watches');
+  const watches = res.watches || [];
+  if (!watches.length) {
+    container.innerHTML = '<div class="empty" style="padding:16px 0">Belum ada watch address. Tambahkan address VirtualBox Anda di atas.</div>';
+    return;
+  }
+  container.innerHTML = watches.map(w => `
+    <div class="watch-row">
+      <span class="watch-label">${w.label || 'No label'}</span>
+      <span class="watch-addr">
+        <a href="/explorer/?search=${w.address}" target="_blank" title="${w.address}">
+          ${w.address.slice(0,12)}…${w.address.slice(-8)}
+        </a>
+      </span>
+      <span class="watch-bal ${w.balance === null ? 'unknown' : ''}">
+        ${w.balance === null ? 'scanning...' : w.balance.toFixed(6) + ' SNTI'}
+      </span>
+      <button class="watch-del" onclick="removeWatch('${w.address}')" title="Remove">✕</button>
+    </div>`).join('');
+}
+
+async function showDashboard() {
+  if (!userData.username) {
+    const me = await apiCall('/api/wallet/me');
+    if (me.error) { doLogout(); return; }
+    userData = me;
+  }
+  document.getElementById('authSection').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('dUser').textContent = userData.username;
+  document.getElementById('dAddr').textContent = userData.address || '—';
+  loadBalance();
+  loadUTXOs();
+  loadWatches();
+}
+
+// Auto-login if token exists
+(async () => {
+  if (token) {
+    const me = await apiCall('/api/wallet/me');
+    if (!me.error) { userData = me; showDashboard(); }
+    else { token = ''; localStorage.removeItem('snti_token'); }
+  }
+})();
+
+// Enter key support
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (document.getElementById('loginForm').style.display !== 'none') doLogin();
+  else doSignup();
+});
+</script>
+</body>
+</html>

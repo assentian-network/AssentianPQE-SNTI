@@ -21,7 +21,7 @@
 namespace wallet {
 
 /**
- * QNT: XMSS Wallet Signer
+ * SNTI: XMSS Wallet Signer
  *
  * Manages XMSS key pairs for transaction signing.
  * XMSS is stateful — each signature advances the leaf index.
@@ -171,7 +171,7 @@ private:
 };
 
 /**
- * QNT: XMSS Script parsing helper
+ * SNTI: XMSS Script parsing helper
  *
  * Detects XMSS script types. XMSS scripts use 64-byte public keys
  * (vs 33/65-byte for ECDSA, 32-byte for Schnorr).

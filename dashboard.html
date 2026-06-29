@@ -48,7 +48,15 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <div class="wrap">
   <header>
     <div class="logo">Assentian-PQE <small>QUANTUM-RESISTANT BLOCKCHAIN</small></div>
-    <div class="status"><div class="dot" id="statusDot" style="background:var(--dim)"></div><span id="statusText">Connecting...</span></div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <nav style="display:flex;gap:8px">
+        <a href="/explorer/" style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;color:var(--dim)">Explorer</a>
+        <a href="/wallet/" style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;color:var(--dim)">Wallet</a>
+        <a href="/wallet/nc" style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;color:var(--dim)">Non-Custodial</a>
+        <a href="/mining/" style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;color:var(--dim)">Mining</a>
+      </nav>
+      <div class="status"><div class="dot" id="statusDot" style="background:var(--dim)"></div><span id="statusText">Connecting...</span></div>
+    </div>
   </header>
 
   <div class="grid" id="statsGrid">

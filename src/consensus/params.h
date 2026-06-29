@@ -121,10 +121,16 @@ struct Params {
     /** By default assume that the signatures in ancestors of this block are valid */
     uint256 defaultAssumeValid;
 
-    /** QNT: PoUW (Proof-of-Useful-Work) parameters */
+    /** SNTI: PoUW (Proof-of-Useful-Work) parameters */
     bool fPoUW{false};                    //!< Enable PoUW: blocks must be XMSS-signed
     int nPoUWStartHeight{0};             //!< Block height at which PoUW activates (0 = always)
     int nPoUWv2StartHeight{1};           //!< H8: height at which v1 proofs are rejected (v2 mandatory)
+    /** Height at which PoUW v2 preimage switches to include hashMerkleRoot.
+     *  Below this height the old preimage (nVersion||hashPrevBlock||nTime||nBits) is used
+     *  for backward-compatibility with already-mined blocks.  At and above this height
+     *  the preimage is SHA256(nVersion||hashPrevBlock||hashMerkleRoot||nTime||nBits),
+     *  which binds the proof to the block's transaction set (fix for audit bug #1). */
+    int nPoUWv3StartHeight{std::numeric_limits<int>::max()}; //!< disabled unless set
     size_t nPoUWMaxSigSize{4096};        //!< Maximum XMSS signature size in coinbase scriptSig
 
     /** SNTI: XMSS sighash chain ID — prevents cross-chain tx replay.

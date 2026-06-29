@@ -165,9 +165,13 @@ inline arith_uint256 CalcNextTargetEMA(const arith_uint256& old_target,
     int64_t numerator   = 900LL * target_spacing + 100LL * actual_spacing;
     int64_t denominator = 1000LL * target_spacing;
 
+    // Overflow-safe EMA: divide before multiply.
+    // old_target ≈ pow_limit ≈ 2^249; multiplying by numerator first (≤78000≈2^17)
+    // yields ~2^266 which overflows uint256. Dividing first gives ~2^233,
+    // then multiplying stays within 2^250. Precision loss is < numerator/old_target ≈ 2^-232.
     arith_uint256 new_target = old_target;
-    new_target *= (uint64_t)numerator;
     new_target /= (uint64_t)denominator;
+    new_target *= (uint64_t)numerator;
 
     // Clamp to [pow_limit >> 10, pow_limit]
     if (new_target > pow_limit) new_target = pow_limit;

@@ -152,3 +152,11 @@ dist/
 /ci/scratch/
 *.bak-*
 .github/workflows/
+
+# SNTI: stripped distribution binaries (built artifacts, not source)
+/bin/bitcoind
+/bin/bitcoin-cli
+
+# SNTI: sensitive runtime files — never commit
+explorer/.jwt_secret
+explorer/wallet.db

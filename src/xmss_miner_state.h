@@ -20,6 +20,10 @@ extern "C" {
 #include "params.h"
 }
 
+// pouw_v2.h defines XMSS_OID, PoUWv2Proof, R_BYTES, WOTS_SIG_BYTES, AUTH_PATH_BYTES
+// which are used below. Include explicitly so this header is self-contained (audit fix #8).
+#include <pouw_v2.h>
+
 #include <array>
 #include <cstring>
 #include <fstream>

@@ -32,14 +32,14 @@ static constexpr uint8_t SEEDS_MAGIC[4] = {'F','S','L',0x01}; // Failed Seed Lis
 static const std::string WALLET_DERIVE_SALT = "SNTI-WalletDerivation-v1";
 
 // ── HKDF-SHA256 ──────────────────────────────────────────────────────────────
-// RFC 5869 HKDF with SHA-256
+// RFC 5869 HKDF with SHA-256, supporting up to 255*32 = 8160 bytes output.
 // Extract: PRK = HMAC-SHA256(salt, IKM)
-// Expand:  OKM = HMAC-SHA256(PRK, info || 0x01) [first 32 bytes]
+// Expand:  T(i) = HMAC-SHA256(PRK, T(i-1) || info || i), OKM = T(1)||T(2)||...
 inline void HKDF_SHA256(
     const uint8_t* ikm,    size_t ikm_len,   // Input Key Material (SK_SEED)
     const uint8_t* salt,   size_t salt_len,  // Salt
     const uint8_t* info,   size_t info_len,  // Context info
-    uint8_t* okm,          size_t okm_len)   // Output Key Material (max 32 bytes)
+    uint8_t* okm,          size_t okm_len)   // Output Key Material
 {
     // Extract: PRK = HMAC-SHA256(salt, IKM)
     uint8_t prk[32];
@@ -47,16 +47,24 @@ inline void HKDF_SHA256(
     extract_hmac.Write(ikm, ikm_len);
     extract_hmac.Finalize(prk);
 
-    // Expand: T(1) = HMAC-SHA256(PRK, info || 0x01)
-    uint8_t counter = 0x01;
-    CHMAC_SHA256 expand_hmac(prk, 32);
-    expand_hmac.Write(info, info_len);
-    expand_hmac.Write(&counter, 1);
-    uint8_t t1[32];
-    expand_hmac.Finalize(t1);
+    // Expand: produce ceil(okm_len/32) blocks
+    uint8_t t_prev[32] = {};
+    size_t t_prev_len = 0;
+    size_t written = 0;
+    for (uint8_t counter = 1; written < okm_len; counter++) {
+        // T(i) = HMAC-SHA256(PRK, T(i-1) || info || i)
+        CHMAC_SHA256 expand_hmac(prk, 32);
+        if (t_prev_len > 0) expand_hmac.Write(t_prev, t_prev_len);
+        expand_hmac.Write(info, info_len);
+        expand_hmac.Write(&counter, 1);
+        expand_hmac.Finalize(t_prev);
+        t_prev_len = 32;
 
-    size_t copy_len = okm_len < 32 ? okm_len : 32;
-    memcpy(okm, t1, copy_len);
+        size_t copy_len = okm_len - written;
+        if (copy_len > 32) copy_len = 32;
+        memcpy(okm + written, t_prev, copy_len);
+        written += copy_len;
+    }
 }
 
 // ── DerivedWalletKey ─────────────────────────────────────────────────────────

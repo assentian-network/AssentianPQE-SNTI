@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assentian-PQE — Investor Roadmap</title>
+<style>
+:root{--bg:#0a0e17;--card:#111827;--card2:#0d1526;--border:#2a3a55;--text:#e8edf5;--dim:#8899bb;--accent:#00d4aa;--blue:#3b82f6;--purple:#a855f7;--orange:#f59e0b;--green:#22c55e;--red:#ef4444}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:var(--bg);color:var(--text);min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:960px;margin:0 auto;padding:24px 20px 64px}
+
+header{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:40px}
+.logo{font-size:20px;font-weight:800;color:var(--accent)}
+.logo small{font-size:10px;color:var(--dim);display:block;letter-spacing:2px}
+.nav{display:flex;gap:20px;font-size:13px}
+.nav a{color:var(--dim)}
+.nav a:hover{color:var(--accent)}
+
+/* Hero */
+.hero{text-align:center;padding:56px 20px 48px;border-bottom:1px solid var(--border);margin-bottom:56px}
+.eyebrow{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
+.hero h1{font-size:clamp(26px,4.5vw,48px);font-weight:800;line-height:1.2;margin-bottom:20px}
+.hero h1 em{color:var(--accent);font-style:normal}
+.hero p{font-size:15px;color:var(--dim);max-width:600px;margin:0 auto 32px;line-height:1.9}
+.badge-row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:36px}
+.badge{padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.5px}
+.b-green{background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.3);color:var(--accent)}
+.b-purple{background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.3);color:var(--purple)}
+.b-blue{background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);color:var(--blue)}
+.b-orange{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--orange)}
+.cta-row{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.btn{padding:12px 28px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;border:none;font-family:inherit}
+.btn-primary{background:var(--accent);color:#0a0e17}
+.btn-primary:hover{background:#00bfa0;text-decoration:none}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent);text-decoration:none}
+
+/* Section titles */
+section{margin-bottom:56px}
+.sec-head{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.sec-head h2{font-size:22px;font-weight:800}
+.sec-num{font-size:11px;color:var(--accent);background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.25);padding:3px 10px;border-radius:20px}
+
+/* Problem */
+.threat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.threat-card{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:10px;padding:20px}
+.threat-card h4{font-size:13px;font-weight:700;margin-bottom:8px;color:var(--orange)}
+.threat-card p{font-size:12px;color:var(--dim);line-height:1.8}
+.threat-card .yr{font-size:22px;font-weight:800;color:var(--red);margin-bottom:4px}
+
+/* Comparison table */
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:var(--card2)}
+th{padding:14px 16px;text-align:left;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+td{padding:13px 16px;border-top:1px solid var(--border)}
+tr:hover td{background:rgba(255,255,255,.015)}
+.yes{color:var(--green)}
+.no{color:var(--red)}
+.hl td{background:rgba(0,212,170,.05)}
+.hl td:first-child{color:var(--accent);font-weight:700}
+
+/* Tokenomics */
+.tok-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.tok-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;text-align:center}
+.tok-card .val{font-size:22px;font-weight:800;color:var(--accent);margin-bottom:4px}
+.tok-card .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.8px}
+
+/* Roadmap */
+.roadmap{position:relative}
+.phase{display:grid;grid-template-columns:180px 1fr;gap:0;margin-bottom:0}
+.phase-line{display:flex;flex-direction:column;align-items:center;padding-top:4px}
+.phase-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--accent);background:var(--bg);flex-shrink:0;position:relative;z-index:1}
+.phase-dot.done{background:var(--accent)}
+.phase-dot.active{background:var(--blue);border-color:var(--blue);box-shadow:0 0 12px rgba(59,130,246,.5)}
+.phase-vline{flex:1;width:2px;background:var(--border);margin-top:4px}
+.phase-label{text-align:right;padding:0 24px 0 0;padding-top:0}
+.phase-label .ph-tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--accent)}
+.phase-label .ph-time{font-size:11px;color:var(--dim);margin-top:3px}
+.phase-content{padding-bottom:40px;padding-left:20px}
+.phase-content h3{font-size:16px;font-weight:700;margin-bottom:14px}
+.checklist{list-style:none}
+.checklist li{font-size:13px;color:var(--dim);line-height:1;padding:7px 0;display:flex;align-items:flex-start;gap:10px;border-bottom:1px solid rgba(42,58,85,.3)}
+.checklist li:last-child{border-bottom:none}
+.checklist li .ck{flex-shrink:0;margin-top:1px}
+.ck.done{color:var(--green)}
+.ck.todo{color:var(--border)}
+.ck.active{color:var(--blue)}
+.item-done{color:var(--text)}
+.item-todo{color:var(--dim)}
+
+/* Market */
+.market-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.market-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:22px}
+.market-card h4{font-size:13px;font-weight:700;margin-bottom:8px}
+.market-card p{font-size:12px;color:var(--dim);line-height:1.8}
+.market-card .fit{display:inline-block;margin-top:10px;font-size:11px;font-weight:700;padding:2px 10px;border-radius:20px}
+.fit-high{background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.25);color:var(--accent)}
+.fit-low{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:var(--red)}
+
+/* Security */
+.audit-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.audit-row{grid-template-columns:1fr}.phase{grid-template-columns:1fr}.phase-line{display:none}.phase-label{text-align:left;padding:0 0 8px 0}}
+.audit-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:22px}
+.audit-card h4{font-size:13px;font-weight:700;margin-bottom:12px}
+.audit-card ul{list-style:none}
+.audit-card li{font-size:12px;color:var(--dim);padding:5px 0;display:flex;gap:10px}
+
+/* Team */
+.team-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:28px;display:flex;gap:24px;align-items:flex-start}
+.team-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#0a0e17;flex-shrink:0}
+.team-info h3{font-size:16px;font-weight:700;margin-bottom:4px}
+.team-info .role{font-size:12px;color:var(--accent);margin-bottom:12px}
+.team-info p{font-size:13px;color:var(--dim);line-height:1.8}
+.team-info .links{margin-top:12px;display:flex;gap:12px;font-size:12px}
+
+/* Quote */
+.quote-box{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:28px 32px;margin-bottom:56px}
+.quote-box blockquote{font-size:16px;line-height:1.9;color:var(--text);font-style:italic}
+.quote-box cite{display:block;margin-top:16px;font-size:12px;color:var(--dim);font-style:normal}
+
+/* Contact */
+.contact-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.contact-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;text-align:center}
+.contact-card .icon{font-size:24px;margin-bottom:10px}
+.contact-card .label{font-size:11px;color:var(--dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.8px}
+.contact-card a{font-size:13px;color:var(--accent);word-break:break-all}
+
+footer{text-align:center;padding-top:32px;border-top:1px solid var(--border);font-size:12px;color:var(--dim);line-height:2}
+
+/* Disclaimer */
+.disclaimer{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:14px 18px;font-size:11px;color:var(--dim);line-height:1.8;margin-bottom:32px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">
+      SNTI
+      <small>ASSENTIAN-PQE</small>
+    </div>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/explorer/">Explorer</a>
+      <a href="/wallet/">Wallet</a>
+      <a href="/mining/">Mining</a>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="eyebrow">Investor Roadmap — June 2026</div>
+    <h1>The World's First<br><em>Post-Quantum</em> Proof-of-Work<br>Blockchain</h1>
+    <p>While Bitcoin and Ethereum remain vulnerable to quantum attacks, Assentian-PQE (SNTI) enforces quantum resistance at every layer — signatures, consensus, and mining — from day one.</p>
+    <div class="badge-row">
+      <span class="badge b-green">✓ NIST SP 800-208</span>
+      <span class="badge b-purple">XMSS Signatures</span>
+      <span class="badge b-blue">PoUW v2 Consensus</span>
+      <span class="badge b-orange">Mainnet Live · Jun 2026</span>
+    </div>
+    <div class="cta-row">
+      <a href="mailto:assentianpqe@gmail.com" class="btn btn-primary">Contact for Investment</a>
+      <a href="/explorer/" class="btn btn-outline">View Live Chain</a>
+    </div>
+  </div>
+
+  <!-- 1. Problem -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">01</span>
+      <h2>The Quantum Threat is Real</h2>
+    </div>
+    <div class="threat-grid">
+      <div class="threat-card">
+        <div class="yr">2024</div>
+        <h4>NIST Finalizes Standards</h4>
+        <p>NIST officially standardizes post-quantum cryptography: CRYSTALS, XMSS, SPHINCS+. Formal signal to the industry to migrate now.</p>
+      </div>
+      <div class="threat-card">
+        <div class="yr">2025</div>
+        <h4>IBM 1,121-Qubit Condor</h4>
+        <p>Quantum processors cross 1,000 qubits. Scale is accelerating faster than most academic projections from 2020.</p>
+      </div>
+      <div class="threat-card">
+        <div class="yr">2027–30</div>
+        <h4>CRQC Estimate Window</h4>
+        <p>Leading researchers estimate a cryptographically relevant quantum computer (CRQC) capable of breaking ECDSA within this window.</p>
+      </div>
+      <div class="threat-card">
+        <div class="yr">$3T+</div>
+        <h4>Value at Risk</h4>
+        <p>All ECDSA-based blockchain value — Bitcoin, Ethereum, and derivatives — becomes cryptographically vulnerable once a CRQC exists.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Solution -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">02</span>
+      <h2>Why SNTI is Different</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Bitcoin</th>
+            <th>Ethereum</th>
+            <th>QRL</th>
+            <th>SNTI</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Quantum-resistant signatures</td>
+            <td class="no">✗ ECDSA</td>
+            <td class="no">✗ ECDSA</td>
+            <td class="yes">✓ XMSS</td>
+            <td class="yes">✓ XMSS</td>
+          </tr>
+          <tr>
+            <td>Quantum-resistant consensus</td>
+            <td class="no">✗ SHA-256 PoW</td>
+            <td class="no">✗ PoS ECDSA</td>
+            <td class="no">✗ SHA-256 PoW</td>
+            <td class="yes">✓ PoUW v2</td>
+          </tr>
+          <tr>
+            <td>NIST-standardized crypto</td>
+            <td class="no">✗</td>
+            <td class="no">✗</td>
+            <td class="yes">✓</td>
+            <td class="yes">✓</td>
+          </tr>
+          <tr>
+            <td>Mining produces useful work</td>
+            <td class="no">✗</td>
+            <td class="no">✗</td>
+            <td class="no">✗</td>
+            <td class="yes">✓</td>
+          </tr>
+          <tr class="hl">
+            <td>Leaf reuse protection (on-chain)</td>
+            <td>N/A</td>
+            <td>N/A</td>
+            <td class="no">Limited</td>
+            <td class="yes">✓ SNTI M7</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:16px;font-size:12px;color:var(--dim)">QRL uses XMSS signatures but mines with standard SHA-256 PoW. SNTI is the only chain where the mining process itself IS the quantum-resistant proof-of-work.</p>
+  </section>
+
+  <!-- 3. Tokenomics -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">03</span>
+      <h2>Tokenomics</h2>
+    </div>
+    <div class="tok-grid">
+      <div class="tok-card">
+        <div class="val">SNTI</div>
+        <div class="lbl">Ticker</div>
+      </div>
+      <div class="tok-card">
+        <div class="val">21M</div>
+        <div class="lbl">Max Supply</div>
+      </div>
+      <div class="tok-card">
+        <div class="val">50</div>
+        <div class="lbl">Block Reward (SNTI)</div>
+      </div>
+      <div class="tok-card">
+        <div class="val">~60s</div>
+        <div class="lbl">Target Block Time</div>
+      </div>
+      <div class="tok-card">
+        <div class="val">210,000</div>
+        <div class="lbl">Halving Interval</div>
+      </div>
+      <div class="tok-card">
+        <div class="val">PoUW v2</div>
+        <div class="lbl">Consensus</div>
+      </div>
+    </div>
+    <p style="margin-top:16px;font-size:12px;color:var(--dim)">Same proven emission curve as Bitcoin. Early miners secure the network AND generate quantum-resistant cryptographic artifacts — every mined block is a new XMSS Merkle tree.</p>
+  </section>
+
+  <!-- 4. Market -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">04</span>
+      <h2>Market Opportunity</h2>
+    </div>
+    <div class="market-grid">
+      <div class="market-card">
+        <h4>Institutional Custody</h4>
+        <p>$500B+ AUM in crypto funds requires quantum-safe custody solutions. SNTI provides native quantum resistance — no migration needed.</p>
+        <span class="fit fit-high">High Fit</span>
+      </div>
+      <div class="market-card">
+        <h4>Government &amp; Defense</h4>
+        <p>NSA mandates post-quantum transition by 2030. SNTI is the only PoW blockchain compliant with NIST SP 800-208 at the consensus layer.</p>
+        <span class="fit fit-high">High Fit</span>
+      </div>
+      <div class="market-card">
+        <h4>CBDC Infrastructure</h4>
+        <p>130+ countries exploring CBDCs. Long-lived financial systems require 20-year security horizon. SNTI is designed for exactly this.</p>
+        <span class="fit fit-high">High Fit</span>
+      </div>
+      <div class="market-card">
+        <h4>Exchange Listings</h4>
+        <p>Exchanges run their own nodes — they are technically capable of integrating SNTI. First-mover advantage in post-quantum asset class.</p>
+        <span class="fit fit-high">High Fit</span>
+      </div>
+      <div class="market-card">
+        <h4>Retail / Casual Users</h4>
+        <p>Requires running a node today. UX improvement is a key Phase 2 deliverable (WASM wallet, mobile app, one-line install).</p>
+        <span class="fit fit-low">Phase 2</span>
+      </div>
+      <div class="market-card">
+        <h4>Enterprise Blockchain</h4>
+        <p>Supply chain, healthcare, finance — systems with 10+ year lifespans need post-quantum security today, not in 2030.</p>
+        <span class="fit fit-high">High Fit</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Roadmap -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">05</span>
+      <h2>Roadmap</h2>
+    </div>
+    <div class="roadmap">
+
+      <!-- Phase 1 -->
+      <div class="phase">
+        <div class="phase-label">
+          <div class="ph-tag">Phase 1</div>
+          <div class="ph-time">Complete · Jun 2026</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;padding-top:2px;margin-right:20px">
+          <div class="phase-dot done"></div>
+          <div class="phase-vline"></div>
+        </div>
+        <div class="phase-content">
+          <h3>Foundation — Live on Mainnet</h3>
+          <ul class="checklist">
+            <li><span class="ck done">✓</span><span class="item-done">XMSS signature integration (NIST SP 800-208)</span></li>
+            <li><span class="ck done">✓</span><span class="item-done">PoUW v2 consensus mechanism</span></li>
+            <li><span class="ck done">✓</span><span class="item-done">EMA difficulty adjustment — 60s target blocks</span></li>
+            <li><span class="ck done">✓</span><span class="item-done">On-chain leaf index tracking — prevents key reuse attacks (SNTI M7)</span></li>
+            <li><span class="ck done">✓</span><span class="item-done">Mainnet genesis block — June 26, 2026</span></li>
+            <li><span class="ck done">✓</span><span class="item-done">Block explorer (explorer.assentian.network)</span></li>
+            <li><span class="ck done">✓</span><span class="item-done">DNS seed infrastructure (seed.assentian.network)</span></li>
+            <li><span class="ck done">✓</span><span class="item-done">Web wallet (assentian.network/wallet)</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Phase 2 -->
+      <div class="phase">
+        <div class="phase-label">
+          <div class="ph-tag" style="color:var(--blue)">Phase 2</div>
+          <div class="ph-time">Q3 2026 · 3 months</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;padding-top:2px;margin-right:20px">
+          <div class="phase-dot active"></div>
+          <div class="phase-vline"></div>
+        </div>
+        <div class="phase-content">
+          <h3>Accessibility — Remove Node Requirement</h3>
+          <ul class="checklist">
+            <li><span class="ck todo">○</span><span class="item-todo">XMSS WebAssembly wallet — generate addresses in browser, no node needed</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">Truly non-custodial web wallet — private key never leaves user device</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">mine.sh one-liner — download, sync, mine in under 5 minutes</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">Portable XMSS key format (.snti) — backup and import between nodes</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">Additional seed nodes — faster P2P peer discovery</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Phase 3 -->
+      <div class="phase">
+        <div class="phase-label">
+          <div class="ph-tag" style="color:var(--purple)">Phase 3</div>
+          <div class="ph-time">Q4 2026 · 6 months</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;padding-top:2px;margin-right:20px">
+          <div class="phase-dot" style="border-color:var(--purple)"></div>
+          <div class="phase-vline"></div>
+        </div>
+        <div class="phase-content">
+          <h3>Ecosystem — Exchange &amp; Developer Tools</h3>
+          <ul class="checklist">
+            <li><span class="ck todo">○</span><span class="item-todo">Mobile wallet Android — XMSS on-device key generation</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">Exchange listings — DEX first, then CEX</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">Mining pool protocol — custom PoUW v2 stratum adapter</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">Hardened checkpoints — after 10,000 mainnet blocks</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">External security audit — Trail of Bits / Halborn</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">Developer SDK — JavaScript and Python libraries</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Phase 4 -->
+      <div class="phase">
+        <div class="phase-label">
+          <div class="ph-tag" style="color:var(--orange)">Phase 4</div>
+          <div class="ph-time">H1 2027</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;padding-top:2px;margin-right:20px">
+          <div class="phase-dot" style="border-color:var(--orange)"></div>
+          <div class="phase-vline" style="background:transparent"></div>
+        </div>
+        <div class="phase-content">
+          <h3>Scale — GPU Mining &amp; Institutional</h3>
+          <ul class="checklist">
+            <li><span class="ck todo">○</span><span class="item-todo">GPU mining optimization — OpenCL/CUDA kernel for PoUW v2</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">Smart contract layer research — quantum-resistant VM</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">Institutional custody API — HSM integration</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">Government / CBDC partnerships — ASEAN fintech regulatory sandbox</span></li>
+            <li><span class="ck todo">○</span><span class="item-todo">Whitepaper v2 — IEEE/ACM blockchain conference submission</span></li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 6. Security -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">06</span>
+      <h2>Security &amp; Audit</h2>
+    </div>
+    <div class="audit-row">
+      <div class="audit-card">
+        <h4 style="color:var(--green)">✓ Completed Internal Audit</h4>
+        <ul>
+          <li><span style="color:var(--green)">✓</span> XMSS Merkle tree construction and verification</li>
+          <li><span style="color:var(--green)">✓</span> Leaf index reuse protection (on-chain, SNTI M7)</li>
+          <li><span style="color:var(--green)">✓</span> EMA difficulty — overflow-safe (fixed June 2026)</li>
+          <li><span style="color:var(--green)">✓</span> BIP141/SegWit compatibility — multi-node consensus</li>
+          <li><span style="color:var(--green)">✓</span> XMSS private key persistence and WOTS+ leaf safety</li>
+          <li><span style="color:var(--green)">✓</span> Heap buffer overflow in XMSS Verify() — fixed</li>
+        </ul>
+      </div>
+      <div class="audit-card">
+        <h4 style="color:var(--orange)">○ Planned External Audit</h4>
+        <ul>
+          <li><span style="color:var(--dim)">→</span> Target firms: Trail of Bits, Halborn, Least Authority</li>
+          <li><span style="color:var(--dim)">→</span> Scope: consensus layer, XMSS integration, leaf tracking</li>
+          <li><span style="color:var(--dim)">→</span> Budget: $20,000 – $100,000</li>
+          <li><span style="color:var(--dim)">→</span> Timeline: Q4 2026, post-Phase 2</li>
+          <li><span style="color:var(--dim)">→</span> GitHub: open-source, community review welcome</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Team -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">07</span>
+      <h2>Team</h2>
+    </div>
+    <div class="team-card">
+      <div class="team-avatar">A</div>
+      <div class="team-info">
+        <h3>Asep Mulya</h3>
+        <div class="role">Founder &amp; Lead Developer</div>
+        <p>Built Assentian-PQE from scratch — a complete Bitcoin Core fork with XMSS signatures and PoUW v2 consensus. Deep expertise in post-quantum cryptography, Bitcoin protocol internals, and distributed systems. Every line of consensus-critical code written and audited by the founder.</p>
+        <div class="links">
+          <a href="mailto:assentianpqe@gmail.com">assentianpqe@gmail.com</a>
+          <a href="https://github.com/asepganzu-svg/AssentianPQE-SNTI" target="_blank">GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quote -->
+  <div class="quote-box">
+    <blockquote>
+      "The quantum threat to blockchain is real, documented, and on a 5–10 year timeline. Every day that Bitcoin and Ethereum remain on ECDSA is one day closer to a catastrophic global cryptographic failure. SNTI is not a hedge — it is the solution. As the world's first blockchain with quantum resistance enforced at both the signature layer and the consensus layer, SNTI occupies a unique and defensible position. Early investors in SNTI are not just buying a coin — they are buying the infrastructure for post-quantum finance."
+    </blockquote>
+    <cite>— Asep Mulya, Founder, Assentian-PQE</cite>
+  </div>
+
+  <!-- Contact -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">08</span>
+      <h2>Contact</h2>
+    </div>
+    <div class="contact-grid">
+      <div class="contact-card">
+        <div class="icon">🌐</div>
+        <div class="label">Website</div>
+        <a href="https://assentian.network">assentian.network</a>
+      </div>
+      <div class="contact-card">
+        <div class="icon">📊</div>
+        <div class="label">Explorer</div>
+        <a href="https://explorer.assentian.network">explorer.assentian.network</a>
+      </div>
+      <div class="contact-card">
+        <div class="icon">📧</div>
+        <div class="label">Email</div>
+        <a href="mailto:assentianpqe@gmail.com">assentianpqe@gmail.com</a>
+      </div>
+      <div class="contact-card">
+        <div class="icon">💻</div>
+        <div class="label">GitHub</div>
+        <a href="https://github.com/asepganzu-svg/AssentianPQE-SNTI" target="_blank">AssentianPQE-SNTI</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="disclaimer">
+    ⚠ This document is for informational purposes only. SNTI is a new blockchain in early mainnet stage. All roadmap timelines are estimates and subject to change. Cryptocurrency investments carry significant risk. Conduct your own research before making investment decisions.
+  </div>
+
+  <footer>
+    <div style="color:var(--accent);font-weight:700;margin-bottom:8px">ASSENTIAN-PQE (SNTI)</div>
+    <div>Post-Quantum Blockchain · XMSS + PoUW v2 · Mainnet June 2026</div>
+    <div style="margin-top:8px">© 2026 Assentian-PQE · All rights reserved</div>
+  </footer>
+
+</div>
+</body>
+</html>

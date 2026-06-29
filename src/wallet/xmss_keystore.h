@@ -37,7 +37,7 @@ struct CXMSSKeyEntry {
     }
 };
 
-/** QNT: XMSS Wallet Key Store
+/** SNTI: XMSS Wallet Key Store
  *
  * Manages XMSS keypairs for the wallet.
  *
@@ -224,7 +224,9 @@ public:
         LOCK(cs_xmss);
         auto it = xmss_keys.find(pubkey);
         if (it != xmss_keys.end()) {
-            // XMSS-SHA2_10_256 has 2^10 = 1024 signatures
+            // XMSS-SHA2_10_256 has 2^10 = 1024 signatures.
+            // Guard against underflow if leaf_index somehow exceeds 1024.
+            if (it->second.leaf_index >= 1024) return 0;
             return 1024 - it->second.leaf_index;
         }
         return 0;

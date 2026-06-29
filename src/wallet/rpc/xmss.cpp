@@ -19,6 +19,7 @@
 #include <wallet/rpc/util.h>
 #include <wallet/spend.h>
 #include <wallet/coincontrol.h>
+#include <wallet/fees.h>
 #include <wallet/wallet.h>
 #include <wallet/xmss_address.h>
 #include <wallet/xmss_signer.h>
@@ -80,19 +81,10 @@ RPCHelpMan getnewxmssaddress()
             throw JSONRPCError(RPC_WALLET_ERROR, "Error: XMSS key generation failed");
         }
 
-        // Also add to keystore for persistence
-        auto* keystore = pwallet->GetXMSSKeyStore();
-        if (keystore) {
-            try {
-                keystore->GenerateKey(label);
-            } catch (...) {
-                // Non-fatal: signer already has the key
-            }
-        }
-
-        // SNTI FIX (18/Jun/2026): register this key with the ScriptPubKeyMan-level
-        // XMSS key map (via AddXMSSKeyToKeystore), not just CXMSSSigner. Without
-        // this, IsMine() never recognizes funds sent here as spendable.
+        // Register this key with the ScriptPubKeyMan-level XMSS key map so
+        // IsMine() recognizes funds sent here as spendable. We use the key
+        // already generated above (do NOT call keystore->GenerateKey() which
+        // would create a second, unrelated keypair — audit fix #6).
         uint160 new_addr_hash = XMSSAddr::Hash(pubkey);
         pwallet->AddXMSSKeyToKeystore(new_addr_hash, pubkey);
         // SNTI FIX (18/Jun/2026): persist immediately so the private key
@@ -355,7 +347,7 @@ RPCHelpMan getxmssaddressinfo()
 RPCHelpMan sendtoxmssaddress()
 {
     return RPCHelpMan{"sendtoxmssaddress",
-        "\nSend QNT to an XMSS address.\n"
+        "\nSend SNTI to an XMSS address.\n"
         "The recipient must have an XMSS key pair to spend the funds later.\n"
         "Uses bare P2XMSS if this wallet already knows the recipient's full\n"
         "pubkey (e.g. sending to its own address), otherwise the hash-committed\n"
@@ -458,13 +450,13 @@ RPCHelpMan sendtoxmssaddress()
 // ---------------------------------------------------------------------------
 // sendfromxmssaddress
 // ---------------------------------------------------------------------------
-// Sends QNT from an XMSS address to a destination address.
+// Sends SNTI from an XMSS address to a destination address.
 // The XMSS key must be available in the wallet keystore.
 // ---------------------------------------------------------------------------
 RPCHelpMan sendfromxmssaddress()
 {
     return RPCHelpMan{"sendfromxmssaddress",
-        "\nSend QNT from an XMSS address to any destination address.\n"
+        "\nSend SNTI from an XMSS address to any destination address.\n"
         "The XMSS private key must be loaded in the wallet.\n",
         {
             {"from_xmss_address", RPCArg::Type::STR, RPCArg::Optional::NO, "The XMSS address to send from."},
@@ -617,9 +609,12 @@ RPCHelpMan sendfromxmssaddress()
                 throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS,
                     "No spendable funds found at this XMSS address");
             }
-            // Pick the best single UTXO: smallest that covers nAmount, else largest
-            // SNTI: generous fee buffer — XMSS scriptSig is ~2.5 kB so fee is higher than typical
-            const CAmount fee_estimate = 50000; // 0.0005 SNTI — generous for large XMSS scriptSig
+            // Pick the best single UTXO: smallest that covers nAmount, else largest.
+            // XMSS scriptSig is ~2.5 kB; estimate fee from current fee rate (audit fix #11).
+            // Approximate tx size: 10 (header) + 41 (input) + 2500 (XMSS scriptSig) + 34 (output) ~= 2600 bytes.
+            FeeCalculation fee_calc;
+            CFeeRate fee_rate = GetMinimumFeeRate(*pwallet, coin_control, &fee_calc);
+            const CAmount fee_estimate = fee_rate.GetFee(2600);
             const CAmount needed = nAmount + fee_estimate;
             std::sort(xmss_utxos.begin(), xmss_utxos.end(), [](const XMSSUtxo& a, const XMSSUtxo& b){ return a.value < b.value; });
             COutPoint chosen = xmss_utxos.back().outpoint; // default: largest
@@ -794,7 +789,7 @@ RPCHelpMan exportxmsskey()
         }
 
         uint32_t leaf_index = signer->GetLeafIndex(pubkey);
-        uint32_t remaining = 1024 - leaf_index;  // XMSS-SHA2_10_256 = 1024 signatures
+        uint32_t remaining = (leaf_index < 1024) ? (1024 - leaf_index) : 0;
 
         UniValue result(UniValue::VOBJ);
         result.pushKV("pubkey", HexStr(pubkey));

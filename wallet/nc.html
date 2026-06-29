@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNTI Non-Custodial — Assentian-PQE</title>
+<style>
+:root{--bg:#0a0e17;--card:#111827;--border:#2a3a55;--text:#e8edf5;--dim:#8899bb;--accent:#00d4aa;--blue:#3b82f6;--purple:#a855f7;--orange:#f59e0b;--green:#22c55e;--red:#ef4444;--yellow:#facc15}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:var(--bg);color:var(--text);min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1100px;margin:0 auto;padding:20px}
+header{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:24px}
+.logo{font-size:20px;font-weight:800;color:var(--purple)}
+.logo small{font-size:10px;color:var(--dim);display:block;letter-spacing:2px}
+nav a{color:var(--dim);font-size:13px;margin-left:16px}
+nav a:hover{color:var(--text)}
+.tabs-main{display:flex;gap:8px;margin-bottom:24px}
+.tab-btn{padding:10px 20px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--dim);cursor:pointer;font-size:13px;font-family:inherit;transition:.2s}
+.tab-btn.active{border-color:var(--purple);color:var(--purple);background:rgba(168,85,247,.08)}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;display:none}
+.panel.active{display:block}
+.panel h2{font-size:16px;margin-bottom:6px}
+.panel .sub{font-size:12px;color:var(--dim);margin-bottom:20px;line-height:1.6}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.field input,.field textarea{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;outline:none;transition:.2s;resize:vertical}
+.field input:focus,.field textarea:focus{border-color:var(--purple)}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s}
+.btn.primary{background:var(--purple);color:#fff}
+.btn.primary:hover{opacity:.85}
+.btn.primary:disabled{opacity:.4;cursor:default}
+.btn.accent{background:var(--accent);color:#000}
+.btn.outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn.outline:hover{border-color:var(--text)}
+.result-box{margin-top:16px;padding:16px;border-radius:10px;font-size:13px;word-break:break-all;display:none}
+.result-box.ok{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25)}
+.result-box.warn{background:rgba(250,204,21,.08);border:1px solid rgba(250,204,21,.25);color:var(--yellow)}
+.result-box.err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:var(--red)}
+.kv{display:flex;flex-direction:column;gap:10px}
+.kv-row{display:flex;flex-direction:column;gap:4px}
+.kv-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim)}
+.kv-val{font-size:12px;background:var(--bg);padding:8px 12px;border-radius:6px;border:1px solid var(--border);word-break:break-all;cursor:pointer}
+.kv-val:hover{border-color:var(--purple)}
+.balance-big{font-size:36px;font-weight:800;color:var(--accent);margin:8px 0}
+.utxo-list{margin-top:12px}
+.utxo-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(42,58,85,.5);font-size:12px}
+.utxo-row:last-child{border-bottom:none}
+.utxo-hash{color:var(--dim)}
+.utxo-amt{color:var(--green);font-weight:700}
+.warning-box{background:rgba(250,204,21,.06);border:1px solid rgba(250,204,21,.25);border-radius:10px;padding:16px;margin-bottom:20px;font-size:12px;color:var(--yellow);line-height:1.8}
+.warning-box strong{display:block;margin-bottom:4px;font-size:13px}
+.copy-tag{display:inline-block;font-size:10px;color:var(--purple);margin-left:8px;cursor:pointer}
+.copy-tag:hover{text-decoration:underline}
+.loading{color:var(--dim);font-size:13px;padding:12px 0}
+.empty{color:var(--dim);font-size:13px;padding:16px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:640px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">SNTI <small>NON-CUSTODIAL WALLET</small></div>
+    <nav>
+      <a href="/">← Explorer</a>
+      <a href="/wallet/">Custodial</a>
+      <a href="/mining/">Mining</a>
+    </nav>
+  </header>
+
+  <div class="warning-box">
+    <strong>⚠ Self-Custody Notice</strong>
+    This tool helps you monitor and interact with SNTI addresses you control.
+    Your private keys are <strong>never sent to or stored by this server</strong>.
+    XMSS keys are one-time-use — each signing retires a leaf. Keep your wallet
+    software up-to-date and never reuse keys.
+  </div>
+
+  <div class="tabs-main">
+    <button class="tab-btn active" onclick="showTab('watch')">Watch Address</button>
+    <button class="tab-btn" onclick="showTab('generate')">Generate Address</button>
+    <button class="tab-btn" onclick="showTab('broadcast')">Broadcast TX</button>
+    <button class="tab-btn" onclick="showTab('about')">About XMSS</button>
+  </div>
+
+  <!-- Watch Address -->
+  <div class="panel active" id="tab-watch">
+    <h2>Watch Any Address</h2>
+    <p class="sub">Enter a SNTI testnet address (tsnti1…) to see its balance and UTXOs. No login required.</p>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <div class="field" style="flex:1;margin:0">
+        <input type="text" id="watchAddr" placeholder="tsnti1q..." autocomplete="off">
+      </div>
+      <button class="btn primary" onclick="doWatch()" style="align-self:end">Lookup</button>
+    </div>
+    <div class="result-box" id="watchResult">
+      <div class="balance-big"><span id="wBalance">0</span> <span style="font-size:16px;color:var(--dim)">SNTI</span></div>
+      <div style="font-size:11px;color:var(--dim);margin-bottom:12px" id="wAddr"></div>
+      <div class="utxo-list" id="wUtxos"></div>
+    </div>
+  </div>
+
+  <!-- Generate Address -->
+  <div class="panel" id="tab-generate">
+    <h2>Generate New XMSS Address</h2>
+    <p class="sub">
+      Generate a fresh post-quantum XMSS address on this testnet node.
+      The address and public key are returned to you — <strong>save them securely</strong>.
+      To actually use this address you must run the full SNTI node software locally
+      or use the custodial wallet.
+    </p>
+    <button class="btn primary" onclick="doGenerate()" id="genBtn">Generate XMSS Address</button>
+    <div class="result-box ok" id="genResult" style="display:none">
+      <div class="kv" id="genKV"></div>
+      <p style="font-size:11px;color:var(--dim);margin-top:16px;line-height:1.8">
+        This is a <strong>one-time keypair generated on the server</strong>.
+        The server does not retain this key. Copy and save it now.
+        For full non-custodial control, run <code>bitcoind</code> locally.
+      </p>
+    </div>
+  </div>
+
+  <!-- Broadcast TX -->
+  <div class="panel" id="tab-broadcast">
+    <h2>Broadcast Signed Transaction</h2>
+    <p class="sub">
+      If you signed a transaction offline (using the SNTI CLI or desktop wallet),
+      paste the raw hex here to broadcast it to the network.
+    </p>
+    <div class="field">
+      <label>Raw Transaction Hex</label>
+      <textarea id="broadcastHex" rows="5" placeholder="0200000001..."></textarea>
+    </div>
+    <button class="btn primary" onclick="doBroadcast()">Broadcast</button>
+    <div class="result-box" id="broadcastResult"></div>
+  </div>
+
+  <!-- About XMSS -->
+  <div class="panel" id="tab-about">
+    <h2>About XMSS Post-Quantum Signatures</h2>
+    <p class="sub">How Assentian-PQE's signature scheme works.</p>
+    <div class="grid2">
+      <div>
+        <div style="color:var(--purple);font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Why XMSS?</div>
+        <ul style="font-size:13px;color:var(--dim);line-height:2.2;list-style:none">
+          <li>✓ Quantum-resistant hash-based signatures</li>
+          <li>✓ Security based on SHA-256 alone</li>
+          <li>✓ Standardized by NIST/IETF (RFC 8391)</li>
+          <li>✓ Proven security — no algebraic assumptions</li>
+          <li>✗ One-time leaves — each key signs once</li>
+          <li>✗ Large signature size (~2.5 KB per tx)</li>
+        </ul>
+      </div>
+      <div>
+        <div style="color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Key Facts</div>
+        <ul style="font-size:13px;color:var(--dim);line-height:2.2;list-style:none">
+          <li>Scheme: XMSS-SHA2_10_256</li>
+          <li>Tree height: 10 (1024 leaves per key)</li>
+          <li>Sig size: 2,500 bytes (5 × 500 B chunks)</li>
+          <li>Address: bech32m (tsnti1…)</li>
+          <li>PoUW v2: tree root = mining proof</li>
+          <li>Leaf index bound to block sighash</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top:20px;padding:16px;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Address derivation</div>
+      <div style="font-size:12px;line-height:2;color:var(--text)">
+        XMSS keypair → 64-byte public key → SHA-256 → RIPEMD-160 → 20-byte hash → bech32m encode with HRP <code style="color:var(--accent)">tsnti</code>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <a href="/" style="color:var(--dim);font-size:13px">← Back to Explorer</a>
+      <a href="/wallet/" style="color:var(--dim);font-size:13px;margin-left:16px">Custodial Wallet →</a>
+    </div>
+  </div>
+</div>
+
+<script>
+function showTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    const tabs = ['watch','generate','broadcast','about'];
+    b.classList.toggle('active', tabs[i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+function copyText(text, el) {
+  navigator.clipboard.writeText(text).then(() => {
+    const old = el.textContent;
+    el.textContent = '✓ copied';
+    setTimeout(() => el.textContent = old, 1500);
+  });
+}
+
+async function doWatch() {
+  const addr = document.getElementById('watchAddr').value.trim();
+  if (!addr) return;
+  const r = document.getElementById('watchResult');
+  r.style.display = '';
+  r.className = 'result-box ok';
+  document.getElementById('wBalance').textContent = '…';
+  document.getElementById('wAddr').textContent = addr;
+  document.getElementById('wUtxos').innerHTML = '<div class="loading">Querying…</div>';
+
+  const res = await fetch('/api/nc/balance/' + encodeURIComponent(addr)).then(r => r.json());
+  if (res.error) {
+    r.className = 'result-box err';
+    r.innerHTML = 'Error: ' + (res.error.message || res.error);
+    return;
+  }
+  document.getElementById('wBalance').textContent = (res.balance || 0).toFixed(8);
+  const utxos = res.utxos || [];
+  if (!utxos.length) {
+    document.getElementById('wUtxos').innerHTML = '<div class="empty">No unspent outputs</div>';
+  } else {
+    document.getElementById('wUtxos').innerHTML = utxos.map(u => `
+      <div class="utxo-row">
+        <span class="utxo-hash">${u.txid.slice(0,20)}…:${u.vout} <span style="color:var(--dim)">(${u.confirmations} conf)</span></span>
+        <span class="utxo-amt">${(u.amount||0).toFixed(8)}</span>
+      </div>`).join('');
+  }
+}
+
+async function doGenerate() {
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.textContent = 'Generating XMSS tree…';
+  const res = await fetch('/api/nc/newaddress', {method:'POST'}).then(r => r.json());
+  btn.disabled = false;
+  btn.textContent = 'Generate XMSS Address';
+  const el = document.getElementById('genResult');
+  el.style.display = '';
+  if (res.error) {
+    el.className = 'result-box err';
+    el.innerHTML = 'Error: ' + (res.error.message || res.error);
+    return;
+  }
+  el.className = 'result-box ok';
+  const items = [
+    {label: 'Address', val: res.address || '—'},
+    {label: 'Public Key (hex)', val: res.pubkey || '—'},
+  ];
+  document.getElementById('genKV').innerHTML = items.map(it => `
+    <div class="kv-row">
+      <div class="kv-label">${it.label}</div>
+      <div class="kv-val" onclick="copyText('${it.val}', this)" title="Click to copy">${it.val}
+        <span class="copy-tag">[copy]</span>
+      </div>
+    </div>`).join('');
+}
+
+async function doBroadcast() {
+  const hex = document.getElementById('broadcastHex').value.trim();
+  if (!hex) return;
+  const el = document.getElementById('broadcastResult');
+  el.style.display = '';
+  el.className = 'result-box warn';
+  el.textContent = 'Broadcasting…';
+  const res = await fetch('/api/nc/broadcast', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({hex})
+  }).then(r => r.json());
+  if (res.error) {
+    el.className = 'result-box err';
+    el.textContent = 'Error: ' + (res.error.message || res.error);
+  } else {
+    el.className = 'result-box ok';
+    el.innerHTML = '✓ Broadcast accepted!<br>txid: <strong>' + res.txid + '</strong>';
+  }
+}
+
+// Watch on Enter
+document.getElementById('watchAddr').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doWatch();
+});
+</script>
+</body>
+</html>

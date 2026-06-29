@@ -2186,10 +2186,18 @@ bool CWallet::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint,
     // MAX_SCRIPT_ELEMENT_SIZE=520 limit) plus a redundant pubkey push.
     // The generic path below uses the corrected chunked signing logic in
     // script/sign.cpp's SignStep()/CreateXMSSSig() instead.
+    // SNTI FIX (WOTS+ reuse prevention): refuse XMSS signing when wallet is
+    // locked. If we sign while locked, PersistXMSSState() skips the disk
+    // write (no vMasterKey to encrypt with). A node crash before the next
+    // unlock would lose the leaf-index advance, causing WOTS+ reuse on restart.
+    if (m_xmss_signer && IsCrypted() && IsLocked()) {
+        LogPrintf("SNTI: SignTransaction: wallet is locked, refusing XMSS signing to prevent leaf reuse on crash\n");
+        return false;
+    }
     // SNTI H7: pre-sign check — warn early if key pool is dry so the error
     // message is actionable rather than a generic signing failure.
     if (m_xmss_signer && m_xmss_signer->CountFreshKeys() == 0) {
-        LogPrintf("QNT: SignTransaction: no fresh XMSS keys available — "
+        LogPrintf("SNTI: SignTransaction: no fresh XMSS keys available — "
                   "auto-generating one now\n");
         const_cast<CWallet*>(this)->EnsureXMSSKeyAvailable();
     }
@@ -2207,7 +2215,7 @@ bool CWallet::SignTransaction(CMutableTransaction& tx, const std::map<COutPoint,
     }
     // SNTI DEBUG: log input_errors to diagnose signing failures
     for (const auto& [idx, err] : input_errors) {
-        LogPrintf("QNT: SignTransaction input_errors[%d]: %s\n", idx, err.original);
+        LogPrintf("SNTI: SignTransaction input_errors[%d]: %s\n", idx, err.original);
     }
     // At this point, one input was not fully signed otherwise we would have exited already
     return false;
@@ -3551,6 +3559,18 @@ bool CWallet::Unlock(const CKeyingMaterial& vMasterKeyIn)
         }
         vMasterKey = vMasterKeyIn;
     }
+    // SNTI FIX (WOTS+ reuse prevention): if XMSS keys are already loaded in
+    // memory from a previous unlock, the wallet may have signed while locked
+    // and PersistXMSSState() returned early (skipped the disk write).
+    // Calling LoadXMSSStateIfPossible() here would overwrite the in-memory
+    // leaf_index advance with the stale on-disk value, causing WOTS+ leaf
+    // reuse on the next sign.  Instead, persist the current in-memory state
+    // now that vMasterKey is available, and skip the DB load.
+    if (m_xmss_signer && !m_xmss_signer->GetXMSSKeys().empty()) {
+        PersistXMSSState();
+        NotifyStatusChanged(this);
+        return true;
+    }
     // SNTI FIX (encryption at rest, 20/Jun/2026): XMSS state may have been
     // encrypted and therefore skipped at wallet load time (vMasterKey
     // wasn't available yet) -- now that we're unlocked, try loading it.
@@ -4612,14 +4632,14 @@ void CWallet::PersistXMSSState()
         if (IsCrypted()) {
             LOCK(cs_wallet);
             if (vMasterKey.empty()) {
-                LogPrintf("QNT: wallet is locked, skipping XMSS state persist (will retry after unlock)\n");
+                LogPrintf("SNTI: wallet is locked, skipping XMSS state persist (will retry after unlock)\n");
                 return;
             }
             CKeyingMaterial plaintext(state.begin(), state.end());
             uint256 iv = GetRandHash();
             std::vector<unsigned char> ciphertext;
             if (!EncryptSecret(vMasterKey, plaintext, iv, ciphertext)) {
-                LogPrintf("QNT: ERROR - failed to encrypt XMSS state, not persisting\n");
+                LogPrintf("SNTI: ERROR - failed to encrypt XMSS state, not persisting\n");
                 return;
             }
             std::vector<uint8_t> encrypted_blob;
@@ -4627,10 +4647,10 @@ void CWallet::PersistXMSSState()
             encrypted_blob.insert(encrypted_blob.end(), iv.begin(), iv.end());
             encrypted_blob.insert(encrypted_blob.end(), ciphertext.begin(), ciphertext.end());
             batch.WriteXmssState(encrypted_blob);
-            LogPrint(BCLog::WALLETDB, "QNT: Saved ENCRYPTED XMSS state (%u bytes)\n", (unsigned)encrypted_blob.size());
+            LogPrint(BCLog::WALLETDB, "SNTI: Saved ENCRYPTED XMSS state (%u bytes)\n", (unsigned)encrypted_blob.size());
         } else {
             batch.WriteXmssState(state);
-            LogPrint(BCLog::WALLETDB, "QNT: Saved XMSS state (%u bytes)\n", (unsigned)state.size());
+            LogPrint(BCLog::WALLETDB, "SNTI: Saved XMSS state (%u bytes)\n", (unsigned)state.size());
         }
     } // batch destructs here — write committed to DB
 
@@ -4656,17 +4676,17 @@ void CWallet::EnsureXMSSKeyAvailable()
     uint32_t fresh = m_xmss_signer->CountFreshKeys();
 
     if (fresh == 0) {
-        LogPrintf("QNT: XMSS key pool empty — auto-generating replacement key\n");
+        LogPrintf("SNTI: XMSS key pool empty — auto-generating replacement key\n");
         std::vector<uint8_t> new_pk = m_xmss_signer->GenerateKey("auto-rotated");
         if (new_pk.empty()) {
-            LogPrintf("QNT: ERROR: XMSS auto key generation failed — wallet cannot sign!\n");
+            LogPrintf("SNTI: ERROR: XMSS auto key generation failed — wallet cannot sign!\n");
             return;
         }
         PersistXMSSState();
-        LogPrintf("QNT: Auto-generated XMSS key (%u bytes pubkey) — wallet ready to sign\n",
+        LogPrintf("SNTI: Auto-generated XMSS key (%u bytes pubkey) — wallet ready to sign\n",
                   (unsigned)new_pk.size());
     } else if (fresh == 1) {
-        LogPrintf("QNT: WARNING: only 1 fresh XMSS key remaining — "
+        LogPrintf("SNTI: WARNING: only 1 fresh XMSS key remaining — "
                   "run 'getnewxmssaddress' to pre-generate a replacement\n");
     }
 }
@@ -4693,11 +4713,11 @@ void CWallet::LoadXMSSStateIfPossible()
     if (is_encrypted) {
         LOCK(cs_wallet);
         if (vMasterKey.empty()) {
-            LogPrintf("QNT: XMSS state is encrypted; wallet must be unlocked to load XMSS keys\n");
+            LogPrintf("SNTI: XMSS state is encrypted; wallet must be unlocked to load XMSS keys\n");
             return;
         }
         if (state_data.size() < 4 + 32) {
-            LogPrintf("QNT: Failed to load XMSS state - encrypted blob too short\n");
+            LogPrintf("SNTI: Failed to load XMSS state - encrypted blob too short\n");
             return;
         }
         uint256 iv;
@@ -4705,7 +4725,7 @@ void CWallet::LoadXMSSStateIfPossible()
         std::vector<unsigned char> ciphertext(state_data.begin() + 4 + 32, state_data.end());
         CKeyingMaterial plaintext;
         if (!DecryptSecret(vMasterKey, ciphertext, iv, plaintext)) {
-            LogPrintf("QNT: Failed to decrypt XMSS state (wrong master key?)\n");
+            LogPrintf("SNTI: Failed to decrypt XMSS state (wrong master key?)\n");
             return;
         }
         plain_state.assign(plaintext.begin(), plaintext.end());
@@ -4714,7 +4734,7 @@ void CWallet::LoadXMSSStateIfPossible()
     }
 
     if (!m_xmss_signer->LoadState(plain_state)) {
-        LogPrintf("QNT: Failed to load XMSS key state from wallet DB\n");
+        LogPrintf("SNTI: Failed to load XMSS key state from wallet DB\n");
     }
 }
 

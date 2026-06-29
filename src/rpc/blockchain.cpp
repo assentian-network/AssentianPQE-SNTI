@@ -150,6 +150,7 @@ UniValue blockheaderToJSON(const CBlockIndex& tip, const CBlockIndex& blockindex
     result.pushKV("nonce", blockindex.nNonce);
     result.pushKV("xmssRoot", blockindex.xmssRoot.GetHex());
     result.pushKV("nLeafIndex", (uint64_t)blockindex.nLeafIndex);
+    result.pushKV("commitmentsRoot", blockindex.commitmentsRoot.GetHex());
     result.pushKV("bits", strprintf("%08x", blockindex.nBits));
     result.pushKV("difficulty", GetDifficulty(blockindex));
     result.pushKV("chainwork", blockindex.nChainWork.GetHex());
