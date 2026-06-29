@@ -76,10 +76,14 @@ def init_db():
         miner_rpc_pass TEXT,
         created_at INTEGER NOT NULL
     )""")
-    # Migrate existing DB: add miner_rpc_pass if column doesn't exist
+    # Migrate existing DB
     cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
     if "miner_rpc_pass" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN miner_rpc_pass TEXT")
+    if "miner_last_seen" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN miner_last_seen INTEGER DEFAULT 0")
+    if "miner_hostname" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN miner_hostname TEXT")
     conn.execute("""CREATE TABLE IF NOT EXISTS watch_addresses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -600,7 +604,7 @@ def api_mining_status():
     return jsonify({
         "mining_active": True,
         "pouw_enabled": mining.get("pouw_enabled", False),
-        "blocks_mined": tip_height + 1,
+        "blocks_mined": tip_height,
         "avg_block_time": avg_block_time,
         "uptime_seconds": uptime_sec,
         "uptime_human": uptime_human,
@@ -676,7 +680,7 @@ def wallet_signup():
     else:
         xmss_address = str(addr_result)
 
-    miner_rpc_pass = secrets.token_hex(20)
+    miner_rpc_pass = password  # user pakai username+password yang sama untuk RPC mining
 
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -811,13 +815,33 @@ def nc_balance(address):
     balance = result.get("total_amount", 0) if isinstance(result, dict) else 0
     return jsonify({"address": address, "balance": balance, "utxos": utxos})
 
+@app.route("/api/wallet/get-install-script", methods=["POST"])
+@limiter.limit("10 per minute")
+def wallet_get_install_script():
+    """Download install.sh langsung dengan username+password — tanpa perlu token."""
+    username = (request.form.get("username") or "").strip()
+    password = request.form.get("password") or ""
+    if not username or not password:
+        return jsonify({"error": "username and password required"}), 400
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT id, password_hash FROM users WHERE username=?", (username,)
+    ).fetchone()
+    conn.close()
+    if not row or not _check_pw(password, row[1]):
+        return jsonify({"error": "invalid username or password"}), 401
+    return _generate_install_script(row[0])
+
 @app.route("/api/wallet/install-script")
 @jwt_required
 def wallet_install_script():
     """Return a personalized install.sh with user's JWT token embedded."""
+    return _generate_install_script(request.user_id)
+
+def _generate_install_script(user_id):
     conn = sqlite3.connect(DB_PATH)
     row = conn.execute(
-        "SELECT username, xmss_address, miner_rpc_pass FROM users WHERE id=?", (request.user_id,)
+        "SELECT username, xmss_address, miner_rpc_pass FROM users WHERE id=?", (user_id,)
     ).fetchone()
     conn.close()
     if not row:
@@ -827,12 +851,12 @@ def wallet_install_script():
     if not miner_rpc_pass:
         miner_rpc_pass = secrets.token_hex(20)
         conn = sqlite3.connect(DB_PATH)
-        conn.execute("UPDATE users SET miner_rpc_pass=? WHERE id=?", (miner_rpc_pass, request.user_id))
+        conn.execute("UPDATE users SET miner_rpc_pass=? WHERE id=?", (miner_rpc_pass, user_id))
         conn.commit()
         conn.close()
     # Issue a long-lived token (7 days) specifically for the install script
     payload = {
-        "sub": request.user_id,
+        "sub": user_id,
         "usr": username,
         "exp": int(time.time()) + 7 * 24 * 3600
     }
@@ -850,7 +874,7 @@ SNTI_TOKEN="{script_token}"
 SNTI_API="{api_base}"
 INSTALL_DIR="$HOME/snti-miner"
 DATADIR="$HOME/.snti_mainnet"
-RPC_USER="snti"
+RPC_USER="{username}"
 RPC_PASS="{miner_rpc_pass}"
 RPC_PORT="9332"
 P2P_PORT="9333"
@@ -881,11 +905,16 @@ ok "Dependencies installed"
 
 # -- 2. Download binaries
 inf "Downloading SNTI node binaries..."
-mkdir -p "$INSTALL_DIR"
-curl -fsSL --progress-bar "$SNTI_API/bin/bitcoind" -o "$INSTALL_DIR/bitcoind" || \\
-  err "Failed to download bitcoind"
-curl -fsSL --progress-bar "$SNTI_API/bin/bitcoin-cli" -o "$INSTALL_DIR/bitcoin-cli" || \\
-  err "Failed to download bitcoin-cli"
+mkdir -p "$INSTALL_DIR" || err "Cannot create $INSTALL_DIR — check permissions"
+FREE_MB=$(df -m "$INSTALL_DIR" | awk 'NR==2{{print $4}}')
+[ "${{FREE_MB:-0}}" -lt 500 ] && err "Not enough disk space (need 500MB free, have ${{FREE_MB}}MB at $INSTALL_DIR)"
+_download() {{
+  local url="$1" dest="$2" label="$3"
+  rm -f "$dest"
+  curl -fSL --progress-bar "$url" -o "$dest" || {{ rm -f "$dest"; err "Failed to download $label (disk full? try: df -h)"; }}
+}}
+_download "$SNTI_API/bin/bitcoind"    "$INSTALL_DIR/bitcoind"    "bitcoind"
+_download "$SNTI_API/bin/bitcoin-cli" "$INSTALL_DIR/bitcoin-cli" "bitcoin-cli"
 chmod +x "$INSTALL_DIR/bitcoind" "$INSTALL_DIR/bitcoin-cli"
 ok "Binaries downloaded to $INSTALL_DIR"
 
@@ -968,15 +997,31 @@ else
     -d "{{\\\"address\\\":\\\"$ADDRESS\\\",\\\"label\\\":\\\"Miner — $(hostname)\\\"}}" > /dev/null 2>&1 || true
 fi
 
-# -- 8. Start mining
+# -- 8. Heartbeat background loop
+_heartbeat() {{
+  while true; do
+    curl -sf -X POST "$SNTI_API/api/wallet/miner-heartbeat" \\
+      -H "Authorization: Bearer $SNTI_TOKEN" \\
+      -H "Content-Type: application/json" \\
+      -d "{{\\\"hostname\\\":\\\"$(hostname)\\\"}}" > /dev/null 2>&1 || true
+    sleep 30
+  done
+}}
+_heartbeat &
+HEARTBEAT_PID=$!
+
+# -- 9. Start mining
 echo ""
 echo "  ╔══════════════════════════════════════════╗"
 echo "  ║   Mining started!                        ║"
 echo "  ║   Rewards → {username}                   ║"
 echo "  ║   Cek saldo: $SNTI_API/wallet/           ║"
+echo "  ║   Status online: $SNTI_API/wallet/       ║"
 echo "  ║   Ctrl+C untuk berhenti                  ║"
 echo "  ╚══════════════════════════════════════════╝"
 echo ""
+
+trap "kill $HEARTBEAT_PID 2>/dev/null; exit" INT TERM
 
 BLOCK=0
 while true; do
@@ -1091,6 +1136,7 @@ def wallet_backup_file():
     )
 
 @app.route("/api/wallet/watch", methods=["GET"])
+@app.route("/api/wallet/watches", methods=["GET"])
 @jwt_required
 def watch_list():
     conn = sqlite3.connect(DB_PATH)
@@ -1099,13 +1145,22 @@ def watch_list():
         (request.user_id,)
     ).fetchall()
     conn.close()
+    if not rows:
+        return jsonify({"watches": []})
+    # Single batched scantxoutset for all watch addresses
+    descriptors = [f"addr({addr})" for addr, _, _ in rows]
+    scan = rpc_call("scantxoutset", ["start", descriptors])
+    scan_ok = isinstance(scan, dict) and "error" not in scan
+    balance_map = {}
+    if scan_ok:
+        for utxo in scan.get("unspents", []):
+            desc = utxo.get("desc", "")
+            if desc.startswith("addr(") and desc.endswith(")"):
+                addr = desc[5:-1]
+                balance_map[addr] = balance_map.get(addr, 0) + utxo.get("amount", 0)
     result = []
     for address, label, created_at in rows:
-        scan = rpc_call("scantxoutset", ["start", [f"addr({address})"]])
-        if isinstance(scan, dict) and "error" not in scan:
-            balance = scan.get("total_amount", 0)
-        else:
-            balance = None
+        balance = balance_map.get(address, 0) if scan_ok else None
         result.append({"address": address, "label": label or "", "balance": balance, "created_at": created_at})
     return jsonify({"watches": result})
 
@@ -1120,29 +1175,67 @@ def watch_add():
     info = rpc_call("validateaddress", [address])
     if isinstance(info, dict) and not info.get("isvalid"):
         return jsonify({"error": "invalid SNTI address"}), 400
+    conn = sqlite3.connect(DB_PATH)
     try:
-        conn = sqlite3.connect(DB_PATH)
         conn.execute(
             "INSERT INTO watch_addresses (user_id, address, label, created_at) VALUES (?,?,?,?)",
             (request.user_id, address, label or None, int(time.time()))
         )
         conn.commit()
-        conn.close()
         return jsonify({"ok": True, "address": address, "label": label})
     except sqlite3.IntegrityError:
         return jsonify({"error": "address already watched"}), 409
+    finally:
+        conn.close()
 
 @app.route("/api/wallet/watch/<address>", methods=["DELETE"])
 @jwt_required
 def watch_remove(address):
     conn = sqlite3.connect(DB_PATH)
+    try:
+        cur = conn.execute(
+            "DELETE FROM watch_addresses WHERE user_id=? AND address=?",
+            (request.user_id, address)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    if cur.rowcount == 0:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True})
+
+@app.route("/api/wallet/miner-heartbeat", methods=["POST"])
+@jwt_required
+def miner_heartbeat():
+    data = request.get_json(silent=True) or {}
+    hostname = (data.get("hostname") or "unknown")[:64]
+    conn = sqlite3.connect(DB_PATH)
     conn.execute(
-        "DELETE FROM watch_addresses WHERE user_id=? AND address=?",
-        (request.user_id, address)
+        "UPDATE users SET miner_last_seen=?, miner_hostname=? WHERE id=?",
+        (int(time.time()), hostname, request.user_id)
     )
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
+
+@app.route("/api/wallet/miner-status")
+@jwt_required
+def miner_status():
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT miner_last_seen, miner_hostname FROM users WHERE id=?", (request.user_id,)
+    ).fetchone()
+    conn.close()
+    last_seen = row[0] or 0
+    hostname = row[1] or ""
+    now = int(time.time())
+    online = (now - last_seen) < 120  # online jika heartbeat < 2 menit lalu
+    return jsonify({
+        "online": online,
+        "last_seen": last_seen,
+        "hostname": hostname,
+        "seconds_ago": now - last_seen if last_seen else None
+    })
 
 @app.route("/api/nc/broadcast", methods=["POST"])
 def nc_broadcast():
