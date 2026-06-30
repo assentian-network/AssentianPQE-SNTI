@@ -412,12 +412,12 @@
         <table>
           <tr><th>Parameter</th><th>Value</th><th>Notes</th></tr>
           <tr><td>Block Time</td><td>60 seconds</td><td>Faster than Bitcoin (10 min)</td></tr>
-          <tr><td>Max Supply</td><td>21,000,000 SNTI</td><td>Same as Bitcoin</td></tr>
-          <tr><td>Halving Interval</td><td>210,000 blocks (~146 days)</td><td>Same schedule as Bitcoin</td></tr>
+          <tr><td>Max Supply</td><td>210,000,000 SNTI</td><td>10× Bitcoin (60s blocks, ~4yr halvings)</td></tr>
+          <tr><td>Halving Interval</td><td>2,100,000 blocks (~4 years)</td><td>10× Bitcoin block count (60s vs 600s blocks)</td></tr>
           <tr><td>Initial Block Reward</td><td>50 SNTI</td><td></td></tr>
           <tr><td>Signature Scheme</td><td>XMSS-SHA2_10_256</td><td>Primary</td></tr>
           <tr><td>Hash Algorithm</td><td>SHA-256</td><td>PoW + XMSS internal</td></tr>
-          <tr><td>Address Prefix</td><td>qnr (regtest), qnt (mainnet)</td><td></td></tr>
+          <tr><td>Address Format</td><td>snti1… (mainnet), tsnti1… (testnet)</td><td>bech32m encoding</td></tr>
         </table>
         <h3>4.3 — Script Extensions</h3>
         <p>Assentian-PQE (SNTI) extends Bitcoin Script with a new opcode:</p>
@@ -491,22 +491,22 @@
         <h3>7.1 — Supply Schedule</h3>
         <table>
           <tr><th>Era</th><th>Block Range</th><th>Reward</th><th>Total New</th><th>Cumulative</th></tr>
-          <tr><td>1</td><td>0 — 209,999</td><td>50.00 SNTI</td><td>10,500,000</td><td>10,500,000</td></tr>
-          <tr><td>2</td><td>210,000 — 419,999</td><td>25.00 SNTI</td><td>5,250,000</td><td>15,750,000</td></tr>
-          <tr><td>3</td><td>420,000 — 629,999</td><td>12.50 SNTI</td><td>2,625,000</td><td>18,375,000</td></tr>
-          <tr><td>4</td><td>630,000 — 839,999</td><td>6.25 SNTI</td><td>1,312,500</td><td>19,687,500</td></tr>
-          <tr><td>5</td><td>840,000 — 1,049,999</td><td>3.125 SNTI</td><td>656,250</td><td>20,343,750</td></tr>
+          <tr><td>1</td><td>0 — 2,099,999</td><td>50.00 SNTI</td><td>105,000,000</td><td>105,000,000</td></tr>
+          <tr><td>2</td><td>2,100,000 — 4,199,999</td><td>25.00 SNTI</td><td>52,500,000</td><td>157,500,000</td></tr>
+          <tr><td>3</td><td>4,200,000 — 6,299,999</td><td>12.50 SNTI</td><td>26,250,000</td><td>183,750,000</td></tr>
+          <tr><td>4</td><td>6,300,000 — 8,399,999</td><td>6.25 SNTI</td><td>13,125,000</td><td>196,875,000</td></tr>
+          <tr><td>5</td><td>8,400,000 — 10,499,999</td><td>3.125 SNTI</td><td>6,562,500</td><td>203,437,500</td></tr>
           <tr><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td></tr>
-          <tr><td>Total</td><td>—</td><td>—</td><td><strong>21,000,000 SNTI</strong></td><td>—</td></tr>
+          <tr><td>Total</td><td>—</td><td>—</td><td><strong>210,000,000 SNTI</strong></td><td>—</td></tr>
         </table>
         <h3>7.2 — Fee Market</h3>
         <p>Transaction fees follow Bitcoin's model: users bid for block space. As block rewards decrease over time, fees become the primary miner incentive. The 60-second block time provides faster confirmation while maintaining reasonable orphan rates.</p>
         <h3>7.3 — Mining</h3>
         <ul>
-          <li><strong>Algorithm:</strong> SHA-256 (same as Bitcoin)</li>
-          <li><strong>Hardware:</strong> ASIC miners (SHA-256 compatible)</li>
-          <li><strong>Block Signing:</strong> Miners sign found blocks with XMSS (proving quantum-resistant block production)</li>
-          <li><strong>Pools:</strong> Compatible with existing Stratum protocol mining pools</li>
+          <li><strong>Algorithm:</strong> PoUW v2 — XMSS tree generation (NOT SHA-256)</li>
+          <li><strong>Hardware:</strong> CPU only — XMSS keygen requires sequential computation, no ASIC advantage</li>
+          <li><strong>Block Signing:</strong> Each block requires a fresh XMSS Merkle tree (~2.5KB sig in coinbase witness)</li>
+          <li><strong>Pools:</strong> Solo mining only — XMSS is stateful (pool mining Phase 3 roadmap)</li>
         </ul>
       </div>
 
@@ -516,11 +516,11 @@
           <tr><th>Phase</th><th>Milestone</th><th>Status</th></tr>
           <tr><td>Phase 1</td><td>XMSS Transaction Integration</td><td>✅ Complete</td></tr>
           <tr><td>Phase 2</td><td>Genesis Block Mining</td><td>✅ Complete</td></tr>
-          <tr><td>Phase 3</td><td>Public Testnet Launch</td><td>⏳ In Progress</td></tr>
-          <tr><td>Phase 4</td><td>Security Audit</td><td>⏳ Pending</td></tr>
-          <tr><td>Phase 5</td><td>Documentation & Legal Entity</td><td>⏳ Pending</td></tr>
-          <tr><td>Phase 6</td><td>Community Building & Testnet Growth</td><td>⏳ Pending</td></tr>
-          <tr><td>Phase 7</td><td>Mainnet Launch</td><td>⏳ Pending</td></tr>
+          <tr><td>Phase 3</td><td>Mainnet Launch (testnet formal dilewati)</td><td>✅ Live · 28 Jun 2026</td></tr>
+          <tr><td>Phase 4</td><td>Security Audit (Internal)</td><td>✅ Done · 29 Jun 2026</td></tr>
+          <tr><td>Phase 5</td><td>Documentation & Web Wallet</td><td>✅ Done · Jun 2026</td></tr>
+          <tr><td>Phase 6</td><td>Seed Nodes & Community</td><td>⏳ In Progress</td></tr>
+          <tr><td>Phase 7</td><td>Exchange Listing & External Audit</td><td>⏳ Q4 2026</td></tr>
         </table>
         <h3>Future Research</h3>
         <ul>

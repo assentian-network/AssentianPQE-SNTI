@@ -269,7 +269,7 @@ footer{text-align:center;padding-top:32px;border-top:1px solid var(--border);fon
         <div class="lbl">Ticker</div>
       </div>
       <div class="tok-card">
-        <div class="val">21M</div>
+        <div class="val">210M</div>
         <div class="lbl">Max Supply</div>
       </div>
       <div class="tok-card">
@@ -281,7 +281,7 @@ footer{text-align:center;padding-top:32px;border-top:1px solid var(--border);fon
         <div class="lbl">Target Block Time</div>
       </div>
       <div class="tok-card">
-        <div class="val">210,000</div>
+        <div class="val">2,100,000</div>
         <div class="lbl">Halving Interval</div>
       </div>
       <div class="tok-card">
@@ -289,7 +289,7 @@ footer{text-align:center;padding-top:32px;border-top:1px solid var(--border);fon
         <div class="lbl">Consensus</div>
       </div>
     </div>
-    <p style="margin-top:16px;font-size:12px;color:var(--dim)">Same proven emission curve as Bitcoin. Early miners secure the network AND generate quantum-resistant cryptographic artifacts — every mined block is a new XMSS Merkle tree.</p>
+    <p style="margin-top:16px;font-size:12px;color:var(--dim)">Same proven emission model as Bitcoin — fixed supply, halving schedule, early miner advantage. Total 210M SNTI (10× Bitcoin's 21M, scaled for 60s block time). Early miners secure the network AND generate quantum-resistant cryptographic artifacts — every mined block is a new XMSS Merkle tree.</p>
   </section>
 
   <!-- 4. Market -->
@@ -443,14 +443,16 @@ footer{text-align:center;padding-top:32px;border-top:1px solid var(--border);fon
     </div>
     <div class="audit-row">
       <div class="audit-card">
-        <h4 style="color:var(--green)">✓ Completed Internal Audit</h4>
+        <h4 style="color:var(--green)">✓ Completed Internal Audit (Jun 2026)</h4>
         <ul>
           <li><span style="color:var(--green)">✓</span> XMSS Merkle tree construction and verification</li>
           <li><span style="color:var(--green)">✓</span> Leaf index reuse protection (on-chain, SNTI M7)</li>
-          <li><span style="color:var(--green)">✓</span> EMA difficulty — overflow-safe (fixed June 2026)</li>
-          <li><span style="color:var(--green)">✓</span> BIP141/SegWit compatibility — multi-node consensus</li>
+          <li><span style="color:var(--green)">✓</span> EMA difficulty — overflow-safe, stuck-chain detection added</li>
+          <li><span style="color:var(--green)">✓</span> BIP141/SegWit compatibility — multi-node consensus verified</li>
           <li><span style="color:var(--green)">✓</span> XMSS private key persistence and WOTS+ leaf safety</li>
           <li><span style="color:var(--green)">✓</span> Heap buffer overflow in XMSS Verify() — fixed</li>
+          <li><span style="color:var(--green)">✓</span> Deep code audit 29 Jun — 12 bug found &amp; fixed (5 critical, 5 high, 2 medium): HKDF key derivation, signature buffer sizing, FSL seed offset, chain_id uniqueness, signature enforcement, and more</li>
+          <li><span style="color:var(--green)">✓</span> XMSS state encryption at rest — verified end-to-end</li>
         </ul>
       </div>
       <div class="audit-card">

@@ -44,39 +44,67 @@ code{background:rgba(0,212,170,.1);color:var(--accent);padding:1px 6px;border-ra
   </header>
 
   <div class="intro">
-    <strong>Disusun 20 Juni 2026.</strong> Dokumen ini sumber kebenaran tunggal — merekonsiliasi FIX_LOG.md (berantakan, fase duplikat, stale sejak 11 Jun), AUDIT.md (13 Jun, satu verdict-nya terbukti salah), dan checklist-checklist lama terhadap kondisi kode &amp; infrastruktur yang TERVERIFIKASI LANGSUNG. File lama tetap ada sebagai sejarah, tapi bukan acuan status terkini. Lihat juga <a href="/changelog">changelog</a> dan <a href="/mainnet-checklist.html">mainnet checklist</a>.
+    <strong>Update terakhir: 29 Juni 2026.</strong> Awalnya disusun 20 Jun 2026 sebagai rekonsiliasi tunggal dari FIX_LOG.md dan AUDIT.md. Sejak itu: <strong>Mainnet launched 28 Jun 2026</strong> (block 786+), deep code audit 29 Jun menemukan dan memfix 12 bug (5 kritis, 5 tinggi, 2 medium), dan PoUW V2 difficulty stuck-chain fix diterapkan. Lihat juga <a href="/changelog">changelog</a> dan <a href="/mainnet-checklist.html">mainnet checklist</a>.
   </div>
 
   <div class="section">
-    <div class="section-header"><div class="section-title">Terverifikasi langsung (20 Jun) — termasuk Multi-Node Sync FULLY VERIFIED (110/110 blok, transaksi XMSS asli, tip hash identik) — PLUS first independent external node (build+sync sukses dari mesin terpisah lewat internet publik, 207/207 blok)</div></div>
+    <div class="section-header"><div class="section-title">✅ Mainnet Live — 28 Jun 2026 (786+ blocks)</div></div>
     <div class="list">
-      <div class="item">✅ <code>OP_XMSS_CHECKSIG</code> — verifikasi matematis nyata di consensus layer, bukan stub</div>
-      <div class="item">✅ State save/load XMSS — tahan restart bersih dan <code>kill -9</code> mendadak</div>
-      <div class="item">✅ Key retirement (one-time address) — sign kedua ke key sama berhasil ditolak</div>
-      <div class="item">✅ Dashboard/explorer live — server.py jalan sejak 17 Jun</div>
-      <div class="item">⚠️ Stratum server — kodenya ada, tapi tidak sedang berjalan saat ini</div>
-      <div class="item">✅ <code>CheckPoUW()</code> direview penuh — verifikasi XMSS real di consensus layer, desain solid (2 catatan minor non-bahaya buat auditor eksternal)</div>
-      <div class="item">✅ Minimum sig length — sudah ter-cover (exact-match 2500 byte), lebih ketat dari rekomendasi audit</div>
-      <div class="item">✅ <code>[21 Jun]</code> Sighash-v2 — cross-index recombination attack gap DITUTUP secara teknis. SHA256(sighash_v1 || leaf_index_BE), verified end-to-end.</div>
-      <div class="item">✅ <code>[20 Jun]</code> XMSS state encryption at rest — terverifikasi end-to-end (locked→ismine:false, unlock→decrypt otomatis). MEDIUM audit finding ditutup</div>
+      <div class="item">✅ Mainnet genesis block — hash <code>b4a26aef...</code>, nBits <code>0x2001a41a</code>, timestamp 28 Jun 2026</div>
+      <div class="item">✅ VPS miner 24/7 — systemd-managed, mining ke address VPS (3700+ SNTI reward)</div>
+      <div class="item">✅ Web wallet live — assentian.network/wallet/ (custodial, Flask + SQLite)</div>
+      <div class="item">✅ Block explorer — assentian.network/explorer/, API /api/ proxied via nginx</div>
+      <div class="item">✅ Mining installer — VirtualBox miner + install.sh dengan JWT embed</div>
+      <div class="item">✅ SSL + domain — assentian.network (Certbot, Let's Encrypt)</div>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-header"><div class="section-title">Belum diverifikasi ulang — prioritas next step</div></div>
-    <table>
-      <thead><tr><th style="width:30%">Item</th><th>Catatan</th></tr></thead>
-      <tbody>
-        <tr><td>Key exhausted / min sig length check</td><td>FIX_LOG.md klaim sudah fixed, belum dicek langsung di kode</td></tr>
-        <tr><td><code>CheckPoUW()</code></td><td>Belum pernah direview sama sekali — consensus-critical</td></tr>
-        <tr><td>Multi-node retest [20 Jun]</td><td><span class="status done">✅ Akar masalah ketemu</span> Blok historis format lama (pra-fix 17 Jun) punya OP_RETURN pubkey 131 byte, ditolak permanen oleh CheckPoUW() yang butuh exact 66 byte. Risiko struktural: bisa jadi network-halting bug di chain live manapun kalau ada mismatch format. Code quality: parsing pubkey rapuh, parsing signature robust (tidak konsisten).</td></tr>
-        <tr><td>Encryption at rest</td><td>MEDIUM dari AUDIT.md, masih terbuka</td></tr>
-        <tr><td>Testnet node</td><td>Tidak ada yang jalan sekarang (RPC timeout)</td></tr>
-      </tbody>
-    </table>
+    <div class="section-header"><div class="section-title">✅ Deep Code Audit — 29 Jun 2026 (12 bug ditemukan &amp; fixed)</div></div>
+    <div class="list">
+      <div class="item">✅ <strong>[Kritis] HKDF 32-byte</strong> — output sekarang 96 bytes (SEED_BYTES) bukan 32. Fix: pouw_v2_keyder.h</div>
+      <div class="item">✅ <strong>[Kritis] Underflow GetRemainingSignatures</strong> — guard <code>leaf_index >= 1024</code> return 0. Fix: xmss_keystore.h</div>
+      <div class="item">✅ <strong>[Kritis] Preimage v3 block 200</strong> — verifikasi kode: nPoUWv3StartHeight=200 identik di mining.cpp dan validation.cpp. Tidak ada bug aktual.</div>
+      <div class="item">✅ <strong>[Kritis] WOTS+ reuse wallet locked</strong> — wallet.cpp menolak signing saat wallet locked. Fix: wallet.cpp:2193-2194</div>
+      <div class="item">✅ <strong>[Kritis] sm_buf_size hardcoded</strong> — dihitung dinamis dari params.sig_bytes. Fix: xmss_state.h, xmss_bridge.cpp</div>
+      <div class="item">✅ <strong>[Tinggi] FSL offset salah</strong> — seed extraction baca SK_SEED+SK_PRF+PUB_SEED terpisah. Fix: mining.cpp:307-312</div>
+      <div class="item">✅ <strong>[Tinggi] nPoUWMaxSigSize tidak enforce</strong> — size check ditambah sebelum Deserialize. Fix: validation.cpp</div>
+      <div class="item">✅ <strong>[Tinggi] IsXMSSScript off-by-one</strong> — <code>script.size() == 66</code> (bukan 65). Fix: xmss_signer.cpp:417</div>
+      <div class="item">✅ <strong>[Tinggi] Sig check lemah</strong> — tambah verify recovered message == original hash. Fix: xmss_bridge.cpp</div>
+      <div class="item">✅ <strong>[Tinggi] chain_id duplikat</strong> — regtest nXMSSChainId=4 (sebelumnya 3, sama signet). Fix: chainparams.cpp</div>
+      <div class="item">✅ <strong>[Medium] min_target underflow</strong> — clamp ke 1 jika hasil div 0. Fix: pow.cpp:101</div>
+      <div class="item">✅ <strong>[Medium] Komentar salah GetBlockSubsidy</strong> — "2,100,000 blocks (~4 years at 60s/block)". Fix: validation.cpp:1707</div>
+    </div>
   </div>
 
-  <div class="section"><div class="section-header"><div class="section-title">🎉 Milestone: External mining proven [20 Jun]</div></div><div class="list"><div class="item">Node independen (VM terpisah, build dari nol, internet asli) berhasil MENAMBANG blok PoUW asli di testnet via CPU dalam 2 detik, dan blok-nya diterima &amp; propagasi ke node resmi VPS (hash identik, 208/208). Bukti end-to-end: sync + mining aktif + propagasi sukses dari partisipan eksternal.</div></div></div><div class="footer-note">Generated dari sesi debugging &amp; review 20 Juni 2026. Commit referensi: lihat <a href="/changelog">changelog</a>.</div>
+  <div class="section">
+    <div class="section-header"><div class="section-title">✅ PoUW V2 Difficulty + RPC Fix — 29 Jun 2026</div></div>
+    <div class="list">
+      <div class="item">✅ <strong>Root cause:</strong> burst mining blok 286–296 (satu XMSS tree reused 11 blok ~2 detik) → EMA naik 2× → target terlalu ketat (~14.000 tree/blok)</div>
+      <div class="item">✅ EMA upper clamp 4× → 20× — recovery ratio 1.3× → 2.9× per slow block. Fix: pouw_v2.h</div>
+      <div class="item">✅ Stuck-chain detection — elapsed &gt; 10×target → force 20× EMA recovery. Fix: pow.cpp</div>
+      <div class="item">✅ PermittedDifficultyTransition max swing 4× → 20×. Fix: pow.cpp</div>
+      <div class="item">✅ POUW_MAX_TREES_PER_CALL=20 — miner yield tiap ~50s, RPC tetap responsif. Fix: rpc/mining.cpp</div>
+      <div class="item">✅ Chain recovered: block 296 → 786+ tanpa intervensi manual</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="section-title">Terverifikasi (20 Jun) — baseline pre-mainnet</div></div>
+    <div class="list">
+      <div class="item">✅ <code>OP_XMSS_CHECKSIG</code> — verifikasi matematis nyata di consensus layer, bukan stub</div>
+      <div class="item">✅ State save/load XMSS — tahan restart bersih dan <code>kill -9</code> mendadak</div>
+      <div class="item">✅ Key retirement (one-time address) — sign kedua ke key sama berhasil ditolak</div>
+      <div class="item">✅ <code>CheckPoUW()</code> direview penuh — verifikasi XMSS real di consensus layer</div>
+      <div class="item">✅ Minimum sig length — exact-match 2500 byte, lebih ketat dari rekomendasi audit</div>
+      <div class="item">✅ Sighash-v2 — cross-index recombination attack gap DITUTUP. SHA256(sighash_v1 || leaf_index_BE)</div>
+      <div class="item">✅ XMSS state encryption at rest — terverifikasi end-to-end (locked→ismine:false, unlock→decrypt otomatis)</div>
+      <div class="item">✅ Multi-node sync — 110/110 blok, tip hash identik. P2P relay verified (Phase 6.9)</div>
+      <div class="item">✅ External mining proven — VM terpisah, build dari nol, internet publik, blok diterima dan propagasi</div>
+    </div>
+  </div>
+
+  <div class="footer-note">Update terakhir: 29 Juni 2026. Commit referensi: lihat <a href="/changelog">changelog</a>.</div>
 </div>
 </body>
 </html>

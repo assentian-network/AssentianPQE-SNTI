@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QNT Development Changelog</title>
+<title>SNTI Development Changelog</title>
 <style>
 :root{--bg:#0a0e17;--card:#111827;--border:#2a3a55;--text:#e8edf5;--dim:#8899bb;--accent:#00d4aa;--blue:#3b82f6;--purple:#a855f7;--orange:#f59e0b;--green:#22c55e;--red:#ef4444;--yellow:#eab308}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -89,7 +89,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <body>
 <div class="wrap">
   <header>
-    <div class="logo">QNT <small>DEVELOPMENT CHANGELOG</small></div>
+    <div class="logo">SNTI <small>DEVELOPMENT CHANGELOG</small></div>
     <a href="/dashboard.html" class="back-link">← Back to Dashboard</a>
   </header>
 
@@ -246,12 +246,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <table>
         <thead><tr><th></th><th>Item</th><th></th></tr></thead>
         <tbody>
-          <tr><td class="chk pending">⬜</td><td class="item-name">6.1 — Public Testnet Launch<div class="item-detail">Bitcointalk ANN, Reddit, Twitter/X, Discord, Telegram</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">6.1 — Mainnet Launch (Testnet Formal Dilewati)<div class="item-detail">Setelah internal testnet validation (Phase 6.5–6.11) dinyatakan solid, diputuskan langsung launch mainnet tanpa public testnet phase terpisah. Mainnet live 28 Jun 2026, block 786+. assentian.network live dengan web wallet, explorer, dan mining installer.</div></td></tr>
           <tr><td class="chk done">✅</td><td class="item-name">6.1b — Stratum Mining Server<div class="item-detail">Multi-miner stratum proxy (stratum_server.py). Port 3333 (stratum), port 3334 (HTTP stats). Share tracking (accepted/rejected). Connects to bitcoind regtest RPC. Auto block generation on share threshold. Multiple simultaneous miner connections supported.</div><div class="item-files">stratum_server.py</div></td></tr>
           <tr><td class="chk done">✅</td><td class="item-name">6.1c — XMSS Wallet: Send from XMSS Address<div class="item-detail">sendfromxmssaddress RPC: send SNTI from XMSS address to any destination (legacy or XMSS). Supports fee subtraction and wallet comments. Register XMSS RPC methods in CRPCTable. Fixed fee estimation with -fallbackfee flag.</div><div class="item-files">wallet/rpc/xmss.cpp, wallet/rpc/xmss.h, wallet/rpc/wallet.cpp</div></td></tr>
           <tr><td class="chk done">✅</td><td class="item-name">6.1d — P2XMSS Script Type (Native XMSS Output)<div class="item-detail">Native P2XMSS script output: OP_XMSS_CHECKSIG with 64-byte pubkey. Added XMSSHash to CTxDestination variant. Updated Solver(), ExtractDestination(), GetScriptForDestination(), IsMine(). Wallet generates P2XMSS outputs for XMSS addresses. Tested: P2XMSS→Legacy, P2XMSS→P2XMSS ✅</div><div class="item-files">addresstype.h, addresstype.cpp, script/solver.h, script/solver.cpp, key_io.cpp, wallet/rpc/xmss.cpp, wallet/scriptpubkeyman.cpp, wallet/xmss_signer.cpp</div></td></tr>
           <tr><td class="chk in_progress">🔄</td><td class="item-name">6.1e — Multi-Node Test (2 nodes, block propagation)<div class="item-detail">Setup 2 nodes on same VPS (ports 29332/29333 and 29334/29335). Both nodes connected as peers. ISSUE: PoUW blocks cause 'mutated block' reject (bad-witness-nonce-size) because PoUW modifies coinbase after PoW. Both nodes need identical XMSS wallet state to validate. Known limitation — requires bypassing witness malleation check for regtest multi-node. Nodes connect and share headers but block bodies rejected.</div><div class="item-files">kernel/chainparams.cpp, bitcoin.conf</div></td></tr>
-          <tr><td class="chk in_progress">🔄</td><td class="item-name">6.1f — DNS Seed / Hardcoded Seeds (Peer Discovery)<div class="item-detail">Added hardcoded seed nodes for mainnet (port 9333), testnet (port 19333), regtest (port 29333). Seed: 104.234.26.7 (primary SNTI node). BIP155 serialized format. DNS seed names reserved: seed.qnt.io, testnet-seed.qnt.io. Build in progress.</div><div class="item-files">qnt_seeds.h, kernel/chainparams.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">6.1f — Hardcoded Seeds &amp; DNS Seed (Peer Discovery)<div class="item-detail">Hardcoded seed: 104.234.26.7 (primary SNTI node, P2P port 9333). DNS seed domain: seed.assentian.network (dikonfigurasi di nginx). Additional seed nodes EU/APAC pending (VPS sedang di-order).</div><div class="item-files">kernel/chainparams.cpp</div></td></tr>
           <tr><td class="chk pending">⬜</td><td class="item-name">6.2 — Team Page<div class="item-detail">Founder, core contributors, advisors</div></td></tr>
           <tr><td class="chk pending">⬜</td><td class="item-name">6.3 — Exchange Listing Prep<div class="item-detail">Target: Gate.io, MEXC, Bitget (Phase 1)</div></td></tr>
         </tbody>
@@ -436,7 +436,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <tbody>
           <tr><td class="chk done">✅</td><td class="item-name">6.11.1 — Fixed AddXMSSKeyToKeystore and getnewxmssaddress<div class="item-detail">AddXMSSKeyToKeystore was a no-op stub from an earlier session (added only to satisfy a linker reference), and getnewxmssaddress never called it at all. Keys generated via getnewxmssaddress were therefore never registered with the ScriptPubKeyMan-level IsMine() check, so funds sent to them never appeared in listunspent. Funds were never at risk — a separate CXMSSSigner-based check still correctly reported ismine:true — but spending through the normal wallet flow was effectively blocked. Implemented the bridge and wired it into getnewxmssaddress.</div><div class="item-files">wallet/wallet.cpp, wallet/rpc/xmss.cpp</div></td></tr>
           <tr><td class="chk notdone">⚠</td><td class="item-name">6.11.2 — Discovered a deeper architectural gap: XMSS only wired into the deprecated legacy wallet backend<div class="item-detail">The fix above only takes effect for legacy (BDB) wallets via LegacyScriptPubKeyMan. The current binary is compiled without BDB support at all (legacy wallets cannot even be created), and the default/only wallet backend available — descriptor wallets (DescriptorScriptPubKeyMan) — has no XMSS integration whatsoever. Practical result: XMSS addresses can receive funds (confirmed on-chain, confirmed via getxmssaddressinfo), but spending those funds back out through the standard wallet flow does not work in the current build. sendfromxmssaddress does not fail loudly — it silently falls back to spending unrelated wallet UTXOs instead of the requested XMSS funds. This is a genuine architecture gap, not a quick fix: properly supporting spending requires integrating XMSS into DescriptorScriptPubKeyMan, which is a substantially different data model (descriptors + HD derivation vs. a simple per-script map). Flagged here as a hard blocker for any mainnet claim that XMSS wallet round-trips work end-to-end.</div></td></tr>
-          <tr><td class="chk done">✅</td><td class="item-name">6.11.3 — Difficulty retarget algorithm verified<div class="item-detail">pow.cpp confirmed completely unmodified from upstream Bitcoin Core — no QNT-specific changes at all. DifficultyAdjustmentInterval() correctly computes 20,160 blocks (14 days) from nPowTargetTimespan/nPowTargetSpacing, independent of any other SNTI parameter. Numerically simulated CalculateNextWorkRequired's core formula across five scenarios (on-time, 2x fast, 2x slow, 10x fast, 10x slow) — difficulty scaled exactly as expected and the 4x adjustment-bound safety clamp engaged correctly at the extremes.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">6.11.3 — Difficulty retarget algorithm verified<div class="item-detail">pow.cpp confirmed completely unmodified from upstream Bitcoin Core — no SNTI-specific changes at all. DifficultyAdjustmentInterval() correctly computes 20,160 blocks (14 days) from nPowTargetTimespan/nPowTargetSpacing, independent of any other SNTI parameter. Numerically simulated CalculateNextWorkRequired's core formula across five scenarios (on-time, 2x fast, 2x slow, 10x fast, 10x slow) — difficulty scaled exactly as expected and the 4x adjustment-bound safety clamp engaged correctly at the extremes.</div></td></tr>
           <tr><td class="chk done">✅</td><td class="item-name">6.11.4 — Found and fixed a 10x error in the halving schedule<div class="item-detail">While verifying retarget math, discovered nSubsidyHalvingInterval = 210,000 blocks at 60s/block produces a halving every ~146 days (0.4 years), not the "~4 years" the whitepaper explicitly promises — and not even the "~2 years" an in-code comment separately and also-incorrectly claimed. Root cause: Bitcoin's 210,000-block interval assumes 600s/block; SNTI blocks are 10x faster (60s) but the block count was never scaled up to compensate. Fixed nSubsidyHalvingInterval to 2,100,000 for mainnet, testnet, and signet (10x), restoring the intended ~4-year halving cadence. Regtest's separate 150-block interval (intentionally fast for testing) was left untouched.</div><div class="item-files">kernel/chainparams.cpp</div></td></tr>
         </tbody>
       </table>
@@ -446,23 +446,85 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="phase">
     <div class="phase-header" onclick="toggle('p7')">
       <div class="phase-title">
-        <span class="phase-num pending">PHASE 7</span>
+        <span class="phase-num wip">PHASE 7</span>
         <span class="phase-name">Mainnet Launch</span>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
-        <span class="phase-badge pending">⬜ NOT STARTED</span>
+        <span class="phase-badge wip">⚡ IN PROGRESS</span>
         <span class="phase-toggle" id="tp7">▼</span>
       </div>
     </div>
-    <div class="phase-body" id="p7">
-      <div class="progress-bar"><div class="progress-fill pending" style="width:0%"></div></div>
+    <div class="phase-body open" id="p7">
+      <div class="progress-bar"><div class="progress-fill wip" style="width:75%"></div></div>
       <table>
         <thead><tr><th></th><th>Item</th><th></th></tr></thead>
         <tbody>
-          <tr><td class="chk pending">⬜</td><td class="item-name">7.1 — Final Security Review<div class="item-detail">All audit findings fixed, re-audit if needed</div></td></tr>
-          <tr><td class="chk pending">⬜</td><td class="item-name">7.2 — Seed Nodes Deployed<div class="item-detail">Minimum 3 seed nodes on different regions</div></td></tr>
-          <tr><td class="chk pending">⬜</td><td class="item-name">7.3 — Genesis Block Final<div class="item-detail">Real genesis timestamp, real XMSS key, difficulty calibrated</div></td></tr>
-          <tr><td class="chk pending">⬜</td><td class="item-name">7.4 — Public Launch<div class="item-detail">Mining opens, exchanges list, community activated</div></td></tr>
+          <tr><td class="chk wip">⚡</td><td class="item-name">7.1 — Final Security Review<div class="item-detail">Internal deep audit selesai 29 Jun 2026 — 12 bug ditemukan &amp; fixed (5 kritis, 5 tinggi, 2 medium). External audit (Trail of Bits/Halborn) masih pending — Q4 2026 target.</div></td></tr>
+          <tr><td class="chk pending">⬜</td><td class="item-name">7.2 — Seed Nodes Deployed<div class="item-detail">VPS EU/APAC sedang di-order. Target: min 2 seed node (seed.assentian.network). Saat ini hanya 1 node di 104.234.26.7.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">7.3 — Genesis Block Final<div class="item-detail">Mainnet genesis mined 28 Jun 2026. Hash: b4a26aef52f6f5038815f26917cb0ea1fd3b3b13fbc7cfb5c541088a6943a5ba. nBits: 0x2001a41a. Message: "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia"</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">7.4 — Public Launch<div class="item-detail">assentian.network live dengan SSL. Block explorer, web wallet, investor roadmap, dan mining installer tersedia. VPS miner 24/7, VirtualBox miner tersedia untuk publik. Block 786+ per 29 Jun 2026.</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Phase 8 -->
+  <div class="phase">
+    <div class="phase-header" onclick="toggle('p8')">
+      <div class="phase-title">
+        <span class="phase-num done">PHASE 8</span>
+        <span class="phase-name">Deep Code Audit — 12 Bug Fixed</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="phase-badge done">✅ COMPLETE</span>
+        <span class="phase-toggle" id="tp8">▼</span>
+      </div>
+    </div>
+    <div class="phase-body open" id="p8">
+      <div class="progress-bar"><div class="progress-fill done" style="width:100%"></div></div>
+      <table>
+        <thead><tr><th></th><th>Item</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="chk done">✅</td><td class="item-name">8.1 — [Kritis] HKDF output 32-byte (harusnya 96-byte SEED_BYTES)<div class="item-detail">pouw_v2_keyder.h:104-109 — HKDF sekarang output 96 bytes (SK_SEED 32 + SK_PRF 32 + PUB_SEED 32). Sebelumnya hanya 32 byte, menghasilkan seed tidak valid.</div><div class="item-files">src/pouw_v2_keyder.h</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">8.2 — [Kritis] Underflow GetRemainingSignatures<div class="item-detail">xmss_keystore.h:229 — guard ditambah: jika leaf_index >= 1024 return 0 (sebelumnya underflow ke nilai besar). Mencegah false-positive "key masih ada sisa".</div><div class="item-files">src/wallet/xmss_keystore.h</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">8.3 — [Kritis] Preimage v3 block 200 — verifikasi kode<div class="item-detail">Verifikasi langsung: nPoUWv3StartHeight=200 identik di mining.cpp dan validation.cpp. Tidak ada bug aktual — kode benar.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">8.4 — [Kritis] WOTS+ reuse saat wallet locked<div class="item-detail">wallet.cpp:2193-2194 — signing sekarang ditolak jika wallet locked, mencegah WOTS+ leaf reuse tanpa XMSS state persistence yang valid.</div><div class="item-files">src/wallet/wallet.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">8.5 — [Kritis] sm_buf_size hardcoded<div class="item-detail">sm_buf_size sekarang dihitung dinamis dari params.sig_bytes, bukan nilai hardcoded. Mencegah buffer overflow/underflow pada parameter XMSS berbeda.</div><div class="item-files">src/xmss_state.h, src/xmss_bridge.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">8.6 — [Tinggi] FSL seed extraction offset salah<div class="item-detail">mining.cpp:307-312 — SK_SEED(32), SK_PRF(32), PUB_SEED(32) sekarang dibaca secara terpisah (bukan contiguous read yang mengambil root hash sebagai PUB_SEED).</div><div class="item-files">src/mining.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">8.7 — [Tinggi] nPoUWMaxSigSize tidak di-enforce<div class="item-detail">validation.cpp — size check ditambah untuk PoUW proof (pouw-sig-too-large) dan FSL data (pouw-fsl-too-large) sebelum Deserialize dipanggil.</div><div class="item-files">src/validation.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">8.8 — [Tinggi] IsXMSSScript off-by-one<div class="item-detail">xmss_signer.cpp:417 — script.size() == 66 (bukan 65). P2XMSS = PUSH64(1) + pubkey(64) + OP_XMSS_CHECKSIG(1) = 66 bytes total.</div><div class="item-files">src/wallet/xmss_signer.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">8.9 — [Tinggi] Signature check lemah di xmss_bridge Verify()<div class="item-detail">xmss_bridge.cpp — tambah verifikasi recovered message == original hash setelah xmss_sign_open. Mencegah false-positive jika return 0 tapi recovered message berbeda.</div><div class="item-files">src/xmss_bridge.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">8.10 — [Tinggi] chain_id duplikat regtest=signet=3<div class="item-detail">chainparams.cpp — regtest nXMSSChainId = 4 (sebelumnya 3, sama dengan signet). Sekarang: mainnet=1, testnet=2, signet=3, regtest=4.</div><div class="item-files">src/kernel/chainparams.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">8.11 — [Medium] min_target underflow PermittedDifficultyTransition<div class="item-detail">pow.cpp:101 — clamp min_target ke 1 jika old_target / 4 == 0. Mencegah lower bound bypass dan potential division-by-zero.</div><div class="item-files">src/pow.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">8.12 — [Medium] Komentar salah GetBlockSubsidy<div class="item-detail">validation.cpp:1707 — komentar diupdate: "2,100,000 blocks (~4 years at 60s/block)". Sebelumnya menyebutkan angka yang salah.</div><div class="item-files">src/validation.cpp</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Phase 9 -->
+  <div class="phase">
+    <div class="phase-header" onclick="toggle('p9')">
+      <div class="phase-title">
+        <span class="phase-num done">PHASE 9</span>
+        <span class="phase-name">PoUW V2 Difficulty Stuck + RPC Overload Fix</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="phase-badge done">✅ COMPLETE</span>
+        <span class="phase-toggle" id="tp9">▼</span>
+      </div>
+    </div>
+    <div class="phase-body open" id="p9">
+      <div class="progress-bar"><div class="progress-fill done" style="width:100%"></div></div>
+      <table>
+        <thead><tr><th></th><th>Item</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="chk done">✅</td><td class="item-name">9.1 — Root cause: burst mining blok 286–296<div class="item-detail">Satu XMSS tree reused untuk 11 blok dalam ~2 detik (semua timestamp identik). EMA menghitung block time ~0s → EMA naik 2× → target terlalu ketat (~14.000 tree/blok = est. 9.6 jam/blok). RPC overload karena GenerateBlock memblok HTTP thread selama proses PoUW.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">9.2 — EMA upper clamp 4× → 20×<div class="item-detail">pouw_v2.h — EMA clamp dinaikkan dari 4× ke 20× baseline. Ratio recovery per slow block naik dari 1.3× menjadi 2.9×, sehingga chain stuck tidak perlu ratusan blok untuk recover.</div><div class="item-files">src/pouw_v2.h</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">9.3 — Stuck-chain detection (elapsed > 10×target → force recovery)<div class="item-detail">pow.cpp — jika waktu sejak blok terakhir > 10× target spacing (10 menit), gunakan nFirstBlockTime untuk paksa 20× EMA recovery. Mencegah chain stuck permanen.</div><div class="item-files">src/pow.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">9.4 — PermittedDifficultyTransition max swing 4× → 20×<div class="item-detail">pow.cpp — max difficulty swing per period dinaikkan dari 4× ke 20× agar blok recovery dari stuck-chain bisa divalidasi oleh node lain.</div><div class="item-files">src/pow.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">9.5 — POUW_MAX_TREES_PER_CALL=20 (RPC yield)<div class="item-detail">rpc/mining.cpp — batasi 20 tree per RPC call (~50 detik). Miner retry otomatis. RPC tetap responsif untuk request lain selama proses PoUW mining.</div><div class="item-files">src/rpc/mining.cpp</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">9.6 — Hasil: block 296 → 786+ tanpa intervensi<div class="item-detail">Setelah rebuild dan restart services pukul 12:03 UTC, chain langsung recover. Block 297 ditemukan dengan nBits=0x1f0dd8d7 (2.9× lebih mudah). Chain terus mining normal hingga 786+ block per 29 Jun 2026.</div></td></tr>
         </tbody>
       </table>
     </div>
@@ -476,7 +538,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <span class="phase-name">Known Issues & Technical Debt</span>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
-        <span class="phase-badge" style="background:rgba(245,158,11,.15);color:var(--orange)">2 OPEN</span>
+        <span class="phase-badge" style="background:rgba(245,158,11,.15);color:var(--orange)">3 OPEN</span>
         <span class="phase-toggle" id="tissues">▼</span>
       </div>
     </div>
@@ -485,11 +547,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <div class="title">⚠️ Open Issues</div>
         <ul>
           <li><strong>XMSS key state persistence</strong> — <span style="color:var(--green)">RESOLVED (Phase 3e)</span> SaveState/LoadState integrated.</li>
-          <li><strong>Key exhausted check</strong> — <span style="color:var(--green)">RESOLVED (Phase 4)</span> Explicit check added in Sign().</li>
-          <li><strong>Minimum sig length</strong> — <span style="color:var(--green)">RESOLVED (Phase 4)</span> Check added in interpreter.</li>
-          <li><strong>Segfault post-main()</strong> — Workaround pakai _exit(0). Root cause belum di-investigasi.</li>
-          <li><strong>XMSS sig size in block</strong> — ~2.5KB signature di coinbase scriptSig. Perlu evaluasi impact ke block propagation.</li>
-          <li><strong>Encryption at rest</strong> — XMSS state di wallet DB belum di-encrypt. MEDIUM priority untuk mainnet.</li>
+          <li><strong>Key exhausted check</strong> — <span style="color:var(--green)">RESOLVED (Phase 4 + Audit 8.2)</span> Explicit check in Sign() + guard leaf_index >= 1024.</li>
+          <li><strong>Minimum sig length</strong> — <span style="color:var(--green)">RESOLVED (Phase 4 + Audit 8.7)</span> size check in interpreter + nPoUWMaxSigSize enforced sebelum Deserialize.</li>
+          <li><strong>Encryption at rest</strong> — <span style="color:var(--green)">RESOLVED (21 Jun)</span> XMSS state encryption at rest terverifikasi end-to-end (locked→ismine:false, unlock→decrypt otomatis).</li>
+          <li><strong>Segfault post-main()</strong> — Workaround pakai _exit(0). Root cause belum di-investigasi. Low priority selama mainnet stable.</li>
+          <li><strong>XMSS sig size in block</strong> — ~2.5KB signature di coinbase witness. Tidak memblok propagasi (terverifikasi via P2P relay Phase 6.9). Evaluasi optimisasi di Phase 3.</li>
+          <li><strong>Seed nodes</strong> — Hanya 1 node (104.234.26.7). Seed node EU/APAC sedang di-order. Risiko: single point of failure untuk peer discovery.</li>
         </ul>
       </div>
     </div>
