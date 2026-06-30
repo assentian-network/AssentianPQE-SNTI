@@ -906,17 +906,22 @@ ok "Dependencies installed"
 # -- 2. Download binaries
 inf "Downloading SNTI node binaries..."
 mkdir -p "$INSTALL_DIR" || err "Cannot create $INSTALL_DIR — check permissions"
-FREE_MB=$(df -m "$INSTALL_DIR" | awk 'NR==2{{print $4}}')
-[ "${{FREE_MB:-0}}" -lt 500 ] && err "Not enough disk space (need 500MB free, have ${{FREE_MB}}MB at $INSTALL_DIR)"
-_download() {{
-  local url="$1" dest="$2" label="$3"
-  rm -f "$dest"
-  curl -fSL --progress-bar "$url" -o "$dest" || {{ rm -f "$dest"; err "Failed to download $label (disk full? try: df -h)"; }}
-}}
-_download "$SNTI_API/bin/bitcoind"    "$INSTALL_DIR/bitcoind"    "bitcoind"
-_download "$SNTI_API/bin/bitcoin-cli" "$INSTALL_DIR/bitcoin-cli" "bitcoin-cli"
-chmod +x "$INSTALL_DIR/bitcoind" "$INSTALL_DIR/bitcoin-cli"
-ok "Binaries downloaded to $INSTALL_DIR"
+if [ -x "$INSTALL_DIR/bitcoind" ] && [ -x "$INSTALL_DIR/bitcoin-cli" ]; then
+  ok "Binaries already exist, skipping download"
+else
+  FREE_MB=$(df -m "$INSTALL_DIR" | awk 'NR==2{{print $4}}')
+  [ "${{FREE_MB:-0}}" -lt 500 ] && err "Not enough disk space (need 500MB free, have ${{FREE_MB}}MB at $INSTALL_DIR)"
+  _download() {{
+    local url="$1" dest="$2" label="$3"
+    pkill -f "$dest" 2>/dev/null; sleep 1
+    rm -f "$dest"
+    curl -fSL --progress-bar "$url" -o "$dest" || {{ rm -f "$dest"; err "Failed to download $label (disk full? try: df -h)"; }}
+  }}
+  _download "$SNTI_API/bin/bitcoind"    "$INSTALL_DIR/bitcoind"    "bitcoind"
+  _download "$SNTI_API/bin/bitcoin-cli" "$INSTALL_DIR/bitcoin-cli" "bitcoin-cli"
+  chmod +x "$INSTALL_DIR/bitcoind" "$INSTALL_DIR/bitcoin-cli"
+  ok "Binaries downloaded to $INSTALL_DIR"
+fi
 
 # Shortcut
 CLI="$INSTALL_DIR/bitcoin-cli -datadir=$DATADIR -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -rpcport=$RPC_PORT"
