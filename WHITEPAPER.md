@@ -35,11 +35,13 @@ Assentian-PQE (SNTI) is the **world's first mineable post-quantum cryptocurrency
 
 Unlike theoretical proposals or migration promises, Assentian-PQE is **already running**:
 
-- ✅ Mainnet genesis block mined — June 22, 2026
-- ✅ Testnet live with 50+ blocks confirmed
-- ✅ CPU mining operational (Wave 2: direct miner payout)
-- ✅ Block explorer live at 104.234.26.7
-- ✅ Stratum mining pool with XMSS-signed blocks
+- ✅ Mainnet genesis block mined — June 26, 2026 (hash: `b4a26aef...`)
+- ✅ Mainnet live — 1170+ blocks, 3-node network (Indonesia + USA + Singapore)
+- ✅ DNS seed live — seed/seed2/seed3.assentian.network
+- ✅ CPU mining operational, solo mining via RPC
+- ✅ Block explorer live at assentian.network/explorer/
+- ✅ Web wallet live at assentian.network/wallet/
+- ✅ Send/receive SNTI verified end-to-end
 - ✅ NIST SP 800-208 compliant from genesis
 
 **The quantum era is not coming. For Assentian-PQE, it has already begun.**
@@ -50,9 +52,9 @@ Unlike theoretical proposals or migration promises, Assentian-PQE is **already r
 | **Consensus** | Proof-of-Useful-Work (PoUW) via XMSS |
 | **Signature Scheme** | XMSS-SHA2_10_256 (NIST SP 800-208) |
 | **Block Time** | 60 seconds |
-| **Max Supply** | 21,000,000 SNTI |
-| **Halving Interval** | Every 210,000 blocks (~4 years) |
-| **Genesis Date** | June 22, 2026 |
+| **Max Supply** | 210,000,000 SNTI |
+| **Halving Interval** | Every 2,100,000 blocks (~4 years) |
+| **Genesis Date** | June 26, 2026 |
 | **Codebase** | Bitcoin Core fork (C++) |
 | **License** | BSL-1.1 → GPL-2.0 (2030) |
 | **Magic Bytes** | SNTI (0x53, 0x4E, 0x54, 0x49) |
@@ -72,15 +74,15 @@ NIST has finalized post-quantum cryptography standards (FIPS 203, 204, 205, SP 8
 **Force 2: Existing Blockchains Are Vulnerable**
 Bitcoin, Ethereum, Solana — every major blockchain uses ECDSA or Ed25519. Both are broken by Shor's algorithm on a sufficiently powerful quantum computer. Migration is technically complex, politically contentious, and economically disruptive.
 
-**Force 3: First-Mover Advantage is Unclaimed**
-No working, mineable, NIST-compliant post-quantum blockchain exists today. Assentian-PQE claims that position on June 22, 2026.
+**Force 3: First-Mover Advantage is Claimed**
+Assentian-PQE is the world's first working, mineable, NIST-compliant post-quantum blockchain — live since June 26, 2026.
 
 ### 2.2 Why Now
 2024: NIST finalizes PQC standards
 
 2025: Enterprise PQC migration begins
 
-2026: SNTI mainnet launches ◄── WE ARE HERE
+2026: SNTI mainnet launched June 26 ◄── WE ARE HERE
 
 2027: "Harvest now, decrypt later" attacks surface publicly
 
@@ -136,7 +138,7 @@ The most immediate threat is not breaking encryption in real-time — it is **re
 
 For Bitcoin holders: **every transaction you have ever made is permanently recorded on a public ledger, and every signature will eventually be forgeable.**
 
-Assentian-PQE addresses this by making XMSS signatures — quantum-resistant by design — the only valid signature from block zero.
+Assentian-PQE addresses this by making XMSS the exclusive signature scheme used by every wallet, address, and mining reward from block zero — no transaction on the network has ever used a classical signature.
 
 ### 3.4 The $2.8 Trillion Problem
 
@@ -469,39 +471,30 @@ Assentian-PQE enforces strict protection against this:
 ## 9. Tokenomics
 
 ### 9.1 Supply Schedule
-Total Supply: 21,000,000 SNTI (hard cap, identical to Bitcoin)
-Emission:
 
-├── Block 0–210,000:       50 SNTI/block   (~4 years)
+Total Supply: **210,000,000 SNTI** (hard cap — 10× Bitcoin's 21M, scaled for 60-second block time)
 
-├── Block 210,000–420,000: 25 SNTI/block   (~4 years)
-
-├── Block 420,000–630,000: 12.5 SNTI/block (~4 years)
-
+```
+├── Block 0–2,100,000:         50 SNTI/block   (~4 years)
+├── Block 2,100,000–4,200,000: 25 SNTI/block   (~4 years)
+├── Block 4,200,000–6,300,000: 12.5 SNTI/block (~4 years)
 └── ... halvings continue until ~2140
-### 9.2 Distribution
+```
 
-| Allocation | % | Amount | Vesting |
-|---|---|---|---|
-| Mining rewards | 85% | 17,850,000 SNTI | Block by block |
-| Development fund | 10% | 2,100,000 SNTI | 4-year linear vest |
-| Community & airdrop | 3% | 630,000 SNTI | TGE + 12 months |
-| Bug bounty / security | 2% | 420,000 SNTI | On-demand |
+**No pre-mine. No VC allocation. No insider rounds.** All SNTI enters circulation through mining — identical to Bitcoin's fair launch model.
 
-**No pre-mine. No VC allocation. No insider rounds.**
-
-The development fund is controlled by a multisig wallet. All transactions will be publicly auditable on-chain.
-
-### 9.3 Emission Schedule
+### 9.2 Emission Schedule
 
 | Phase | Blocks | Reward | SNTI/Day | Era |
 |---|---|---|---|---|
-| Genesis | 0–210k | 50 SNTI | ~720 | 2026–2030 |
-| Halving 1 | 210k–420k | 25 SNTI | ~360 | 2030–2034 |
-| Halving 2 | 420k–630k | 12.5 SNTI | ~180 | 2034–2038 |
-| Halving 3 | 630k–840k | 6.25 SNTI | ~90 | 2038–2042 |
+| Genesis | 0–2,100k | 50 SNTI | ~72,000 | 2026–2030 |
+| Halving 1 | 2,100k–4,200k | 25 SNTI | ~36,000 | 2030–2034 |
+| Halving 2 | 4,200k–6,300k | 12.5 SNTI | ~18,000 | 2034–2038 |
+| Halving 3 | 6,300k–8,400k | 6.25 SNTI | ~9,000 | 2038–2042 |
 
-### 9.4 Value Drivers
+*Note: 1,440 blocks/day at 60-second target.*
+
+### 9.3 Value Drivers
 
 1. **Scarcity**: Fixed 21M supply — same model as Bitcoin
 2. **Utility**: Only quantum-safe mineable chain — unique use case
@@ -529,16 +522,18 @@ The development fund is controlled by a multisig wallet. All transactions will b
 - ✅ WOTS+ full signature verification via `xmss_sign_open()` in `CheckPoUWv2()`
 - ⚠️ Stratum server pending PoUW v2 update (v1 format incompatible)
 
-### 🔜 Phase 1: Mainnet Launch (Q3–Q4 2026)
+### ✅ Phase 1: Mainnet Launched — June 26, 2026
 
-- [ ] External security audit (Trail of Bits / Halborn)
-- [ ] Mainnet node deployment (3+ geographic regions)
-- [ ] DNS seeds registration
-- [ ] CLI wallet v1.0 release
-- [ ] Mining guide & documentation portal
-- [ ] Whitepaper HTML version
-- [ ] Community launch (Discord, Telegram, Twitter)
-- [ ] First external miners onboarded
+- ✅ Mainnet genesis block — June 26, 2026 (`b4a26aef...`, nBits `0x2001a41a`)
+- ✅ 3-node network — Indonesia + USA (KC) + Singapore (SG), 1170+ blocks
+- ✅ DNS seeds — seed/seed2/seed3.assentian.network (3 IPs, round-robin)
+- ✅ Web wallet — assentian.network/wallet/
+- ✅ Block explorer — assentian.network/explorer/
+- ✅ Whitepaper HTML version — assentian.network/whitepaper.html
+- ✅ Internal deep audit — 12 bugs found & fixed (29 Jun 2026)
+- ✅ Send/receive SNTI verified end-to-end
+- [ ] External security audit (Trail of Bits / Halborn) — Q4 2026
+- [ ] Community launch (Discord, Telegram, Twitter) — pending
 
 ### 🔜 Phase 2: Exchange & Wallet (Q1–Q2 2027)
 
@@ -590,13 +585,13 @@ The development fund is controlled by a multisig wallet. All transactions will b
 | Parameter | Mainnet | Testnet |
 |---|---|---|
 | Magic bytes | SNTI (0x53,0x4E,0x54,0x49) | sTST (0x73,0x54,0x53,0x54) |
-| P2P port | 9333 | 39333 |
-| RPC port | 9332 | 39332 |
-| Address prefix (P2PKH) | Q (0x51) | t (0x6F) |
-| Bech32 HRP | qn | tq |
-| Genesis hash | 00146ebb6e8240... | 2d858f51fc4af7... |
-| Genesis nNonce | 26 | 1 |
-| Genesis nBits | 0x207fffff | 0x207fffff |
+| P2P port | 9333 | 19333 |
+| RPC port | 9332 | 18332 |
+| Address format | bech32m (`snti1…`) | bech32m (`tsnti1…`) |
+| Bech32 HRP | snti | tsnti |
+| Genesis hash | b4a26aef52f6f503... | — |
+| Genesis nNonce | 0 (PoUW v2) | 0 (PoUW v2) |
+| Genesis nBits | 0x2001a41a | 0x207fffff |
 | Max block size | 4 MB | 4 MB |
 | Block weight limit | 4,000,000 | 4,000,000 |
 
@@ -821,7 +816,8 @@ When a sufficiently powerful quantum computer arrives, every ECDSA blockchain fa
 | Implementation bugs | Medium | High | External audit planned; bug bounty |
 | Quantum faster than expected | Low | Positive | SNTI already quantum-safe |
 | XMSS superseded by better PQC | Low | Medium | Upgrade path via soft fork |
-| State management errors | Low | High | Atomic writes; backup/restore verified |
+| State management errors | Low | High | Atomic writes (fsync) prevent corruption; cross-machine `wallet.dat` restore is a documented user risk, not automatically mitigated — see README.md / MINING_GUIDE.md |
+| Legacy ECDSA opcodes (OP_CHECKSIG) inherited from Bitcoin Core | Low | Low | Not enforced-rejected at consensus level; no wallet or tooling generates ECDSA scripts, and no ECDSA-signed transaction has ever been mined — documented here for transparency rather than left implicit |
 
 ### 13.2 Market Risks
 
@@ -900,7 +896,7 @@ Assentian-PQE is built on the shoulders of giants:
 - **Copyright**: Asep Mulya, 2026
 - **License**: Business Source License 1.1 (BSL-1.1)
 - **License conversion**: Automatically converts to GPL-2.0 on January 1, 2030
-- **GitHub**: https://github.com/asepganzu-svg/AssentianPQE-SNTI
+- **GitHub**: https://github.com/assentian-network/snti
 
 ---
 
@@ -908,7 +904,7 @@ Assentian-PQE is built on the shoulders of giants:
 
 The quantum threat to existing blockchain infrastructure is not hypothetical. It is a mathematically certain outcome of quantum computing progress — the only uncertainty is timing.
 
-Assentian-PQE (SNTI) does not wait for the threat to materialize. It is **built for the post-quantum world from genesis** — June 22, 2026.
+Assentian-PQE (SNTI) does not wait for the threat to materialize. It is **built for the post-quantum world from genesis** — June 26, 2026.
 
 **What sets SNTI apart:**
 
@@ -938,7 +934,7 @@ The answer is Assentian-PQE.
 
 ---
 
-*Assentian-PQE Whitepaper v1.1 | June 25, 2026*
+*Assentian-PQE Whitepaper v1.1 | June 26, 2026*
 *Genesis: "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia"*
 *Contact: assentianpqe@gmail.com*
-*GitHub: https://github.com/asepganzu-svg/AssentianPQE-SNTI*
+*GitHub: https://github.com/assentian-network/snti*

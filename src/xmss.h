@@ -58,4 +58,15 @@ int xmssmt_sign(unsigned char *sk,
 int xmssmt_sign_open(unsigned char *m, unsigned long long *mlen,
                      const unsigned char *sm, unsigned long long smlen,
                      const unsigned char *pk);
+
+/**
+ * SNTI PoUW v2 (audit T-1): deterministically rebuilds an XMSS key pair
+ * from an explicit 3*n-byte seed [SK_SEED | SK_PRF | PUB_SEED], instead of
+ * generating fresh randomness like xmss_keypair()/xmssmt_keypair() do.
+ * Used by consensus code to verify that a Failed-Seed-List entry's claimed
+ * xmss_root actually derives from its claimed sk_seed (see validation.cpp).
+ * Format pk: [OID || root || PUB_SEED]
+ */
+int xmss_seed_keypair(unsigned char *pk, unsigned char *sk,
+                       const uint32_t oid, unsigned char *seed);
 #endif

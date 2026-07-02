@@ -1,6 +1,6 @@
 # Assentian-PQE (SNTI) Developer Documentation
 
-> **Ticker**: SNTI · **Copyright**: Asep Mulya · **GitHub**: https://github.com/asepganzu-svg/AssentianPQE-SNTI
+> **Ticker**: SNTI · **Copyright**: Asep Mulya · **GitHub**: https://github.com/assentian-network/snti
 
 ## Table of Contents
 
@@ -38,8 +38,8 @@ sudo apt-get install -y \
 
 ```bash
 # Clone repository
-git clone https://github.com/asepganzu-svg/AssentianPQE-SNTI.git
-cd AssentianPQE-SNTI
+git clone https://github.com/assentian-network/snti.git
+cd snti
 
 # Generate configure script
 ./autogen.sh
@@ -61,17 +61,21 @@ make -j$(nproc)
 | bitcoin-wallet | src/bitcoin-wallet | Wallet management |
 | bitcoin-tx | src/bitcoin-tx | Transaction builder |
 
-### Running the Node (Testnet)
+### Running the Node (Mainnet)
 
 ```bash
-./src/bitcoind -testnet \
-  -datadir=/root/.assentian_testnet \
-  -rpcuser=user -rpcpassword=password \
-  -rpcport=39332 -port=39333 \
+./src/bitcoind \
+  -datadir=/root/.bitcoin \
+  -rpcuser=<user> -rpcpassword=<pass> \
+  -rpcport=9332 -port=9333 \
   -rpcallowip=127.0.0.1 \
   -walletcrosschain \
   -daemon
 ```
+
+DNS seeds are embedded in the binary — your node will automatically discover peers on first start.
+
+For a local development environment, use **regtest** mode instead (see [Running a Local Test Node](#running-a-local-test-node) in CONTRIBUTING.md).
 
 ---
 
@@ -93,7 +97,7 @@ Generate a new XMSS key pair and return the corresponding address.
 **Returns:**
 ```json
 {
-  "address": "tq1q...",
+  "address": "snti1...",
   "pubkey": "hex...",
   "leaf_index": 0,
   "remaining": 1024
@@ -102,9 +106,9 @@ Generate a new XMSS key pair and return the corresponding address.
 
 **Example:**
 ```bash
-./src/bitcoin-cli -testnet -datadir=/root/.assentian_testnet \
-  -rpcuser=user -rpcpassword=password -rpcport=39332 \
-  getnewxmssaddress "my_first_key"
+./src/bitcoin-cli -datadir=/root/.bitcoin \
+  -rpcuser=<user> -rpcpassword=<pass> -rpcport=9332 \
+  -rpcwallet=<wallet> getnewxmssaddress "my_first_key"
 ```
 
 ---
@@ -118,7 +122,7 @@ List all XMSS keys in the wallet.
 [
   {
     "label": "my_first_key",
-    "address": "tq1q...",
+    "address": "snti1...",
     "pubkey": "hex...",
     "leaf_index": 0,
     "remaining": 1024,
@@ -139,7 +143,7 @@ Get information about an XMSS address.
 **Returns:**
 ```json
 {
-  "address": "tq1q...",
+  "address": "snti1...",
   "pubkey": "hex...",
   "is_mine": true,
   "leaf_index": 0,
@@ -174,7 +178,7 @@ Export an XMSS private key from the wallet for backup.
 {
   "pubkey": "hex...",
   "seckey": "hex...",
-  "address": "tq1q...",
+  "address": "snti1...",
   "leaf_index": 0,
   "remaining": 1024
 }
@@ -286,72 +290,29 @@ SNTI uses **Proof-of-Useful-Work v2** (PoUW v2): building an XMSS Merkle tree is
 **powLimit (testnet)**: `7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff` (max — easy mining)
 **powLimit (mainnet)**: `01a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a4` (1-of-156 trees valid)
 
-### Solo Mining (RPC — recommended for now)
+### Solo Mining (RPC — mainnet)
 
 ```bash
-CLI="./src/bitcoin-cli -testnet -datadir=/root/.assentian_testnet \
-  -rpcuser=user -rpcpassword=password -rpcport=39332"
+CLI="./src/bitcoin-cli -datadir=/root/.bitcoin \
+  -rpcuser=<user> -rpcpassword=<pass> -rpcport=9332"
 
 # Load wallet
-$CLI loadwallet snti_testnet
+$CLI loadwallet <wallet_name>
 
-# Get address
-ADDR=$($CLI getnewaddress)
+# Get a new XMSS address
+ADDR=$($CLI -rpcwallet=<wallet_name> getnewxmssaddress | python3 -c "import sys,json; print(json.load(sys.stdin)['address'])")
 
-# Mine 1 block (timeout long — XMSS tree build takes ~6s/attempt)
-$CLI -rpcclienttimeout=300 generatetoaddress 1 "$ADDR" 100
+# Mine 1 block (timeout long — XMSS tree build takes ~2–6s/attempt)
+$CLI -rpcclienttimeout=300 generatetoaddress 1 "$ADDR"
 ```
 
-### Pool Mining (Stratum — PoUW v2 hybrid)
+### Pool Mining (Stratum — Phase 3, not yet available)
 
-The stratum server (`stratum_server.py`) uses a hybrid approach:
-- Sends lightweight SHA-256 jobs to standard miners (cpuminer etc.)
-- After every N accepted shares, triggers `generatetoaddress` internally
-- `bitcoind` performs the actual XMSS tree building
-- Miners do not need to know about XMSS
-
-#### Install cpuminer-multi (build from source)
-
-cpuminer-multi is not in apt — build from source:
-
-```bash
-# Dependencies
-apt-get install -y libcurl4-openssl-dev libjansson-dev
-
-# Build
-git clone --depth=1 https://github.com/tpruvot/cpuminer-multi.git /tmp/cpuminer-multi
-cd /tmp/cpuminer-multi && ./build.sh
-
-# Install
-cp /tmp/cpuminer-multi/cpuminer /usr/local/bin/minerd
-```
-
-#### Start mining
-
-```bash
-# Start stratum service (if not already running)
-systemctl start assentian-stratum.service
-
-# Connect cpuminer — use your SNTI address as username
-minerd -a sha256d \
-  -o stratum+tcp://104.234.26.7:3333 \
-  -u <YOUR_SNTI_ADDRESS> \
-  -p x \
-  --threads=$(nproc)
-```
-
-#### Verify mining is working
-
-```bash
-# Stratum stats (shows connected workers, shares, blocks found)
-curl http://104.234.26.7:3334/
-
-# Node chain height
-./src/bitcoin-cli -testnet -datadir=/root/.assentian_testnet \
-  -rpcuser=user -rpcpassword=password -rpcport=39332 getblockcount
-```
-
-> **Status (Jun 26 2026)**: Stratum + cpuminer-multi confirmed working end-to-end. VM at 114.79.6.173 mining via stratum, all shares accepted. WOTS+ signature verification in `CheckPoUWv2()` is **fully active** — `xmss_sign_open()` is called unconditionally on every block and must return 0 for the block to pass consensus. (BDS state issue resolved in commit 5409c3f — see Architecture §Active Issues.)
+> **Status**: Pool mining via stratum is planned for Phase 3 of the roadmap. It is not yet deployed on mainnet.
+>
+> The planned approach is a hybrid stratum server that accepts standard SHA-256 share submissions from cpuminer-compatible clients and internally triggers `generatetoaddress` on the node after a qualifying share. Miners do not need to understand XMSS directly.
+>
+> Track progress: [GitHub Issues — pool mining](https://github.com/assentian-network/snti/issues)
 
 ### Key Design Decision: One-Shot Mining Keys
 
@@ -367,47 +328,48 @@ This will be revisited if block time needs to drop below ~5 seconds.
 
 ## Testnet Guide
 
-### Connecting to Testnet
+### Mainnet Parameters
 
-```bash
-./src/bitcoind -testnet \
-  -datadir=/root/.assentian_testnet \
-  -rpcuser=user -rpcpassword=password \
-  -rpcport=39332 -port=39333 \
-  -rpcallowip=127.0.0.1 \
-  -walletcrosschain \
-  -daemon
-```
+| Parameter | Value |
+|-----------|-------|
+| P2P Port | 9333 |
+| RPC Port | 9332 |
+| Address Prefix | `snti1` (bech32m) |
+| Block Time Target | 60 seconds |
+| powLimit | `01a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a41a4` |
+| Block Reward | 50 SNTI |
+| Halving Interval | 2,100,000 blocks (~4 years) |
+| Max Supply | 210,000,000 SNTI |
 
 ### Testnet Parameters
 
 | Parameter | Value |
 |-----------|-------|
-| P2P Port | 39333 |
-| RPC Port | 39332 |
-| Address Prefix | `tq1` (bech32) |
-| Magic Bytes | `0x73545354` ("sTST") |
+| P2P Port | 19333 |
+| RPC Port | 18332 |
+| Address Prefix | `tsnti1` (bech32m) |
 | Block Time Target | 60 seconds |
 | powLimit | `7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff` (max) |
 | Block Reward | 50 SNTI |
-| Halving Interval | 2,100,000 blocks (~4 years) |
 
-### Genesis Block (PoUW v2)
+### Mainnet Genesis Block
 
 | Field | Value |
 |-------|-------|
-| nTime | 1782275807 (Jun 24 2026) |
-| nBits | 0x207fffff |
+| nTime | 1750931612 (26 Jun 2026 11:53:32 UTC) |
+| nBits | 0x01a41a41 |
 | nNonce | 0 (PoUW v2 — always 0) |
-| Hash | `0616e8b3402b69dc97bb3ca02e3e83192e2b0c4c74093990ad917f0183b5ab97` |
+| Hash | `b4a26aef52f6f5038815f26917cb0ea1fd3b3b13fbc7cfb5c541088a6943a5ba` |
 
-### VPS Live Infrastructure
+### Live Infrastructure (Mainnet — 30 Jun 2026)
 
-| Service | Status | Port |
-|---------|--------|------|
-| assentian-node.service | Active | P2P:39333, RPC:39332 |
-| assentian-explorer.service | Active | HTTP:8081 (proxied via nginx:80) |
-| assentian-stratum.service | Active (PoUW v2 hybrid) | Stratum:3333, Stats:3334 |
+| Service | Host | Port |
+|---------|------|------|
+| assentian-seed.service | Main VPS (Indonesia) | P2P:9333, RPC:9332 |
+| assentian-seed.service | Seed KC (USA) | P2P:9333, RPC:9332 |
+| assentian-seed.service | Seed SG (Singapore) | P2P:9333, RPC:9332 |
+| Explorer + Web Wallet | https://assentian.network | HTTPS:443 |
+| DNS Seeds | seed.assentian.network, seed2.assentian.network, seed3.assentian.network | — |
 
 ---
 

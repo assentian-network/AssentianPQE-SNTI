@@ -98,7 +98,7 @@ This means every mining operation **produces a real cryptographic artifact** —
 - [x] EMA difficulty adjustment (60-second target blocks)
 - [x] On-chain leaf index tracking (prevents key reuse attacks — SNTI M7)
 - [x] Mainnet genesis block (June 26, 2026)
-- [x] Block explorer (explorer.assentian.network)
+- [x] Block explorer (assentian.network/explorer/)
 - [x] DNS seed infrastructure (seed.assentian.network)
 - [x] Web wallet (assentian.network/wallet)
 
@@ -136,8 +136,8 @@ This means every mining operation **produces a real cryptographic artifact** —
 | Ticker | SNTI |
 | Block reward | 50 SNTI |
 | Block time target | 60 seconds |
-| Halving interval | 210,000 blocks (~4 years) |
-| Max supply | 21,000,000 SNTI |
+| Halving interval | 2,100,000 blocks (~4 years) |
+| Max supply | 210,000,000 SNTI |
 | Mining | CPU PoUW v2 (XMSS) |
 | Consensus | PoUW v2 — EMA difficulty |
 
@@ -168,7 +168,7 @@ This means every mining operation **produces a real cryptographic artifact** —
 **Asep Mulya** — Founder & Lead Developer
 - Built Assentian-PQE from scratch on Bitcoin Core fork
 - Deep expertise: XMSS cryptography, Bitcoin internals, post-quantum protocol design
-- Contact: asepganzu@gmail.com / assentianpqe@gmail.com
+- Contact: admin@assentian.network
 
 ---
 
@@ -188,8 +188,8 @@ This means every mining operation **produces a real cryptographic artifact** —
 ## Contact
 
 - Website: https://assentian.network
-- Explorer: https://explorer.assentian.network
-- GitHub: https://github.com/asepganzu-svg/AssentianPQE-SNTI
+- Explorer: https://assentian.network/explorer/
+- GitHub: https://github.com/assentian-network/snti
 - Email: assentianpqe@gmail.com
 
 ---

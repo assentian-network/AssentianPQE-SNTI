@@ -104,24 +104,54 @@ def _hash_pw(pw: str) -> str:
 def _check_pw(pw: str, stored: str) -> bool:
     return bcrypt.checkpw(pw.encode(), stored.encode())
 
-def _make_token(user_id, username):
-    payload = {"sub": user_id, "usr": username, "exp": int(time.time()) + JWT_EXP_HOURS * 3600}
+def _make_token(user_id, username, scope="full"):
+    payload = {"sub": user_id, "usr": username, "scope": scope, "exp": int(time.time()) + JWT_EXP_HOURS * 3600}
     return pyjwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
+def _decode_token():
+    """Validate the bearer token and stash claims on `request`. Returns an
+    error (jsonify, status) tuple on failure, or None on success."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return jsonify({"error": "unauthorized"}), 401
+    try:
+        payload = pyjwt.decode(auth[7:], JWT_SECRET, algorithms=["HS256"])
+    except pyjwt.ExpiredSignatureError:
+        return jsonify({"error": "token expired"}), 401
+    except Exception:
+        return jsonify({"error": "invalid token"}), 401
+    request.user_id = payload["sub"]
+    request.username = payload["usr"]
+    # SNTI SECURITY FIX (2 Jul 2026): tokens minted before this fix have no
+    # "scope" claim -- treat those as "full" so existing sessions don't get
+    # logged out. Only newly-issued installer tokens carry scope="installer".
+    request.token_scope = payload.get("scope", "full")
+    return None
+
 def jwt_required(f):
+    """Accepts any valid token regardless of scope (installer or full)."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth = request.headers.get("Authorization", "")
-        if not auth.startswith("Bearer "):
-            return jsonify({"error": "unauthorized"}), 401
-        try:
-            payload = pyjwt.decode(auth[7:], JWT_SECRET, algorithms=["HS256"])
-        except pyjwt.ExpiredSignatureError:
-            return jsonify({"error": "token expired"}), 401
-        except Exception:
-            return jsonify({"error": "invalid token"}), 401
-        request.user_id = payload["sub"]
-        request.username = payload["usr"]
+        err = _decode_token()
+        if err:
+            return err
+        return f(*args, **kwargs)
+    return decorated
+
+def jwt_required_full(f):
+    """SNTI SECURITY FIX (2 Jul 2026): rejects the long-lived, narrow-purpose
+    installer token (see _generate_install_script). That token is embedded in
+    a plaintext .sh file users download and can easily leak/get shared
+    (support tickets, gists, screen shares) -- it must only ever be able to
+    call the miner heartbeat/watch endpoints it was actually issued for, never
+    balance/send/export-key/backup-file/change-password."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        err = _decode_token()
+        if err:
+            return err
+        if request.token_scope != "full":
+            return jsonify({"error": "this token cannot access this endpoint"}), 403
         return f(*args, **kwargs)
     return decorated
 
@@ -158,10 +188,20 @@ def rpc_call(method, params=None):
             json=payload,
             timeout=30,
         )
-        resp.raise_for_status()
-        data = resp.json()
-        if "error" in data and data["error"] is not None:
+        # SNTI FIX (2 Jul 2026): bitcoind returns HTTP 500 (not 200) for many
+        # normal JSON-RPC errors (insufficient funds, invalid address, etc.)
+        # but still sends a proper {"error": {...}} JSON body. Calling
+        # raise_for_status() before reading that body threw it away and
+        # replaced it with a generic, useless "500 Server Error" string that
+        # the frontend then showed users instead of the real reason.
+        try:
+            data = resp.json()
+        except ValueError:
+            resp.raise_for_status()
+            raise
+        if isinstance(data, dict) and data.get("error") is not None:
             return {"error": data["error"]}
+        resp.raise_for_status()
         return data.get("result")
     except requests.exceptions.ConnectionError:
         return {"error": f"Cannot connect to bitcoind at {RPC_URL}"}
@@ -680,7 +720,11 @@ def wallet_signup():
     else:
         xmss_address = str(addr_result)
 
-    miner_rpc_pass = password  # user pakai username+password yang sama untuk RPC mining
+    # SNTI SECURITY FIX (2 Jul 2026): jangan pernah simpan/reuse password login
+    # asli user untuk kolom lain — kalau wallet.db bocor, ini akan expose
+    # password asli (bukan cuma hash) yang mungkin dipakai ulang user di tempat
+    # lain. Generate random independen, sama seperti pola backfill di bawah.
+    miner_rpc_pass = secrets.token_hex(20)
 
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -714,7 +758,7 @@ def wallet_login():
     return jsonify({"token": token, "username": row[1], "address": row[2]})
 
 @app.route("/api/wallet/me")
-@jwt_required
+@jwt_required_full
 def wallet_me():
     conn = sqlite3.connect(DB_PATH)
     row = conn.execute(
@@ -727,7 +771,7 @@ def wallet_me():
     return jsonify({"username": row[0], "email": row[1], "address": row[2], "created_at": row[3]})
 
 @app.route("/api/wallet/balance")
-@jwt_required
+@jwt_required_full
 def wallet_balance():
     conn = sqlite3.connect(DB_PATH)
     row = conn.execute("SELECT xmss_address FROM users WHERE id=?", (request.user_id,)).fetchone()
@@ -747,17 +791,26 @@ def wallet_balance():
     immature = sum(u.get("amount", 0) for u in utxos
                    if u.get("coinbase") and (tip_height - u.get("height", 0)) < 100)
     mature = balance - immature
+    # SNTI SECURITY FIX (2 Jul 2026): surface the wallet's own retired/warning
+    # status to the frontend -- previously this was computed accurately by
+    # the backend (getxmssaddressinfo) but never read by the explorer, so
+    # users got no warning before hitting a dead address.
+    addr_info = rpc_call("getxmssaddressinfo", [address])
+    retired = bool(addr_info.get("retired")) if isinstance(addr_info, dict) else False
+    warning = addr_info.get("warning", "") if isinstance(addr_info, dict) else ""
     return jsonify({
         "address": address,
         "balance": balance,
         "mature": mature,
         "immature": immature,
         "utxo_count": len(utxos),
-        "tip_height": tip_height
+        "tip_height": tip_height,
+        "retired": retired,
+        "warning": warning
     })
 
 @app.route("/api/wallet/send", methods=["POST"])
-@jwt_required
+@jwt_required_full
 def wallet_send():
     data = request.get_json(silent=True) or {}
     to_address = (data.get("to") or "").strip()
@@ -771,13 +824,57 @@ def wallet_send():
     except (ValueError, TypeError):
         return jsonify({"error": "invalid amount"}), 400
 
-    result = rpc_call("sendtoxmssaddress", [to_address, amount])
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute("SELECT xmss_address FROM users WHERE id=?", (request.user_id,)).fetchone()
+    conn.close()
+    if not row or not row[0]:
+        return jsonify({"error": "user not found"}), 404
+    from_address = row[0]
+
+    # SNTI SECURITY FIX (2 Jul 2026): precheck retired/blacklist status so the
+    # user gets a clear explanation instead of a raw RPC error, and so we
+    # don't even attempt a sign that the backend would refuse anyway.
+    addr_info = rpc_call("getxmssaddressinfo", [from_address])
+    if isinstance(addr_info, dict) and addr_info.get("retired"):
+        return jsonify({
+            "error": "Address pengirim ini sudah tidak bisa menandatangani transaksi lagi "
+                     "(XMSS one-time-use sudah terpakai, atau address di-blacklist demi keamanan). "
+                     + (addr_info.get("warning") or ""),
+            "retired": True
+        }), 409
+
+    # SNTI SECURITY FIX (2 Jul 2026): sendtoxmssaddress does coin selection
+    # across the ENTIRE shared node wallet (all users' XMSS UTXOs live in one
+    # wallet, no per-user isolation) -- it could spend another user's UTXO to
+    # fund this send. sendfromxmssaddress scopes selection to UTXOs actually
+    # sitting at from_address (see SNTI FIX comment in src/wallet/rpc/xmss.cpp).
+    result = rpc_call("sendfromxmssaddress", [from_address, to_address, amount])
     if isinstance(result, dict) and "error" in result:
         return jsonify(result), 400
-    return jsonify({"txid": result})
+
+    # XMSS keys are one-time-use: a wallet-native address (no mining ledger)
+    # retires entirely after one signature. Rotate to a fresh address so
+    # future incoming funds aren't received at a key that can no longer sign.
+    # NOTE: this does NOT rescue funds left in OTHER unspent UTXOs still
+    # sitting at from_address (the backend can only sign one UTXO per XMSS
+    # address per send) -- see job_queue.md follow-up for a proper fix
+    # (auto-sweep / ledger-backed wallet-native addresses).
+    response = {"txid": result}
+    new_addr = rpc_call("getnewxmssaddress")
+    if isinstance(new_addr, dict) and new_addr.get("address"):
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("UPDATE users SET xmss_address=? WHERE id=?", (new_addr["address"], request.user_id))
+        conn.commit()
+        conn.close()
+        response["new_address"] = new_addr["address"]
+        response["note"] = (
+            "Address lama sudah dipakai untuk mengirim dan tidak bisa dipakai lagi (XMSS one-time-use). "
+            "Address baru sudah otomatis dibuat untuk menerima dana berikutnya."
+        )
+    return jsonify(response)
 
 @app.route("/api/wallet/txs")
-@jwt_required
+@jwt_required_full
 def wallet_txs():
     conn = sqlite3.connect(DB_PATH)
     row = conn.execute("SELECT xmss_address FROM users WHERE id=?", (request.user_id,)).fetchone()
@@ -785,10 +882,15 @@ def wallet_txs():
     if not row:
         return jsonify({"error": "user not found"}), 404
     address = row[0]
-    result = rpc_call("listunspent", [0, 9999999, [address]])
-    if isinstance(result, dict) and "error" in result:
+    # SNTI FIX (2 Jul 2026): listunspent doesn't work for XMSS addresses
+    # (same reason wallet_balance already switched to scantxoutset) -- this
+    # tab was silently showing "No unspent outputs" even when the balance
+    # tab correctly showed a positive balance.
+    scan = rpc_call("scantxoutset", ["start", [f"addr({address})"]])
+    if isinstance(scan, dict) and "error" in scan:
         return jsonify({"txs": []})
-    return jsonify({"txs": result or []})
+    utxos = scan.get("unspents", []) if isinstance(scan, dict) else []
+    return jsonify({"txs": utxos})
 
 # ---------------------------------------------------------------------------
 # API: Non-custodial tools
@@ -833,7 +935,7 @@ def wallet_get_install_script():
     return _generate_install_script(row[0])
 
 @app.route("/api/wallet/install-script")
-@jwt_required
+@jwt_required_full
 def wallet_install_script():
     """Return a personalized install.sh with user's JWT token embedded."""
     return _generate_install_script(request.user_id)
@@ -854,10 +956,16 @@ def _generate_install_script(user_id):
         conn.execute("UPDATE users SET miner_rpc_pass=? WHERE id=?", (miner_rpc_pass, user_id))
         conn.commit()
         conn.close()
-    # Issue a long-lived token (7 days) specifically for the install script
+    # Issue a long-lived token (7 days) specifically for the install script.
+    # SNTI SECURITY FIX (2 Jul 2026): scope="installer" restricts this token
+    # (embedded in plaintext in a downloadable .sh file, easy to leak/share)
+    # to only the miner heartbeat/watch endpoints -- see jwt_required_full.
+    # It can NEVER be used to read balance, send funds, export the private
+    # key, download the backup, change the password, or mint another token.
     payload = {
         "sub": user_id,
         "usr": username,
+        "scope": "installer",
         "exp": int(time.time()) + 7 * 24 * 3600
     }
     script_token = pyjwt.encode(payload, JWT_SECRET, algorithm="HS256")
@@ -899,21 +1007,22 @@ echo ""
 # -- 1. Dependencies
 inf "Installing dependencies..."
 sudo apt-get update -qq 2>/dev/null || true
-sudo apt-get install -y -qq libevent-dev libssl-dev curl python3 2>/dev/null || \\
+sudo apt-get install -y -qq libevent-dev libssl-dev libminiupnpc-dev libnatpmp-dev libsqlite3-0 curl python3 2>/dev/null || \\
   err "apt install failed — run as sudo or check internet connection"
 ok "Dependencies installed"
 
 # -- 2. Download binaries
 inf "Downloading SNTI node binaries..."
 mkdir -p "$INSTALL_DIR" || err "Cannot create $INSTALL_DIR — check permissions"
-if [ -x "$INSTALL_DIR/bitcoind" ] && [ -x "$INSTALL_DIR/bitcoin-cli" ]; then
+if [ -x "$INSTALL_DIR/bitcoind" ] && [ -x "$INSTALL_DIR/bitcoin-cli" ] && "$INSTALL_DIR/bitcoind" -version >/dev/null 2>&1; then
   ok "Binaries already exist, skipping download"
 else
   FREE_MB=$(df -m "$INSTALL_DIR" | awk 'NR==2{{print $4}}')
   [ "${{FREE_MB:-0}}" -lt 500 ] && err "Not enough disk space (need 500MB free, have ${{FREE_MB}}MB at $INSTALL_DIR)"
   _download() {{
     local url="$1" dest="$2" label="$3"
-    pkill -f "$dest" 2>/dev/null; sleep 1
+    pkill -f "$dest" >/dev/null 2>&1 || true
+    sleep 1
     rm -f "$dest"
     curl -fSL --progress-bar "$url" -o "$dest" || {{ rm -f "$dest"; err "Failed to download $label (disk full? try: df -h)"; }}
   }}
@@ -1047,7 +1156,7 @@ done
     )
 
 @app.route("/api/wallet/change-password", methods=["POST"])
-@jwt_required
+@jwt_required_full
 def wallet_change_password():
     data = request.get_json(silent=True) or {}
     old_pw = data.get("old_password") or ""
@@ -1072,7 +1181,7 @@ def wallet_change_password():
     return jsonify({"ok": True, "message": "Password berhasil diubah"})
 
 @app.route("/api/wallet/export-key")
-@jwt_required
+@jwt_required_full
 def wallet_export_key():
     conn = sqlite3.connect(DB_PATH)
     row = conn.execute(
@@ -1099,7 +1208,7 @@ def wallet_export_key():
     })
 
 @app.route("/api/wallet/backup-file")
-@jwt_required
+@jwt_required_full
 def wallet_backup_file():
     conn = sqlite3.connect(DB_PATH)
     row = conn.execute(

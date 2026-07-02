@@ -38,6 +38,7 @@
 #include <util/strencodings.h>
 #include <util/string.h>
 #include <util/time.h>
+#include <xmss_tree_ledger.h>
 #include <util/translation.h>
 #include <validation.h>
 #include <validationinterface.h>
@@ -171,6 +172,19 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
                 LogPrintf("PoUW v2: failed to save initial state\n");
                 return false;
             }
+            // SNTI fix (1 Jul 2026): register this tree in the unified
+            // leaf ledger so wallet spend-signing can later claim leaves
+            // from it safely, coordinated with mining via the same file
+            // and lock (see xmss_tree_ledger.h for the bug this closes).
+            if (!PoUWv2::XMSSTreeLedgerInit(datadir, state)) {
+                LogPrintf("PoUW v2: failed to init unified ledger for new tree\n");
+                return false;
+            }
+        } else if (!PoUWv2::XMSSTreeLedgerExists(datadir, state.xmssRoot)) {
+            // Tree predates the unified ledger. Adopt its current (miner-
+            // authoritative) leaf position as-is; no-ops if a ledger
+            // already exists so this never clobbers real progress.
+            PoUWv2::XMSSTreeLedgerSeedFromActive(datadir, state);
         }
 
         // Preimage signed by miner must match CheckPoUW in validation.cpp.
@@ -255,24 +269,54 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
                     LogPrintf("PoUW v2: tree exhausted, building new tree\n");
                     if (!PoUWv2::BuildNewTree(state)) break;
                     if (!state_mgr.Save(state)) break;
+                    if (!PoUWv2::XMSSTreeLedgerInit(datadir, state)) break;
                     continue;
                 }
 
-                uint32_t leaf_used = state.nextLeafIndex;
-                if (!PoUWv2::SignWithState(state, preimage_hash.begin(), *proof_ptr)) {
-                    LogPrintf("PoUW v2: SignWithState failed at leaf %u\n", leaf_used);
-                    break;
+                // SNTI fix (1 Jul 2026): sign through the unified ledger
+                // instead of this function's local `state` copy directly.
+                // This is the ONE claim path shared with wallet spend-
+                // signing (wallet/xmss_signer.cpp SignXMSS), so a leaf can
+                // never be double-claimed by mining and a wallet spend
+                // racing each other. Fsyncs to disk before returning.
+                std::vector<uint8_t> hash32(preimage_hash.begin(), preimage_hash.end());
+                std::vector<uint8_t> raw_sig;
+                uint32_t leaf_used = 0;
+                if (!PoUWv2::XMSSTreeLedgerClaimAndSign(datadir, state.xmssRoot, hash32, raw_sig, leaf_used)) {
+                    LogPrintf("PoUW v2: unified ledger sign refused for root=%s (exhausted, "
+                              "blacklisted, or I/O error) -- rotating to a new tree\n",
+                              state.xmssRoot.GetHex().substr(0, 16));
+                    if (!PoUWv2::BuildNewTree(state)) break;
+                    if (!state_mgr.Save(state)) break;
+                    if (!PoUWv2::XMSSTreeLedgerInit(datadir, state)) break;
+                    continue;
                 }
 
-                // Save state immediately setelah sign (leaf index sudah increment).
-                // WOTS+ is one-time: if save fails, the leaf index on disk stays at N,
-                // so the next call would reuse leaf N with a different message —
-                // catastrophic WOTS+ key reuse. Abort mining instead of returning
-                // a block that would corrupt state.
-                if (!state_mgr.Save(state)) {
-                    LogPrintf("PoUW v2: CRITICAL: failed to save state after sign! Aborting to prevent WOTS+ leaf reuse.\n");
-                    break;
+                // raw_sig format: [idx(4) | R(32) | WOTS_sig(2144) | auth_path(320)]
+                {
+                    size_t off = 4; // skip leaf index prefix
+                    memcpy(proof.r,         raw_sig.data() + off, PoUWv2::R_BYTES);        off += PoUWv2::R_BYTES;
+                    memcpy(proof.wots_sig,  raw_sig.data() + off, PoUWv2::WOTS_SIG_BYTES); off += PoUWv2::WOTS_SIG_BYTES;
+                    memcpy(proof.auth_path, raw_sig.data() + off, PoUWv2::AUTH_PATH_BYTES);
+
+                    // PUB_SEED/root are static for a tree's whole lifetime
+                    // (only the leaf/BDS-traversal state changes per sign),
+                    // so reading them from this call's locally-held `state`
+                    // copy is still valid even though the ledger -- not this
+                    // copy -- was the one that actually advanced the leaf.
+                    xmss_params params;
+                    xmss_parse_oid(&params, PoUWv2::XMSS_OID);
+                    size_t sk_pubseed_off = 4 + params.index_bytes + params.n + params.n + params.n;
+                    memcpy(proof.xmss_pk,      state.xmssRoot.begin(), 32);
+                    memcpy(proof.xmss_pk + 32, state.sk.data() + sk_pubseed_off, params.n);
                 }
+
+                // Keep the local pointer file's leaf counter in sync too, for
+                // this loop's own exhaustion/logging checks -- the ledger
+                // file, not this copy, remains the safety-critical source of
+                // truth for whether a leaf may be claimed.
+                state.nextLeafIndex = leaf_used + 1;
+                state_mgr.Save(state);
 
                 // Set block fields
                 block.xmssRoot   = state.xmssRoot;
@@ -332,6 +376,7 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
                     break;
                 }
                 if (!state_mgr.Save(state)) break;
+                if (!PoUWv2::XMSSTreeLedgerInit(datadir, state)) break;
                 --max_tries;
                 ++trees_this_call;
             }

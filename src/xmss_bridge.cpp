@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Quant developers
+// Copyright (c) 2025 The Assentian-PQE developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -327,6 +327,43 @@ void CXMSSKey::Clear()
     m_sk_len = 0;
 
     m_has_key = false;
+}
+
+namespace {
+void LocalSecureClear(void* ptr, size_t len)
+{
+    if (ptr && len > 0) {
+        volatile unsigned char* p = static_cast<volatile unsigned char*>(ptr);
+        while (len--) {
+            *p++ = 0;
+        }
+    }
+}
+} // anonymous namespace
+
+bool ComputeRootFromSeed(const std::vector<uint8_t>& seed96, std::vector<uint8_t>& out_root)
+{
+    if (seed96.size() != 96) return false;
+
+    uint32_t oid = XMSS_OID_SHA2_10_256;
+    xmss_params params;
+    if (xmss_parse_oid(&params, oid) != 0) return false;
+
+    size_t sk_buf_size = 4 + params.sk_bytes;
+    size_t pk_buf_size = 4 + params.pk_bytes;
+
+    std::vector<uint8_t> pk(pk_buf_size, 0);
+    std::vector<uint8_t> sk(sk_buf_size, 0);
+    std::vector<uint8_t> seed_copy(seed96); // xmss_seed_keypair() takes non-const seed
+
+    int ret = xmss_seed_keypair(pk.data(), sk.data(), oid, seed_copy.data());
+    LocalSecureClear(sk.data(), sk.size());
+    LocalSecureClear(seed_copy.data(), seed_copy.size());
+    if (ret != 0) return false;
+
+    // pk format: [OID(4) | root(32) | PUB_SEED(32)] -- root starts right after OID
+    out_root.assign(pk.begin() + 4, pk.begin() + 4 + 32);
+    return true;
 }
 
 } // namespace XMSS

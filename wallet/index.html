@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="icon" type="image/svg+xml" href="/snti-coin.svg"><link rel="shortcut icon" href="/snti-coin.svg">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SNTI Wallet — Assentian-PQE</title>
@@ -37,6 +38,10 @@ nav a:hover{color:var(--text)}
 .d-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px}
 .d-header .greeting{font-size:16px;color:var(--dim)}
 .d-header .greeting strong{color:var(--text)}
+.xmss-warn-banner{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:12px;color:var(--orange);line-height:1.7;display:flex;gap:10px;align-items:flex-start}
+.xmss-warn-banner b{color:var(--red)}
+.xmss-warn-banner .xwb-close{background:none;border:none;color:var(--dim);cursor:pointer;font-size:16px;line-height:1;padding:0 4px;margin-left:auto;flex-shrink:0}
+.xmss-warn-banner .xwb-close:hover{color:var(--text)}
 .balance-card{background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);border:1px solid var(--border);border-radius:16px;padding:32px;margin-bottom:24px;text-align:center}
 .balance-card .label{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
 .balance-card .amount{font-size:48px;font-weight:800;color:var(--accent)}
@@ -190,6 +195,21 @@ nav a:hover{color:var(--text)}
       </div>
     </div>
 
+    <!-- XMSS one-time-key warning -->
+    <div class="xmss-warn-banner" id="xmssWarnBanner" style="display:none">
+      <span>⚠️</span>
+      <div>
+        <b>Penting soal private key XMSS:</b> tiap address cuma aman dipakai signing <b>satu kali</b>. Kalau kamu export key ini (lewat "Download Backup" atau "Lihat Private Key" di bawah) dan pakai di node/wallet lain, <b>jangan pernah jalankan lebih dari satu tempat sekaligus</b> untuk address yang sama — dua tanda tangan dari key yang sama bisa membongkar private key-nya dan koin bisa dicuri. Ini <b>tidak terdeteksi oleh blockchain</b> untuk transaksi kirim biasa (leaf-reuse cuma dicek untuk proof mining).
+      </div>
+      <button class="xwb-close" onclick="dismissXmssWarn()" title="Tutup">✕</button>
+    </div>
+
+    <!-- Retired/blacklisted address warning (dynamic, from backend) -->
+    <div class="xmss-warn-banner" id="retiredWarnBanner" style="display:none;background:rgba(239,68,68,.15)">
+      <span>🔒</span>
+      <div id="retiredWarnText"></div>
+    </div>
+
     <!-- Change Password (collapsible) -->
     <div class="chpw-form" id="chpwForm">
       <div style="font-size:13px;font-weight:700;margin-bottom:12px">Ganti Password</div>
@@ -246,7 +266,7 @@ nav a:hover{color:var(--text)}
         <h3>Send SNTI</h3>
         <div class="field"><label>To Address (snti1...)</label><input type="text" id="sendTo" placeholder="snti1z..."></div>
         <div class="field"><label>Amount (SNTI)</label><input type="number" id="sendAmt" placeholder="0.00000000" step="0.00000001" min="0"></div>
-        <button class="btn" onclick="doSend()">Send</button>
+        <button class="btn" id="sendBtn" onclick="doSend()">Send</button>
         <div class="send-result" id="sendResult"></div>
       </div>
 
@@ -376,6 +396,21 @@ async function loadBalance() {
   const immature = res.immature || 0;
   document.getElementById('dBalance').textContent = total.toFixed(8);
 
+  // Retired/blacklisted address: warn clearly and block sending instead of
+  // letting the user hit a raw RPC error after the fact.
+  const retiredBanner = document.getElementById('retiredWarnBanner');
+  const sendBtn = document.getElementById('sendBtn');
+  if (res.retired) {
+    document.getElementById('retiredWarnText').innerHTML =
+      `<b>Address ini sudah tidak bisa mengirim (retired):</b> ${res.warning || 'key sudah terpakai atau di-blacklist demi keamanan'}. ` +
+      `Saldo yang sudah pernah dikirim tetap aman diterima, tapi untuk mengirim dana Anda perlu address baru — hubungi admin bila ada saldo yang tampak tersangkut.`;
+    retiredBanner.style.display = 'flex';
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.title = 'Address ini retired, tidak bisa mengirim'; }
+  } else {
+    retiredBanner.style.display = 'none';
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.title = ''; }
+  }
+
   // Detail row: mature + immature
   const det = document.getElementById('balanceDetail');
   if (total > 0) {
@@ -430,6 +465,12 @@ async function doSend() {
   } else {
     el.className = 'send-result ok';
     el.textContent = 'Sent! txid: ' + res.txid;
+    if (res.new_address) {
+      // Backend auto-rotated to a fresh address (XMSS one-time-use) after this send.
+      userData.address = res.new_address;
+      document.getElementById('dAddr').textContent = res.new_address;
+      el.textContent += '\n' + (res.note || '');
+    }
     loadBalance(); loadUTXOs();
   }
 }
@@ -635,11 +676,19 @@ async function showDashboard() {
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('dUser').textContent = userData.username;
   document.getElementById('dAddr').textContent = userData.address || '—';
+  if (localStorage.getItem('snti_xmss_warn_dismissed') !== '1') {
+    document.getElementById('xmssWarnBanner').style.display = 'flex';
+  }
   loadBalance();
   loadUTXOs();
   loadWatches();
   loadMinerStatus();
   setInterval(loadMinerStatus, 30000);
+}
+
+function dismissXmssWarn() {
+  localStorage.setItem('snti_xmss_warn_dismissed', '1');
+  document.getElementById('xmssWarnBanner').style.display = 'none';
 }
 
 let _minerStatusInterval = null;

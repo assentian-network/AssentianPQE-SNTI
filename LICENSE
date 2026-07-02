@@ -14,13 +14,19 @@ Change License:   GPL-2.0-or-later
 - Mine blocks on the Assentian-PQE testnet or mainnet
 - Contribute improvements via pull request
 - Build non-commercial tools, wallets, and experiments on top of this codebase
+- Operate a public or private mining pool that mines against the live
+  Assentian-PQE (SNTI) network, including running a stratum server,
+  charging pool fees, and onboarding third-party miners
 
 ## What you CANNOT do (without written permission from the Licensor)
 
 - Launch a competing PQ-PoW cryptocurrency using this codebase
-- Operate a commercial mining pool based on this code
+- Fork, relicense, or repackage this codebase's mining/stratum
+  components to sell as a standalone commercial mining-pool product
+  or service (e.g. white-labeling this code for other coins)
 - List a forked coin derived from this codebase on any exchange
-- Use Assentian-PQE's XMSS-PoUW integration in a commercial product or service
+- Use Assentian-PQE's XMSS-PoUW integration in a commercial product
+  or service unrelated to operating against the genuine SNTI network
 
 ## After the Change Date (June 15, 2030)
 
@@ -37,5 +43,5 @@ and related infrastructure) are covered by this BSL-1.1 license.
 
 ## Contact
 
-For licensing inquiries: assentianpqe@gmail.com (replace with actual email)
-GitHub: https://github.com/asepganzu-svg/AssentianPQE-SNTI
+For licensing inquiries: admin@assentian.network
+GitHub: https://github.com/assentian-network/snti

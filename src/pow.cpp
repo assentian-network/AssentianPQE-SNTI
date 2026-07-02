@@ -41,10 +41,45 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     // instead of the ~30 blocks the old 4× clamp would have required.
     int64_t real_elapsed = pblock->GetBlockTime() - pindexLast->GetBlockTime();
     if (real_elapsed > params.nPowTargetSpacing * 10) {
-        // Force actual_spacing = 20 × target_spacing (EMA upper clamp after fix)
-        int64_t nFirstBlockTimeStuck =
-            pindexLast->GetBlockTime() - params.nPowTargetSpacing * 20;
-        return CalculateNextWorkRequired(pindexLast, nFirstBlockTimeStuck, params);
+        // SNTI SECURITY FIX (audit KRITIS #5, 2 Jul 2026): pblock->GetBlockTime()
+        // is chosen entirely by whoever mines this block, bounded only by the
+        // ordinary consensus timestamp rules (> median-time-past, <= adjusted
+        // time + 2h). Trusting a single such value as proof the chain was
+        // "stuck" let any miner who found just one block set its timestamp
+        // ~601s ahead of the tip and force this 20x crash on demand, repeatable
+        // every time they won a block.
+        //
+        // Fix: require the last STUCK_CONFIRM_BLOCKS-1 *already-confirmed*
+        // inter-block gaps to also look stuck before granting the full jump.
+        // Those prior gaps are immutable history nobody -- not even this
+        // block's author -- can retroactively alter; reproducing the pattern
+        // requires having actually mined that many consecutive blocks, the
+        // same majority-hashrate assumption every PoW difficulty algorithm
+        // already relies on. A genuine multi-hour outage satisfies this
+        // immediately on the first recovered block (every recent real gap was
+        // slow), so legitimate recovery speed is unaffected. Gated behind an
+        // activation height so already-mined history stays valid.
+        bool confirmed = true;
+        if (pindexLast->nHeight + 1 >= params.nPoUWStuckRecoveryHardenHeight) {
+            constexpr int STUCK_CONFIRM_BLOCKS = 3;
+            const CBlockIndex* p = pindexLast;
+            for (int i = 0; i < STUCK_CONFIRM_BLOCKS - 1; i++) {
+                if (!p->pprev) { confirmed = false; break; }
+                int64_t prior_gap = p->GetBlockTime() - p->pprev->GetBlockTime();
+                if (prior_gap <= params.nPowTargetSpacing * 10) { confirmed = false; break; }
+                p = p->pprev;
+            }
+        }
+        if (confirmed) {
+            // Force actual_spacing = 20 × target_spacing (EMA upper clamp after fix)
+            int64_t nFirstBlockTimeStuck =
+                pindexLast->GetBlockTime() - params.nPowTargetSpacing * 20;
+            return CalculateNextWorkRequired(pindexLast, nFirstBlockTimeStuck, params);
+        }
+        // Not corroborated by prior (immutable) history -- fall through to the
+        // normal 3-block moving average below, which dilutes a single
+        // attacker-controlled timestamp across 3 blocks instead of reacting to
+        // it directly.
     }
 
     // SNTI M5: 3-block moving average to dampen oscillation on small networks.

@@ -118,6 +118,18 @@ private:
     static void SecureClear(void* ptr, size_t len);
 };
 
+/**
+ * SNTI PoUW v2 (audit T-1): rebuild the XMSS root deterministically from a
+ * claimed 96-byte seed [SK_SEED(32) | SK_PRF(32) | PUB_SEED(32)].
+ * Used by consensus validation to confirm a Failed-Seed-List entry's
+ * xmss_root actually derives from its claimed sk_seed (not an arbitrary
+ * value submitted by a dishonest miner).
+ * @param seed96    96-byte seed material
+ * @param out_root  Output: 32-byte computed XMSS root
+ * @return true on success, false on failure
+ */
+bool ComputeRootFromSeed(const std::vector<uint8_t>& seed96, std::vector<uint8_t>& out_root);
+
 } // namespace XMSS
 
 #endif // BITCOIN_XMSS_BRIDGE_H

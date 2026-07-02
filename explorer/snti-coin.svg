@@ -1,0 +1,494 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<defs>
+
+  <!-- Outer rim: gold-purple metallic -->
+  <radialGradient id="rimGrad" cx="35%" cy="28%" r="72%">
+    <stop offset="0%"   stop-color="#8a6f20"/>
+    <stop offset="25%"  stop-color="#c9920a"/>
+    <stop offset="50%"  stop-color="#7a5010"/>
+    <stop offset="75%"  stop-color="#2a1a60"/>
+    <stop offset="100%" stop-color="#0d0828"/>
+  </radialGradient>
+
+  <!-- Rim bevel: gold highlight top-left, dark bottom-right -->
+  <linearGradient id="rimBevel" x1="10%" y1="5%" x2="90%" y2="95%">
+    <stop offset="0%"   stop-color="#ffe066" stop-opacity="1"/>
+    <stop offset="20%"  stop-color="#d4920e" stop-opacity="0.9"/>
+    <stop offset="55%"  stop-color="#5030a0" stop-opacity="0.7"/>
+    <stop offset="100%" stop-color="#08051e" stop-opacity="1"/>
+  </linearGradient>
+
+  <!-- Inner face: dark navy with purple glow -->
+  <radialGradient id="faceGrad" cx="38%" cy="30%" r="70%">
+    <stop offset="0%"   stop-color="#3a2880"/>
+    <stop offset="35%"  stop-color="#1c1255"/>
+    <stop offset="70%"  stop-color="#0e0938"/>
+    <stop offset="100%" stop-color="#060418"/>
+  </radialGradient>
+
+  <!-- S letter: high-contrast gold metallic -->
+  <linearGradient id="sMetalGrad" x1="5%" y1="0%" x2="95%" y2="100%">
+    <stop offset="0%"   stop-color="#ffffff"/>
+    <stop offset="8%"   stop-color="#fff3a0"/>
+    <stop offset="20%"  stop-color="#ffd030"/>
+    <stop offset="32%"  stop-color="#7040d0"/>
+    <stop offset="42%"  stop-color="#200e60"/>
+    <stop offset="52%"  stop-color="#7040d0"/>
+    <stop offset="64%"  stop-color="#ffc820"/>
+    <stop offset="80%"  stop-color="#fff080"/>
+    <stop offset="92%"  stop-color="#c88800"/>
+    <stop offset="100%" stop-color="#7a5000"/>
+  </linearGradient>
+
+  <!-- S inner highlight (top-left bright) -->
+  <linearGradient id="sHighlight" x1="0%" y1="0%" x2="60%" y2="60%">
+    <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.45"/>
+    <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+  </linearGradient>
+
+  <!-- SNTI text: gold metallic -->
+  <linearGradient id="sntiGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+    <stop offset="0%"   stop-color="#fff0a0"/>
+    <stop offset="30%"  stop-color="#f5c518"/>
+    <stop offset="60%"  stop-color="#b07800"/>
+    <stop offset="100%" stop-color="#ffe566"/>
+  </linearGradient>
+
+  <!-- Arc text: bright gold -->
+  <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%"   stop-color="#ffe566"/>
+    <stop offset="50%"  stop-color="#ffffff"/>
+    <stop offset="100%" stop-color="#ffe566"/>
+  </linearGradient>
+
+  <!-- Rim circuit gold glow -->
+  <linearGradient id="circuitGold" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%"   stop-color="#ffd844"/>
+    <stop offset="100%" stop-color="#c88a00"/>
+  </linearGradient>
+
+  <!-- Shine overlay top-left -->
+  <radialGradient id="shineGrad" cx="30%" cy="22%" r="55%">
+    <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.30"/>
+    <stop offset="60%"  stop-color="#ffe88a" stop-opacity="0.08"/>
+    <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+  </radialGradient>
+
+  <!-- S glow: soft halo only, edges stay sharp -->
+  <filter id="sGlow" x="-15%" y="-15%" width="130%" height="130%">
+    <feGaussianBlur stdDeviation="6" result="halo"/>
+    <feMerge>
+      <feMergeNode in="halo"/>
+      <feMergeNode in="SourceGraphic"/>
+    </feMerge>
+  </filter>
+
+  <!-- Gold circuit glow -->
+  <filter id="goldGlow" x="-8%" y="-8%" width="116%" height="116%">
+    <feGaussianBlur stdDeviation="3" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+
+  <!-- Full coin drop shadow -->
+  <filter id="coinDrop" x="-14%" y="-10%" width="128%" height="128%">
+    <feDropShadow dx="0" dy="10" stdDeviation="22" flood-color="#030110" flood-opacity="0.95"/>
+  </filter>
+
+  <!-- Arc text paths -->
+  <path id="topArc"    d="M 82,256  A 174,174 0 0,1 430,256" fill="none"/>
+  <path id="bottomArc" d="M 72,310  A 194,194 0 0,0 440,310" fill="none"/>
+  <!-- SNTI bottom arc: follows inner face curve near bottom rim -->
+  <path id="sntiArc"   d="M 96,309  A 196,196 0 0,0 416,309" fill="none"/>
+
+  <!-- Node network soft glow -->
+  <filter id="nodeGlow" x="-60%" y="-60%" width="220%" height="220%">
+    <feGaussianBlur stdDeviation="4" result="glow"/>
+    <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+
+  <!-- Star sparkle wide glow -->
+  <filter id="starGlow" x="-200%" y="-200%" width="500%" height="500%">
+    <feGaussianBlur stdDeviation="5.5" result="glow"/>
+    <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+
+  <!-- Clip to inner coin face -->
+  <clipPath id="faceClip">
+    <circle cx="256" cy="256" r="207"/>
+  </clipPath>
+
+  <!-- Clip to S letter shape for gold stripes — must match S group transform -->
+  <clipPath id="sClip">
+    <text x="256" y="344"
+          font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+          font-size="310" font-weight="900" text-anchor="middle"
+          transform="translate(256,0) scale(0.76,1) translate(-256,0)">S</text>
+  </clipPath>
+
+</defs>
+
+<!-- ===== COIN BODY ===== -->
+<circle cx="256" cy="256" r="248" fill="url(#rimGrad)" filter="url(#coinDrop)"/>
+
+<!-- Outer rim strokes: gold + dark bevel -->
+<circle cx="256" cy="256" r="248" fill="none" stroke="url(#rimBevel)"  stroke-width="5"/>
+<circle cx="256" cy="256" r="244" fill="none" stroke="#ffd030"         stroke-width="1.2" opacity="0.7"/>
+<circle cx="256" cy="256" r="240" fill="none" stroke="#5030a0"         stroke-width="1"   opacity="0.5"/>
+<circle cx="256" cy="256" r="235" fill="none" stroke="#c88a00"         stroke-width="1.5" opacity="0.6"/>
+<circle cx="256" cy="256" r="229" fill="none" stroke="#3a2070"         stroke-width="1"   opacity="0.7"/>
+<circle cx="256" cy="256" r="223" fill="none" stroke="#d4a020"         stroke-width="0.8" opacity="0.4"/>
+<circle cx="256" cy="256" r="218" fill="none" stroke="#1e1250"         stroke-width="1.5" opacity="0.8"/>
+
+<!-- ===== CIRCUIT BOARD TRACES (gold) ===== -->
+<g fill="none" filter="url(#goldGlow)" opacity="0.75">
+  <!-- Top arc trace -->
+  <path d="M 172,46 A 216,216 0 0,1 340,46" stroke="#c88a00" stroke-width="1.8"/>
+  <circle cx="172" cy="46"  r="4"   fill="#ffd844"/>
+  <circle cx="340" cy="46"  r="4"   fill="#ffd844"/>
+  <circle cx="256" cy="36"  r="3.5" fill="#ffe566"/>
+
+  <!-- Bottom arc trace -->
+  <path d="M 172,466 A 216,216 0 0,0 340,466" stroke="#c88a00" stroke-width="1.8"/>
+  <circle cx="172" cy="466" r="4"   fill="#ffd844"/>
+  <circle cx="340" cy="466" r="4"   fill="#ffd844"/>
+  <circle cx="256" cy="476" r="3.5" fill="#ffe566"/>
+
+  <!-- Right arc trace -->
+  <path d="M 466,172 A 216,216 0 0,1 466,340" stroke="#c88a00" stroke-width="1.8"/>
+  <circle cx="466" cy="172" r="4"   fill="#ffd844"/>
+  <circle cx="466" cy="340" r="4"   fill="#ffd844"/>
+
+  <!-- Left arc trace -->
+  <path d="M 46,172 A 216,216 0 0,0 46,340" stroke="#c88a00" stroke-width="1.8"/>
+  <circle cx="46"  cy="172" r="4"   fill="#ffd844"/>
+  <circle cx="46"  cy="340" r="4"   fill="#ffd844"/>
+
+  <!-- Corner diagonal connector dots -->
+  <circle cx="124" cy="86"  r="3" fill="#ffc800"/>
+  <circle cx="388" cy="86"  r="3" fill="#ffc800"/>
+  <circle cx="124" cy="426" r="3" fill="#ffc800"/>
+  <circle cx="388" cy="426" r="3" fill="#ffc800"/>
+
+  <!-- Small corner lines -->
+  <line x1="124" y1="86"  x2="140" y2="100" stroke="#c88a00" stroke-width="1.5"/>
+  <line x1="388" y1="86"  x2="372" y2="100" stroke="#c88a00" stroke-width="1.5"/>
+  <line x1="124" y1="426" x2="140" y2="412" stroke="#c88a00" stroke-width="1.5"/>
+  <line x1="388" y1="426" x2="372" y2="412" stroke="#c88a00" stroke-width="1.5"/>
+
+  <!-- Cardinal tick marks -->
+  <line x1="256" y1="10"  x2="256" y2="30"  stroke="#ffd030" stroke-width="2.5"/>
+  <line x1="256" y1="482" x2="256" y2="502" stroke="#ffd030" stroke-width="2.5"/>
+  <line x1="10"  y1="256" x2="30"  y2="256" stroke="#ffd030" stroke-width="2.5"/>
+  <line x1="482" y1="256" x2="502" y2="256" stroke="#ffd030" stroke-width="2.5"/>
+</g>
+
+<!-- ===== INNER FACE ===== -->
+<circle cx="256" cy="256" r="210" fill="url(#faceGrad)"/>
+
+<!-- Inner face rings -->
+<circle cx="256" cy="256" r="210" fill="none" stroke="#6040c0"  stroke-width="2"   opacity="0.8"/>
+<circle cx="256" cy="256" r="206" fill="none" stroke="#ffc820"  stroke-width="0.8" opacity="0.3"/>
+<circle cx="256" cy="256" r="200" fill="none" stroke="#3020a0"  stroke-width="1"   opacity="0.6"/>
+<circle cx="256" cy="256" r="194" fill="none" stroke="#c88000"  stroke-width="0.6" opacity="0.25"/>
+
+<!-- ===== CONSTELLATION BACKGROUND ===== -->
+<g clip-path="url(#faceClip)">
+
+  <!-- Constellation lines — thin blue-white -->
+  <g stroke="#a0b8f0" stroke-width="0.9" fill="none" opacity="0.6">
+    <!-- Top cluster (Gemini-like) -->
+    <line x1="230" y1="108" x2="256" y2="96"/>
+    <line x1="256" y1="96"  x2="282" y2="108"/>
+    <line x1="230" y1="108" x2="244" y2="132"/>
+    <line x1="282" y1="108" x2="268" y2="132"/>
+    <line x1="244" y1="132" x2="268" y2="132"/>
+    <!-- Left cluster (Cassiopeia W) -->
+    <line x1="118" y1="190" x2="133" y2="172"/>
+    <line x1="133" y1="172" x2="150" y2="184"/>
+    <line x1="150" y1="184" x2="164" y2="168"/>
+    <line x1="164" y1="168" x2="178" y2="182"/>
+    <!-- Right cluster (mirrored) -->
+    <line x1="334" y1="182" x2="348" y2="168"/>
+    <line x1="348" y1="168" x2="362" y2="184"/>
+    <line x1="362" y1="184" x2="379" y2="172"/>
+    <line x1="379" y1="172" x2="394" y2="190"/>
+    <!-- Bottom Southern-cross -->
+    <line x1="256" y1="418" x2="256" y2="446"/>
+    <line x1="238" y1="432" x2="274" y2="432"/>
+    <line x1="238" y1="432" x2="248" y2="418"/>
+    <line x1="274" y1="432" x2="264" y2="418"/>
+  </g>
+
+  <!-- Tiny scattered background stars -->
+  <g fill="#c0d0ff" opacity="0.7">
+    <circle cx="170" cy="232" r="1.4"/>
+    <circle cx="342" cy="232" r="1.4"/>
+    <circle cx="178" cy="148" r="1.4"/>
+    <circle cx="334" cy="148" r="1.4"/>
+    <circle cx="195" cy="402" r="1.4"/>
+    <circle cx="317" cy="402" r="1.4"/>
+    <circle cx="116" cy="310" r="1.3"/>
+    <circle cx="396" cy="310" r="1.3"/>
+    <circle cx="142" cy="356" r="1.2"/>
+    <circle cx="370" cy="356" r="1.2"/>
+    <circle cx="164" cy="432" r="1.2"/>
+    <circle cx="348" cy="432" r="1.2"/>
+    <circle cx="210" cy="100" r="1.3"/>
+    <circle cx="302" cy="100" r="1.3"/>
+    <circle cx="130" cy="138" r="1.2"/>
+    <circle cx="382" cy="138" r="1.2"/>
+  </g>
+
+  <!-- Medium stars with soft glow -->
+  <g fill="#ddeeff" filter="url(#starGlow)" opacity="0.85">
+    <circle cx="244" cy="132" r="2.2"/>
+    <circle cx="268" cy="132" r="2.2"/>
+    <circle cx="133" cy="172" r="2"/>
+    <circle cx="150" cy="184" r="2"/>
+    <circle cx="164" cy="168" r="2"/>
+    <circle cx="348" cy="168" r="2"/>
+    <circle cx="362" cy="184" r="2"/>
+    <circle cx="379" cy="172" r="2"/>
+    <circle cx="238" cy="432" r="2.2"/>
+    <circle cx="274" cy="432" r="2.2"/>
+    <circle cx="248" cy="418" r="2"/>
+    <circle cx="264" cy="418" r="2"/>
+  </g>
+
+  <!-- Bright main stars with sparkle cross -->
+  <g filter="url(#starGlow)">
+    <!-- Top bright trio -->
+    <g transform="translate(230,108)" fill="white" stroke="white" stroke-width="0.8">
+      <circle r="3"/>
+      <line x1="0" y1="-9"  x2="0" y2="9"  opacity="0.5"/>
+      <line x1="-9" y1="0" x2="9" y2="0"  opacity="0.5"/>
+    </g>
+    <g transform="translate(256,96)" fill="white" stroke="white" stroke-width="1">
+      <circle r="4"/>
+      <line x1="0" y1="-11" x2="0" y2="11" opacity="0.5"/>
+      <line x1="-11" y1="0" x2="11" y2="0" opacity="0.5"/>
+    </g>
+    <g transform="translate(282,108)" fill="white" stroke="white" stroke-width="0.8">
+      <circle r="3"/>
+      <line x1="0" y1="-9"  x2="0" y2="9"  opacity="0.5"/>
+      <line x1="-9" y1="0" x2="9" y2="0"  opacity="0.5"/>
+    </g>
+    <!-- Left cluster ends -->
+    <g transform="translate(118,190)" fill="#b8d0ff" stroke="#b8d0ff" stroke-width="0.8">
+      <circle r="2.8"/>
+      <line x1="0" y1="-8" x2="0" y2="8" opacity="0.5"/>
+      <line x1="-8" y1="0" x2="8" y2="0" opacity="0.5"/>
+    </g>
+    <g transform="translate(178,182)" fill="#b8d0ff" stroke="#b8d0ff" stroke-width="0.8">
+      <circle r="2.8"/>
+      <line x1="0" y1="-8" x2="0" y2="8" opacity="0.5"/>
+      <line x1="-8" y1="0" x2="8" y2="0" opacity="0.5"/>
+    </g>
+    <!-- Right cluster ends -->
+    <g transform="translate(334,182)" fill="#b8d0ff" stroke="#b8d0ff" stroke-width="0.8">
+      <circle r="2.8"/>
+      <line x1="0" y1="-8" x2="0" y2="8" opacity="0.5"/>
+      <line x1="-8" y1="0" x2="8" y2="0" opacity="0.5"/>
+    </g>
+    <g transform="translate(394,190)" fill="#b8d0ff" stroke="#b8d0ff" stroke-width="0.8">
+      <circle r="2.8"/>
+      <line x1="0" y1="-8" x2="0" y2="8" opacity="0.5"/>
+      <line x1="-8" y1="0" x2="8" y2="0" opacity="0.5"/>
+    </g>
+    <!-- Bottom cross center — warm gold star -->
+    <g transform="translate(256,432)" fill="#ffe8a0" stroke="#ffe8a0" stroke-width="0.9">
+      <circle r="3.5"/>
+      <line x1="0" y1="-10" x2="0" y2="10" opacity="0.5"/>
+      <line x1="-10" y1="0" x2="10" y2="0" opacity="0.5"/>
+    </g>
+    <!-- Lone top star above coin center -->
+    <g transform="translate(256,74)" fill="#fff0c0" stroke="#fff0c0" stroke-width="0.9">
+      <circle r="3"/>
+      <line x1="0" y1="-9" x2="0" y2="9" opacity="0.5"/>
+      <line x1="-9" y1="0" x2="9" y2="0" opacity="0.5"/>
+    </g>
+  </g>
+
+</g>
+
+<!-- ===== BLOCKCHAIN NODE NETWORK ===== -->
+<g clip-path="url(#faceClip)" fill="none">
+
+  <!-- Outer ring edges -->
+  <line x1="256" y1="88"  x2="174" y2="118" stroke="#5535c5" stroke-width="1.7" opacity="0.9"/>
+  <line x1="174" y1="118" x2="108" y2="256" stroke="#5535c5" stroke-width="1.7" opacity="0.9"/>
+  <line x1="108" y1="256" x2="168" y2="394" stroke="#5535c5" stroke-width="1.7" opacity="0.9"/>
+  <line x1="168" y1="394" x2="256" y2="450" stroke="#5535c5" stroke-width="1.7" opacity="0.9"/>
+  <line x1="256" y1="450" x2="344" y2="394" stroke="#5535c5" stroke-width="1.7" opacity="0.9"/>
+  <line x1="344" y1="394" x2="404" y2="256" stroke="#5535c5" stroke-width="1.7" opacity="0.9"/>
+  <line x1="404" y1="256" x2="338" y2="118" stroke="#5535c5" stroke-width="1.7" opacity="0.9"/>
+  <line x1="338" y1="118" x2="256" y2="88"  stroke="#5535c5" stroke-width="1.7" opacity="0.9"/>
+
+  <!-- Long diagonal cross connections -->
+  <line x1="256" y1="88"  x2="108" y2="256" stroke="#4828c0" stroke-width="1.3" opacity="0.72"/>
+  <line x1="338" y1="118" x2="168" y2="394" stroke="#4828c0" stroke-width="1.3" opacity="0.72"/>
+  <line x1="174" y1="118" x2="344" y2="394" stroke="#4828c0" stroke-width="1.3" opacity="0.72"/>
+  <line x1="404" y1="256" x2="256" y2="450" stroke="#4828c0" stroke-width="1.3" opacity="0.72"/>
+
+  <!-- Outer → middle connections -->
+  <line x1="256" y1="88"  x2="200" y2="158" stroke="#6840d0" stroke-width="1.6" opacity="0.9"/>
+  <line x1="256" y1="88"  x2="312" y2="158" stroke="#6840d0" stroke-width="1.6" opacity="0.9"/>
+  <line x1="174" y1="118" x2="200" y2="158" stroke="#6840d0" stroke-width="1.6" opacity="0.9"/>
+  <line x1="338" y1="118" x2="312" y2="158" stroke="#6840d0" stroke-width="1.6" opacity="0.9"/>
+  <line x1="108" y1="256" x2="144" y2="290" stroke="#6840d0" stroke-width="1.6" opacity="0.9"/>
+  <line x1="404" y1="256" x2="368" y2="290" stroke="#6840d0" stroke-width="1.6" opacity="0.9"/>
+  <line x1="168" y1="394" x2="210" y2="390" stroke="#6840d0" stroke-width="1.6" opacity="0.9"/>
+  <line x1="344" y1="394" x2="302" y2="390" stroke="#6840d0" stroke-width="1.6" opacity="0.9"/>
+
+  <!-- Middle ring edges -->
+  <line x1="200" y1="158" x2="312" y2="158" stroke="#7848d8" stroke-width="1.8" opacity="0.92"/>
+  <line x1="200" y1="158" x2="144" y2="290" stroke="#7848d8" stroke-width="1.8" opacity="0.92"/>
+  <line x1="312" y1="158" x2="368" y2="290" stroke="#7848d8" stroke-width="1.8" opacity="0.92"/>
+  <line x1="144" y1="290" x2="210" y2="390" stroke="#7848d8" stroke-width="1.8" opacity="0.92"/>
+  <line x1="368" y1="290" x2="302" y2="390" stroke="#7848d8" stroke-width="1.8" opacity="0.92"/>
+  <line x1="210" y1="390" x2="302" y2="390" stroke="#7848d8" stroke-width="1.8" opacity="0.92"/>
+
+  <!-- Middle → inner connections -->
+  <line x1="200" y1="158" x2="256" y2="200" stroke="#8a58ec" stroke-width="2.0" opacity="0.95"/>
+  <line x1="312" y1="158" x2="256" y2="200" stroke="#8a58ec" stroke-width="2.0" opacity="0.95"/>
+  <line x1="144" y1="290" x2="210" y2="240" stroke="#8a58ec" stroke-width="2.0" opacity="0.95"/>
+  <line x1="368" y1="290" x2="302" y2="240" stroke="#8a58ec" stroke-width="2.0" opacity="0.95"/>
+  <line x1="210" y1="390" x2="210" y2="240" stroke="#8a58ec" stroke-width="2.0" opacity="0.95"/>
+  <line x1="302" y1="390" x2="302" y2="240" stroke="#8a58ec" stroke-width="2.0" opacity="0.95"/>
+
+  <!-- Inner triangle — active chain highlight -->
+  <line x1="210" y1="240" x2="302" y2="240" stroke="#a878ff" stroke-width="2.6" opacity="1.0"/>
+  <line x1="210" y1="240" x2="256" y2="200" stroke="#a878ff" stroke-width="2.6" opacity="1.0"/>
+  <line x1="302" y1="240" x2="256" y2="200" stroke="#a878ff" stroke-width="2.6" opacity="1.0"/>
+
+</g>
+
+<!-- Nodes — outer ring -->
+<g opacity="0.92">
+  <circle cx="256" cy="88"  r="4.5" fill="#7050d8"/>
+  <circle cx="174" cy="118" r="4"   fill="#6040c8"/>
+  <circle cx="338" cy="118" r="4"   fill="#6040c8"/>
+  <circle cx="108" cy="256" r="4"   fill="#6040c8"/>
+  <circle cx="404" cy="256" r="4"   fill="#6040c8"/>
+  <circle cx="168" cy="394" r="4"   fill="#6040c8"/>
+  <circle cx="344" cy="394" r="4"   fill="#6040c8"/>
+  <circle cx="256" cy="450" r="4"   fill="#6040c8"/>
+</g>
+
+<!-- Nodes — middle ring -->
+<g opacity="0.97">
+  <circle cx="200" cy="158" r="5"   fill="#8860e8"/>
+  <circle cx="312" cy="158" r="5"   fill="#8860e8"/>
+  <circle cx="144" cy="290" r="5"   fill="#8860e8"/>
+  <circle cx="368" cy="290" r="5"   fill="#8860e8"/>
+  <circle cx="210" cy="390" r="5"   fill="#8860e8"/>
+  <circle cx="302" cy="390" r="5"   fill="#8860e8"/>
+</g>
+
+<!-- Nodes — inner hub (gold glow) -->
+<circle cx="210" cy="240" r="6.5" fill="#00d4aa" filter="url(#nodeGlow)" opacity="0.9"/>
+<circle cx="302" cy="240" r="6.5" fill="#00d4aa" filter="url(#nodeGlow)" opacity="0.9"/>
+<circle cx="256" cy="200" r="8"   fill="#ffd030"  filter="url(#nodeGlow)" opacity="0.95"/>
+
+<!-- ===== LETTER S ===== -->
+<g transform="translate(256,0) scale(0.76,1) translate(-256,0)">
+
+<!-- S — glow halo (behind all) -->
+<text x="256" y="344"
+  font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+  font-size="310" font-weight="900" text-anchor="middle"
+  fill="#ffc820" filter="url(#sGlow)" opacity="0.5"
+>S</text>
+
+<!-- S — deep extrude shadow (far bottom-right) -->
+<text x="272" y="358"
+  font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+  font-size="310" font-weight="900" text-anchor="middle"
+  fill="#0a0520" opacity="0.95"
+>S</text>
+
+<!-- S — near extrude (step 2) -->
+<text x="265" y="351"
+  font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+  font-size="310" font-weight="900" text-anchor="middle"
+  fill="#1a0840" opacity="0.80"
+>S</text>
+
+<!-- S — near extrude (step 3) -->
+<text x="260" y="347"
+  font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+  font-size="310" font-weight="900" text-anchor="middle"
+  fill="#2e1260" opacity="0.65"
+>S</text>
+
+<!-- S — main metallic gold-purple (sharp, no glow) -->
+<text x="256" y="344"
+  font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+  font-size="310" font-weight="900" text-anchor="middle"
+  fill="url(#sMetalGrad)"
+  stroke="#c88800" stroke-width="1.5" paint-order="stroke"
+>S</text>
+
+<!-- S — sharp gold stroke outline (crisp edge) -->
+<text x="256" y="344"
+  font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+  font-size="310" font-weight="900" text-anchor="middle"
+  fill="none"
+  stroke="#ffe566" stroke-width="2.5"
+>S</text>
+
+<!-- S — pure white highlight top-left edge -->
+<text x="256" y="344"
+  font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+  font-size="310" font-weight="900" text-anchor="middle"
+  fill="none"
+  stroke="#ffffff" stroke-width="1" opacity="0.55"
+>S</text>
+
+<!-- S — bright face highlight sheen (top-left quadrant) -->
+<text x="256" y="344"
+  font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+  font-size="310" font-weight="900" text-anchor="middle"
+  fill="url(#sHighlight)"
+>S</text>
+
+<!-- ===== GOLD STRIPES ON S (diagonal, clipped to S shape) ===== -->
+<g clip-path="url(#sClip)">
+  <line x1="30"  y1="49" x2="245" y2="359" stroke="#fff080" stroke-width="7"  opacity="0.25"/>
+  <line x1="80"  y1="49" x2="295" y2="359" stroke="#ffd030" stroke-width="9"  opacity="0.35"/>
+  <line x1="130" y1="49" x2="345" y2="359" stroke="#ffe566" stroke-width="7"  opacity="0.28"/>
+  <line x1="180" y1="49" x2="395" y2="359" stroke="#ffc820" stroke-width="10" opacity="0.38"/>
+  <line x1="230" y1="49" x2="445" y2="359" stroke="#ffe566" stroke-width="7"  opacity="0.28"/>
+  <line x1="280" y1="49" x2="495" y2="359" stroke="#ffd030" stroke-width="9"  opacity="0.35"/>
+  <line x1="330" y1="49" x2="545" y2="359" stroke="#fff080" stroke-width="7"  opacity="0.25"/>
+</g>
+
+</g>
+
+<!-- ===== "SNTI" ARC LABEL (bottom curve) ===== -->
+<text font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+      font-size="34" font-weight="900"
+      fill="url(#sntiGrad)" letter-spacing="14"
+      stroke="url(#sntiGrad)" stroke-width="1.5" paint-order="stroke"
+      filter="url(#goldGlow)">
+  <textPath href="#sntiArc" startOffset="50%" text-anchor="middle">SNTI</textPath>
+</text>
+
+<!-- ===== SHINE OVERLAY ===== -->
+<ellipse cx="188" cy="152" rx="145" ry="98"
+  fill="url(#shineGrad)"
+  transform="rotate(-32 188 152)"/>
+
+<!-- ===== CARDINAL DOTS (gold) ===== -->
+<circle cx="256" cy="60"  r="5" fill="#ffd844" opacity="0.9"/>
+<circle cx="256" cy="452" r="5" fill="#ffd844" opacity="0.9"/>
+<circle cx="60"  cy="256" r="5" fill="#ffd844" opacity="0.9"/>
+<circle cx="452" cy="256" r="5" fill="#ffd844" opacity="0.9"/>
+
+<!-- Small neon purple accent dots -->
+<circle cx="174" cy="78"  r="3" fill="#c060ff" opacity="0.7"/>
+<circle cx="338" cy="78"  r="3" fill="#c060ff" opacity="0.7"/>
+<circle cx="174" cy="434" r="3" fill="#c060ff" opacity="0.7"/>
+<circle cx="338" cy="434" r="3" fill="#c060ff" opacity="0.7"/>
+
+</svg>

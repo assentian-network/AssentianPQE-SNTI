@@ -60,7 +60,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </header>
 
   <div class="intro">
-    <strong>Status as of 29 June 2026.</strong> Mainnet launched 28 Jun 2026 — block 786+ mined. This checklist has been updated to reflect post-launch verification. Items previously ❌ are updated based on actual mainnet evidence. See also the <a href="/changelog.html">development changelog</a> for the testing sessions referenced below.
+    <strong>Status as of 30 June 2026.</strong> Mainnet launched 26 Jun 2026 — block 1170+ mined. This checklist has been updated to reflect post-launch verification. Items previously ❌ are updated based on actual mainnet evidence. See also the <a href="/changelog.html">development changelog</a> for the testing sessions referenced below.
   </div>
 
   <div class="section">
@@ -70,12 +70,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <table>
       <thead><tr><th style="width:36%">Item</th><th style="width:14%">Status</th><th>Notes</th></tr></thead>
       <tbody>
-        <tr><td>Genesis block (official)</td><td><span class="status done">✅ Done</span></td><td class="item-note">Mainnet: hash <code>b4a26aef...</code>, timestamp 1782474812 (28 Jun 2026), nBits <code>0x2001a41a</code>. 786+ blocks mined.</td></tr>
-        <tr><td>PoUW enforced at consensus layer</td><td><span class="status done">✅ Verified</span></td><td class="item-note"><code>CheckPoUW()</code> running live on mainnet since block 1. 786+ consecutive PoUW-valid blocks accepted, zero invalid blocks on chain.</td></tr>
-        <tr><td>End-to-end PoUW mining</td><td><span class="status done">✅ Verified</span></td><td class="item-note">786+ mainnet blocks mined continuously. VPS miner running 24/7 via systemd. PoUW v2 with XMSS tree generation verified at scale.</td></tr>
-        <tr><td>Mainnet genesis at production difficulty</td><td><span class="status done">✅ Done</span></td><td class="item-note">Mainnet launched 28 Jun 2026 at nBits <code>0x2001a41a</code> (real production difficulty, not near-zero testnet). 786+ blocks mined.</td></tr>
+        <tr><td>Genesis block (official)</td><td><span class="status done">✅ Done</span></td><td class="item-note">Mainnet: hash <code>b4a26aef...</code>, timestamp 1782474812 (26 Jun 2026 11:53:32 UTC), nBits <code>0x2001a41a</code>. 1170+ blocks mined.</td></tr>
+        <tr><td>PoUW enforced at consensus layer</td><td><span class="status done">✅ Verified</span></td><td class="item-note"><code>CheckPoUW()</code> running live on mainnet since block 1. 1170+ consecutive PoUW-valid blocks accepted, zero invalid blocks on chain.</td></tr>
+        <tr><td>End-to-end PoUW mining</td><td><span class="status done">✅ Verified</span></td><td class="item-note">1170+ mainnet blocks mined continuously. 3 nodes mining 24/7 via systemd (Indonesia + USA + Singapore). PoUW v2 with XMSS tree generation verified at scale.</td></tr>
+        <tr><td>Mainnet genesis at production difficulty</td><td><span class="status done">✅ Done</span></td><td class="item-note">Mainnet launched 26 Jun 2026 at nBits <code>0x2001a41a</code> (real production difficulty, not near-zero testnet). 1170+ blocks mined.</td></tr>
         <tr><td>Key lifecycle reviewed</td><td><span class="status done">✅ Done</span></td><td class="item-note">One-shot key model live on mainnet. Deep audit (29 Jun 2026) confirmed WOTS+ reuse protection, wallet-locked guard, and leaf index tracking all functioning correctly.</td></tr>
-        <tr><td>Difficulty retarget under load</td><td><span class="status done">✅ Verified</span></td><td class="item-note">Burst mining (blok 286–296, 11 blok ~2 detik) caused EMA spike. Chain recovered autonomously via stuck-chain detection + EMA clamp fix (29 Jun). Block 786+ confirms healthy retarget.</td></tr>
+        <tr><td>Difficulty retarget under load</td><td><span class="status done">✅ Verified</span></td><td class="item-note">Burst mining (blok 286–296, 11 blok ~2 detik) caused EMA spike. Chain recovered autonomously via stuck-chain detection + EMA clamp fix (29 Jun). Block 1170+ confirms healthy retarget.</td></tr>
         <tr><td>Chain reorg handling</td><td><span class="status done">✅ Verified</span></td><td class="item-note">Phase 6.10.1 — genuine fork/reorg between 2 independent nodes: node 1 reorganized to node 2's longer chain, orphaned blocks marked correctly, no crashes.</td></tr>
       </tbody>
     </table>
@@ -104,12 +104,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <table>
       <thead><tr><th style="width:36%">Item</th><th style="width:14%">Status</th><th>Notes</th></tr></thead>
       <tbody>
-        <tr><td>Mainnet node running</td><td><span class="status done">✅ Live</span></td><td class="item-note">systemd-managed (assentian-mainnet-node.service), running since 28 Jun 2026, 786+ blocks, 24/7 uptime on VPS 104.234.26.7, P2P port 9333.</td></tr>
-        <tr><td>Multiple independent nodes</td><td><span class="status done">✅ Verified</span></td><td class="item-note">Two fully independent node processes reached identical chain state via direct submitblock and genuine automatic P2P relay — see Changelog Phase 6.9</td></tr>
-        <tr><td>DNS seeds</td><td><span class="status notdone">❌ Not done</span></td><td class="item-note">Commented out in chainparams.cpp, hardcoded single IP seed only</td></tr>
-        <tr><td>Public block explorer</td><td><span class="status done">✅ Live</span></td><td class="item-note">Flask-based explorer running, API verified</td></tr>
-        <tr><td>Dashboard / mining / whitepaper pages</td><td><span class="status done">✅ Live</span></td><td class="item-note">All return HTTP 200</td></tr>
-        <tr><td>Stratum mining pool server</td><td><span class="status partial">⚠ Implemented</span></td><td class="item-note">Not load-tested with multiple real miners</td></tr>
+        <tr><td>Mainnet nodes running</td><td><span class="status done">✅ Live</span></td><td class="item-note">3 nodes systemd-managed (assentian-seed.service), running since 26 Jun 2026, 1170+ blocks, 24/7 uptime — Indonesia (main VPS), USA (KC), Singapore (SG). P2P port 9333.</td></tr>
+        <tr><td>Multiple independent nodes</td><td><span class="status done">✅ Verified</span></td><td class="item-note">3 fully independent nodes in sync. Originally verified via direct submitblock and P2P relay (Phase 6.9). KC and SG seed nodes deployed 30 Jun 2026 and synced to chain.</td></tr>
+        <tr><td>DNS seeds</td><td><span class="status done">✅ Done</span></td><td class="item-note">3 A records live: seed.assentian.network, seed2.assentian.network, seed3.assentian.network. Round-robin to 3 IPs. New nodes bootstrap automatically.</td></tr>
+        <tr><td>Public block explorer</td><td><span class="status done">✅ Live</span></td><td class="item-note">Flask-based explorer running at assentian.network/explorer/, API verified.</td></tr>
+        <tr><td>Dashboard / mining / whitepaper pages</td><td><span class="status done">✅ Live</span></td><td class="item-note">All return HTTP 200.</td></tr>
+        <tr><td>Stratum mining pool server</td><td><span class="status partial">⚠ Planned</span></td><td class="item-note">Phase 3 roadmap item — not yet deployed on mainnet. Solo mining via RPC is the current method.</td></tr>
       </tbody>
     </table>
   </div>
@@ -150,11 +150,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
       <div class="gap-item">
         <div class="gap-num">3</div>
-        <div class="gap-text"><strong>RESOLVED 20/Jun.</strong> Two fully independent nodes reached identical chain state via P2P relay (Phase 6.9). Chain reorg also verified (Phase 6.10.1). Mainnet P2P port 9333 live on 104.234.26.7. Remaining gap: only 1 public node exists — seed node EU/APAC being set up.</div>
+        <div class="gap-text"><strong>RESOLVED 30/Jun.</strong> Three fully independent nodes active (Indonesia + USA + Singapore). All synced to same chain via P2P relay. DNS seeds live (seed/seed2/seed3.assentian.network). New nodes bootstrap automatically without manual peer entry.</div>
       </div>
       <div class="gap-item">
         <div class="gap-num">4</div>
-        <div class="gap-text"><strong>RESOLVED 28/Jun.</strong> Mainnet launched at nBits <code>0x2001a41a</code> (real production difficulty), 786+ blocks mined. Difficulty adjustment stress-tested: burst mining blok 286–296 triggered EMA spike, recovered autonomously. Stuck-chain detection added (29 Jun) as additional safeguard.</div>
+        <div class="gap-text"><strong>RESOLVED 26/Jun.</strong> Mainnet launched at nBits <code>0x2001a41a</code> (real production difficulty), 1170+ blocks mined. Difficulty adjustment stress-tested: burst mining blok 286–296 triggered EMA spike, recovered autonomously. Stuck-chain detection added (29 Jun) as additional safeguard.</div>
       </div>
       <div class="gap-item">
         <div class="gap-num">5</div>
@@ -172,8 +172,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div class="step"><div class="step-num">1</div><div class="step-text">Get a second person (or fresh eyes after time away) to read through <code>validation.cpp</code>'s <code>CheckPoUW()</code> and the XMSS bridge code — the two places where a bug has the highest blast radius.</div></div>
       <div class="step"><div class="step-num">2</div><div class="step-text">Stand up a second node on a different machine/network and confirm both nodes sync and agree on the same chain.</div></div>
       <div class="step"><div class="step-num">3</div><div class="step-text">Run testnet continuously for several days under real conditions to observe stale-tip warnings, retargeting, and stratum server behavior over time.</div></div>
-      <div class="step"><div class="step-num">4</div><div class="step-text">✅ <strong>Done — 28 Jun 2026.</strong> Mainnet genesis mined at production difficulty (nBits <code>0x2001a41a</code>), 786+ blocks follow. Deep code audit (29 Jun) found and fixed 12 bugs (5 critical, 5 high, 2 medium).</div></div>
-      <div class="step"><div class="step-num">5</div><div class="step-text">✅ <strong>Done — 28 Jun 2026.</strong> assentian.network live with SSL, block explorer, web wallet, and investor page. Mining open to public (VirtualBox installer + mining script).</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-text">✅ <strong>Done — 26 Jun 2026.</strong> Mainnet genesis mined at production difficulty (nBits <code>0x2001a41a</code>), 1170+ blocks follow. Deep code audit (29 Jun) found and fixed 12 bugs (5 critical, 5 high, 2 medium).</div></div>
+      <div class="step"><div class="step-num">5</div><div class="step-text">✅ <strong>Done — 26 Jun 2026.</strong> assentian.network live with SSL, block explorer, web wallet, and investor page. 3-node network with DNS seed active. Solo mining open to public.</div></div>
     </div>
   </div>
 

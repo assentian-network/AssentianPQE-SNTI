@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="icon" type="image/svg+xml" href="/snti-coin.svg"><link rel="shortcut icon" href="/snti-coin.svg">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SNTI Non-Custodial — Assentian-PQE</title>
@@ -87,10 +88,10 @@ nav a:hover{color:var(--text)}
   <!-- Watch Address -->
   <div class="panel active" id="tab-watch">
     <h2>Watch Any Address</h2>
-    <p class="sub">Enter a SNTI testnet address (tsnti1…) to see its balance and UTXOs. No login required.</p>
+    <p class="sub">Enter a SNTI address (snti1…) to see its balance and UTXOs. No login required.</p>
     <div style="display:flex;gap:8px;margin-bottom:16px">
       <div class="field" style="flex:1;margin:0">
-        <input type="text" id="watchAddr" placeholder="tsnti1q..." autocomplete="off">
+        <input type="text" id="watchAddr" placeholder="snti1..." autocomplete="off">
       </div>
       <button class="btn primary" onclick="doWatch()" style="align-self:end">Lookup</button>
     </div>
@@ -199,7 +200,7 @@ async function doWatch() {
   const addr = document.getElementById('watchAddr').value.trim();
   if (!addr) return;
   const r = document.getElementById('watchResult');
-  r.style.display = '';
+  r.style.display = 'block';
   r.className = 'result-box ok';
   document.getElementById('wBalance').textContent = '…';
   document.getElementById('wAddr').textContent = addr;
@@ -232,7 +233,7 @@ async function doGenerate() {
   btn.disabled = false;
   btn.textContent = 'Generate XMSS Address';
   const el = document.getElementById('genResult');
-  el.style.display = '';
+  el.style.display = 'block';
   if (res.error) {
     el.className = 'result-box err';
     el.innerHTML = 'Error: ' + (res.error.message || res.error);
@@ -256,7 +257,7 @@ async function doBroadcast() {
   const hex = document.getElementById('broadcastHex').value.trim();
   if (!hex) return;
   const el = document.getElementById('broadcastResult');
-  el.style.display = '';
+  el.style.display = 'block';
   el.className = 'result-box warn';
   el.textContent = 'Broadcasting…';
   const res = await fetch('/api/nc/broadcast', {

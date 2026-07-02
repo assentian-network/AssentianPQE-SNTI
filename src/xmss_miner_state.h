@@ -15,6 +15,9 @@
 #include <streams.h>
 #include <uint256.h>
 
+#include <fcntl.h>
+#include <unistd.h>
+
 extern "C" {
 #include "xmss.h"
 #include "params.h"
@@ -37,7 +40,13 @@ namespace PoUWv2 {
 static constexpr size_t MINER_SK_BYTES = 2048; // BDS state included (fast impl ~1373 bytes)
 static constexpr uint32_t XMSS_MAX_LEAVES = 1024; // 2^10
 static constexpr uint32_t STATE_MAGIC = 0x534E5432; // "SNT2"
-static constexpr uint32_t STATE_VERSION = 1;
+// SNTI SECURITY FIX (audit KRITIS #6, 2 Jul 2026): v2 adds ownerStamp, a
+// per-datadir instance ID recording which machine/process last wrote this
+// state. See xmss_tree_ledger.cpp for the check this enables. v1 files (no
+// ownerStamp) still load fine -- STATE_VERSION_MIN_COMPAT guards that.
+static constexpr uint32_t STATE_VERSION = 2;
+static constexpr uint32_t STATE_VERSION_MIN_COMPAT = 1;
+static constexpr size_t OWNER_STAMP_BYTES = 16;
 
 struct XMSSMinerState {
     uint32_t magic   = STATE_MAGIC;
@@ -46,10 +55,13 @@ struct XMSSMinerState {
     uint32_t nextLeafIndex = 0;           // Leaf berikutnya yang akan dipakai
     uint32_t skLen = 0;                   // Panjang SK aktual
     std::vector<uint8_t> sk;             // Secret key dengan BDS state (termasuk OID)
+    // KRITIS #6: which datadir/instance last claimed a leaf from this tree.
+    // All-zero = legacy file (pre-v2) or never claimed yet -- not a conflict.
+    std::array<uint8_t, OWNER_STAMP_BYTES> ownerStamp{};
 
     bool IsValid() const {
         return magic == STATE_MAGIC &&
-               version == STATE_VERSION &&
+               version >= STATE_VERSION_MIN_COMPAT && version <= STATE_VERSION &&
                !xmssRoot.IsNull() &&
                nextLeafIndex < XMSS_MAX_LEAVES &&
                skLen > 0 &&
@@ -60,7 +72,10 @@ struct XMSSMinerState {
         return nextLeafIndex >= XMSS_MAX_LEAVES;
     }
 
-    // Serialize ke disk
+    // Serialize ke disk. Always writes the current STATE_VERSION and
+    // ownerStamp -- callers that loaded a legacy v1 file should bump
+    // `version = STATE_VERSION` before re-saving (xmss_tree_ledger.cpp does
+    // this), so a resaved file is always fully v2 on disk.
     std::vector<uint8_t> Serialize() const {
         DataStream ds{};
         ds << magic << version;
@@ -68,6 +83,7 @@ struct XMSSMinerState {
         ds << nextLeafIndex;
         ds << skLen;
         ds.write(MakeByteSpan(sk));
+        ds.write(MakeByteSpan(ownerStamp));
         return {UCharCast(ds.data()), UCharCast(ds.data() + ds.size())};
     }
 
@@ -75,13 +91,18 @@ struct XMSSMinerState {
         try {
             DataStream ds{MakeByteSpan(data)};
             ds >> magic >> version;
-            if (magic != STATE_MAGIC || version != STATE_VERSION) return false;
+            if (magic != STATE_MAGIC) return false;
+            if (version < STATE_VERSION_MIN_COMPAT || version > STATE_VERSION) return false;
             ds >> xmssRoot;
             ds >> nextLeafIndex;
             ds >> skLen;
             if (skLen == 0 || skLen > MINER_SK_BYTES) return false;
             sk.resize(skLen);
             ds.read(MakeWritableByteSpan(sk));
+            ownerStamp.fill(0);
+            if (version >= 2) {
+                ds.read(MakeWritableByteSpan(ownerStamp));
+            }
             return true;
         } catch (...) {
             return false;
@@ -125,20 +146,32 @@ public:
         return true;
     }
 
-    // Save state ke disk (atomic write via temp file)
+    // Save state ke disk (atomic write via temp file + fsync)
     bool Save(const XMSSMinerState& state) {
         std::lock_guard<std::mutex> lock(m_mutex);
         auto tmp = m_state_path;
         tmp += ".tmp";
 
         std::vector<uint8_t> data = state.Serialize();
-        std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
-        if (!f.is_open()) {
+
+        int fd = open(fs::PathToString(tmp).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        if (fd < 0) {
             LogPrintf("XMSSMinerState: failed to open temp file for write\n");
             return false;
         }
-        f.write(reinterpret_cast<const char*>(data.data()), data.size());
-        f.close();
+        ssize_t written = write(fd, data.data(), data.size());
+        if (written < 0 || static_cast<size_t>(written) != data.size()) {
+            LogPrintf("XMSSMinerState: write failed\n");
+            close(fd);
+            return false;
+        }
+        // Flush kernel buffer ke storage sebelum rename — mencegah leaf reuse jika crash
+        if (fsync(fd) != 0) {
+            LogPrintf("XMSSMinerState: fsync failed\n");
+            close(fd);
+            return false;
+        }
+        close(fd);
 
         // Atomic rename
         fs::rename(tmp, m_state_path);

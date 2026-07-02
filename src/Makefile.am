@@ -729,6 +729,9 @@ libbitcoin_common_a_SOURCES = \
   script/signingprovider.cpp \
   script/solver.cpp \
   warnings.cpp \
+  xmss_tree_ledger.cpp \
+  xmss_tree_ledger.h \
+  xmss_blacklist.h \
   $(BITCOIN_CORE_H)
 
 if USE_LIBEVENT

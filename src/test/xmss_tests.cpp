@@ -9,12 +9,16 @@
 #include <arith_uint256.h>
 #include <pouw_v2.h>
 #include <xmss_bridge.h>
+#include <xmss_miner_state.h>
+#include <xmss_tree_ledger.h>
+#include <util/fs.h>
 
 #include <boost/test/unit_test.hpp>
 
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <vector>
 
 BOOST_AUTO_TEST_SUITE(xmss_tests)
@@ -161,6 +165,79 @@ BOOST_AUTO_TEST_CASE(xmss_wrong_pubkey_rejected)
     BOOST_CHECK(!verifier.Verify(hash, sig, pk2));
 }
 
+// ── Unified tree ledger: ownership-stamp cross-datadir protection (KRITIS #6) ──
+
+// Joins path segments by building one plain string first, sidestepping the
+// ambiguous operator/(fs::path, fs::path) overload resolution between
+// std::filesystem's own hidden-friend operator and util/fs.h's version.
+static fs::path JoinPath(const fs::path& base, const std::string& child)
+{
+    return fs::PathFromString(fs::PathToString(base) + "/" + child);
+}
+
+BOOST_AUTO_TEST_CASE(ledger_same_datadir_roundtrip_unaffected)
+{
+    // Sanity check: the new ownership-stamp logic must not break the normal,
+    // single-datadir case that already worked before this fix.
+    fs::path dir = JoinPath(fs::temp_directory_path(), "snti_ledger_test_same");
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+
+    PoUWv2::XMSSMinerState state;
+    BOOST_REQUIRE(PoUWv2::BuildNewTree(state));
+    BOOST_REQUIRE(PoUWv2::XMSSTreeLedgerInit(dir, state));
+
+    std::vector<uint8_t> hash(32, 0xAB), sig;
+    uint32_t leaf_used = 999;
+    BOOST_CHECK(PoUWv2::XMSSTreeLedgerClaimAndSign(dir, state.xmssRoot, hash, sig, leaf_used));
+    BOOST_CHECK_EQUAL(leaf_used, 0U);
+
+    fs::remove_all(dir);
+}
+
+BOOST_AUTO_TEST_CASE(ledger_cross_datadir_stamp_mismatch_refused)
+{
+    // Reproduces the actual July 1 bug pattern one level up: a tree's ledger
+    // file gets copied to a SECOND datadir (backup restore, VPS migration
+    // where the original was never shut down, etc.) without the original
+    // being retired. The second datadir must refuse to sign until the
+    // operator explicitly overrides.
+    fs::path dirA = JoinPath(fs::temp_directory_path(), "snti_ledger_test_A");
+    fs::path dirB = JoinPath(fs::temp_directory_path(), "snti_ledger_test_B");
+    fs::remove_all(dirA);
+    fs::remove_all(dirB);
+    fs::create_directories(dirA);
+    fs::create_directories(dirB);
+
+    PoUWv2::XMSSMinerState state;
+    BOOST_REQUIRE(PoUWv2::BuildNewTree(state));
+    BOOST_REQUIRE(PoUWv2::XMSSTreeLedgerInit(dirA, state)); // stamped with dirA's instance id
+
+    // Copy just the ledger .dat file into dirB, which has its OWN, different
+    // instance id -- simulates the accidental-copy scenario.
+    std::string ledgerName = state.xmssRoot.GetHex() + ".dat";
+    fs::path treesB = JoinPath(dirB, "xmss_trees");
+    fs::create_directories(treesB);
+    fs::copy_file(JoinPath(JoinPath(dirA, "xmss_trees"), ledgerName), JoinPath(treesB, ledgerName), fs::copy_options::none);
+
+    std::vector<uint8_t> hash(32, 0xCD), sig;
+    uint32_t leaf_used = 999;
+    BOOST_CHECK(!PoUWv2::XMSSTreeLedgerClaimAndSign(dirB, state.xmssRoot, hash, sig, leaf_used));
+
+    // Explicit operator override: acknowledge the risk, let dirB take over.
+    fs::path sentinel = JoinPath(treesB, state.xmssRoot.GetHex() + ".forceclaim");
+    { std::ofstream f(fs::PathToString(sentinel)); }
+    BOOST_REQUIRE(fs::exists(sentinel));
+    BOOST_CHECK(PoUWv2::XMSSTreeLedgerClaimAndSign(dirB, state.xmssRoot, hash, sig, leaf_used));
+    BOOST_CHECK_EQUAL(leaf_used, 0U);
+
+    // One-shot: the override file must be consumed, not reusable.
+    BOOST_CHECK(!fs::exists(sentinel));
+
+    fs::remove_all(dirA);
+    fs::remove_all(dirB);
+}
+
 BOOST_AUTO_TEST_CASE(xmss_key_persistence)
 {
     // Round-trip: Generate → GetPrivKey → Load → Sign → Verify
@@ -178,7 +255,8 @@ BOOST_AUTO_TEST_CASE(xmss_key_persistence)
     XMSS::CXMSSKey restored;
     BOOST_REQUIRE(restored.Load(saved_sk));
     BOOST_REQUIRE(restored.IsValid());
-    BOOST_CHECK_EQUAL(restored.GetPubKey(), pk);
+    bool pubkey_preserved = (restored.GetPubKey() == pk);
+    BOOST_CHECK(pubkey_preserved);
 
     std::vector<uint8_t> hash = FakeHash(0x04);
     std::vector<uint8_t> sig;
@@ -204,6 +282,55 @@ BOOST_AUTO_TEST_CASE(xmss_corrupted_sig_rejected)
 
     XMSS::CXMSSKey verifier;
     BOOST_CHECK(!verifier.Verify(hash, sig, pk));
+}
+
+// Audit T-1: FSL entries claim a (sk_seed, xmss_root) pair. Consensus must
+// rebuild the root from the seed and confirm it matches — otherwise a miner
+// could submit an arbitrary root with no real seed behind it.
+BOOST_AUTO_TEST_CASE(xmss_fsl_seed_root_matches)
+{
+    XMSS::CXMSSKey key;
+    BOOST_REQUIRE(key.Generate());
+
+    std::vector<uint8_t> pk = key.GetPubKey(); // [root(32) | PUB_SEED(32)]
+    std::vector<uint8_t> expected_root(pk.begin(), pk.begin() + 32);
+
+    std::vector<uint8_t> sk = key.GetPrivKey(); // [OID(4)|idx(4)|SK_SEED(32)|SK_PRF(32)|root(32)|PUB_SEED(32)|BDS...]
+    BOOST_REQUIRE(sk.size() >= 136);
+    std::vector<uint8_t> seed96;
+    seed96.insert(seed96.end(), sk.begin() + 8, sk.begin() + 72);    // SK_SEED + SK_PRF
+    seed96.insert(seed96.end(), sk.begin() + 104, sk.begin() + 136); // PUB_SEED
+    BOOST_REQUIRE_EQUAL(seed96.size(), 96U);
+
+    std::vector<uint8_t> rebuilt_root;
+    BOOST_REQUIRE(XMSS::ComputeRootFromSeed(seed96, rebuilt_root));
+    bool roots_match = (rebuilt_root == expected_root);
+    BOOST_CHECK(roots_match);
+}
+
+BOOST_AUTO_TEST_CASE(xmss_fsl_tampered_seed_mismatch_detected)
+{
+    XMSS::CXMSSKey key;
+    BOOST_REQUIRE(key.Generate());
+
+    std::vector<uint8_t> pk = key.GetPubKey();
+    std::vector<uint8_t> claimed_root(pk.begin(), pk.begin() + 32);
+
+    std::vector<uint8_t> sk = key.GetPrivKey();
+    std::vector<uint8_t> seed96;
+    seed96.insert(seed96.end(), sk.begin() + 8, sk.begin() + 72);
+    seed96.insert(seed96.end(), sk.begin() + 104, sk.begin() + 136);
+
+    // Simulate a dishonest miner: flip a byte of SK_SEED so the seed no
+    // longer produces the claimed root (e.g. attacker made up a root).
+    seed96[0] ^= 0xFF;
+
+    std::vector<uint8_t> rebuilt_root;
+    BOOST_REQUIRE(XMSS::ComputeRootFromSeed(seed96, rebuilt_root));
+    // This is exactly the mismatch validation.cpp's pouw-fsl-seed-mismatch
+    // check must catch — rebuilt root must NOT equal the claimed root.
+    bool roots_mismatch = (rebuilt_root != claimed_root);
+    BOOST_CHECK(roots_mismatch);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

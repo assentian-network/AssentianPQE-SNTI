@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="icon" type="image/svg+xml" href="/snti-coin.svg"><link rel="shortcut icon" href="/snti-coin.svg">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SNTI Development Changelog</title>
@@ -246,7 +247,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <table>
         <thead><tr><th></th><th>Item</th><th></th></tr></thead>
         <tbody>
-          <tr><td class="chk done">✅</td><td class="item-name">6.1 — Mainnet Launch (Testnet Formal Dilewati)<div class="item-detail">Setelah internal testnet validation (Phase 6.5–6.11) dinyatakan solid, diputuskan langsung launch mainnet tanpa public testnet phase terpisah. Mainnet live 28 Jun 2026, block 786+. assentian.network live dengan web wallet, explorer, dan mining installer.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">6.1 — Mainnet Launch (Testnet Formal Dilewati)<div class="item-detail">Setelah internal testnet validation (Phase 6.5–6.11) dinyatakan solid, diputuskan langsung launch mainnet tanpa public testnet phase terpisah. Mainnet live 26 Jun 2026, block 1170+. assentian.network live dengan web wallet, explorer, dan mining dashboard.</div></td></tr>
           <tr><td class="chk done">✅</td><td class="item-name">6.1b — Stratum Mining Server<div class="item-detail">Multi-miner stratum proxy (stratum_server.py). Port 3333 (stratum), port 3334 (HTTP stats). Share tracking (accepted/rejected). Connects to bitcoind regtest RPC. Auto block generation on share threshold. Multiple simultaneous miner connections supported.</div><div class="item-files">stratum_server.py</div></td></tr>
           <tr><td class="chk done">✅</td><td class="item-name">6.1c — XMSS Wallet: Send from XMSS Address<div class="item-detail">sendfromxmssaddress RPC: send SNTI from XMSS address to any destination (legacy or XMSS). Supports fee subtraction and wallet comments. Register XMSS RPC methods in CRPCTable. Fixed fee estimation with -fallbackfee flag.</div><div class="item-files">wallet/rpc/xmss.cpp, wallet/rpc/xmss.h, wallet/rpc/wallet.cpp</div></td></tr>
           <tr><td class="chk done">✅</td><td class="item-name">6.1d — P2XMSS Script Type (Native XMSS Output)<div class="item-detail">Native P2XMSS script output: OP_XMSS_CHECKSIG with 64-byte pubkey. Added XMSSHash to CTxDestination variant. Updated Solver(), ExtractDestination(), GetScriptForDestination(), IsMine(). Wallet generates P2XMSS outputs for XMSS addresses. Tested: P2XMSS→Legacy, P2XMSS→P2XMSS ✅</div><div class="item-files">addresstype.h, addresstype.cpp, script/solver.h, script/solver.cpp, key_io.cpp, wallet/rpc/xmss.cpp, wallet/scriptpubkeyman.cpp, wallet/xmss_signer.cpp</div></td></tr>
@@ -446,23 +447,23 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="phase">
     <div class="phase-header" onclick="toggle('p7')">
       <div class="phase-title">
-        <span class="phase-num wip">PHASE 7</span>
+        <span class="phase-num done">PHASE 7</span>
         <span class="phase-name">Mainnet Launch</span>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
-        <span class="phase-badge wip">⚡ IN PROGRESS</span>
+        <span class="phase-badge done">✅ COMPLETE</span>
         <span class="phase-toggle" id="tp7">▼</span>
       </div>
     </div>
     <div class="phase-body open" id="p7">
-      <div class="progress-bar"><div class="progress-fill wip" style="width:75%"></div></div>
+      <div class="progress-bar"><div class="progress-fill done" style="width:100%"></div></div>
       <table>
         <thead><tr><th></th><th>Item</th><th></th></tr></thead>
         <tbody>
-          <tr><td class="chk wip">⚡</td><td class="item-name">7.1 — Final Security Review<div class="item-detail">Internal deep audit selesai 29 Jun 2026 — 12 bug ditemukan &amp; fixed (5 kritis, 5 tinggi, 2 medium). External audit (Trail of Bits/Halborn) masih pending — Q4 2026 target.</div></td></tr>
-          <tr><td class="chk pending">⬜</td><td class="item-name">7.2 — Seed Nodes Deployed<div class="item-detail">VPS EU/APAC sedang di-order. Target: min 2 seed node (seed.assentian.network). Saat ini hanya 1 node di 104.234.26.7.</div></td></tr>
-          <tr><td class="chk done">✅</td><td class="item-name">7.3 — Genesis Block Final<div class="item-detail">Mainnet genesis mined 28 Jun 2026. Hash: b4a26aef52f6f5038815f26917cb0ea1fd3b3b13fbc7cfb5c541088a6943a5ba. nBits: 0x2001a41a. Message: "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia"</div></td></tr>
-          <tr><td class="chk done">✅</td><td class="item-name">7.4 — Public Launch<div class="item-detail">assentian.network live dengan SSL. Block explorer, web wallet, investor roadmap, dan mining installer tersedia. VPS miner 24/7, VirtualBox miner tersedia untuk publik. Block 786+ per 29 Jun 2026.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">7.1 — Final Security Review<div class="item-detail">Internal deep audit selesai 29 Jun 2026 — 12 bug ditemukan &amp; fixed (5 kritis, 5 tinggi, 2 medium). External audit (Trail of Bits/Halborn) direncanakan Q4 2026.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">7.2 — Seed Nodes Deployed<div class="item-detail">3 seed node aktif: Main VPS (104.234.26.7 — Indonesia), Seed-US (166.88.227.172 — Kansas City), Seed-APAC (103.195.190.192 — Singapore). DNS seed: seed/seed2/seed3.assentian.network.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">7.3 — Genesis Block Final<div class="item-detail">Mainnet genesis mined 26 Jun 2026. Hash: b4a26aef52f6f5038815f26917cb0ea1fd3b3b13fbc7cfb5c541088a6943a5ba. nBits: 0x2001a41a. Message: "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia"</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">7.4 — Public Launch<div class="item-detail">assentian.network live dengan SSL. Block explorer, web wallet, investor roadmap, dan mining installer tersedia. VPS miner 24/7. Block 1170+ per 30 Jun 2026.</div></td></tr>
         </tbody>
       </table>
     </div>
@@ -530,6 +531,33 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
 
+  <!-- Phase 10 -->
+  <div class="phase">
+    <div class="phase-header" onclick="toggle('p10')">
+      <div class="phase-title">
+        <span class="phase-num done">PHASE 10</span>
+        <span class="phase-name">3-Node Network, DNS Seed &amp; Multi-Miner</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="phase-badge done">✅ COMPLETE</span>
+        <span class="phase-toggle" id="tp10">▼</span>
+      </div>
+    </div>
+    <div class="phase-body open" id="p10">
+      <div class="progress-bar"><div class="progress-fill done" style="width:100%"></div></div>
+      <table>
+        <thead><tr><th></th><th>Item</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="chk done">✅</td><td class="item-name">10.1 — Seed node Seed-US (Kansas City) &amp; Seed-APAC (Singapore) deployed<div class="item-detail">Binary c3070e74 deployed ke 2 seed node baru. SSH passwordless via ssh-copy-id. Service assentian-seed.service aktif dan auto-start.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">10.2 — DNS seed infrastructure live<div class="item-detail">chainparams.cpp diupdate dengan 3 vSeeds: seed/seed2/seed3.assentian.network. DNS A records dibuat di Rumahweb (round-robin untuk seed). Node baru otomatis discover peers via DNS tanpa konfigurasi manual.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">10.3 — Miner aktif di semua 3 node<div class="item-detail">Main VPS: assentian-vps-miner (full core). Seed-US: assentian-seed-miner (1 core, address snti1zhms7...). Seed-APAC: assentian-seed-miner (1 core, address snti1zcaf64...). Semua sinkron di block 1170+.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">10.4 — Send/receive SNTI verified end-to-end<div class="item-detail">Transfer 10 SNTI dari wallet asep ke wallet dani berhasil. Custodial web wallet berfungsi penuh untuk kirim-terima. Non-custodial watch address juga berfungsi.</div></td></tr>
+          <tr><td class="chk done">✅</td><td class="item-name">10.5 — SVG coin icon &amp; favicon<div class="item-detail">snti-coin.svg diupdate: S modern vertical stretch, blockchain node network background, rasi bintang 4 cluster, 7 garis emas. Favicon diterapkan ke 11 halaman HTML.</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Known Issues -->
   <div class="phase" style="border-color:rgba(239,68,68,.3)">
     <div class="phase-header" onclick="toggle('issues')">
@@ -538,7 +566,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <span class="phase-name">Known Issues & Technical Debt</span>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
-        <span class="phase-badge" style="background:rgba(245,158,11,.15);color:var(--orange)">3 OPEN</span>
+        <span class="phase-badge" style="background:rgba(245,158,11,.15);color:var(--orange)">2 OPEN</span>
         <span class="phase-toggle" id="tissues">▼</span>
       </div>
     </div>
@@ -549,10 +577,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <li><strong>XMSS key state persistence</strong> — <span style="color:var(--green)">RESOLVED (Phase 3e)</span> SaveState/LoadState integrated.</li>
           <li><strong>Key exhausted check</strong> — <span style="color:var(--green)">RESOLVED (Phase 4 + Audit 8.2)</span> Explicit check in Sign() + guard leaf_index >= 1024.</li>
           <li><strong>Minimum sig length</strong> — <span style="color:var(--green)">RESOLVED (Phase 4 + Audit 8.7)</span> size check in interpreter + nPoUWMaxSigSize enforced sebelum Deserialize.</li>
-          <li><strong>Encryption at rest</strong> — <span style="color:var(--green)">RESOLVED (21 Jun)</span> XMSS state encryption at rest terverifikasi end-to-end (locked→ismine:false, unlock→decrypt otomatis).</li>
+          <li><strong>Encryption at rest</strong> — <span style="color:var(--green)">RESOLVED</span> XMSS state encryption at rest terverifikasi end-to-end.</li>
+          <li><strong>Seed nodes</strong> — <span style="color:var(--green)">RESOLVED (Phase 10)</span> 3 node aktif: Indonesia, Kansas City, Singapore. DNS seed live.</li>
           <li><strong>Segfault post-main()</strong> — Workaround pakai _exit(0). Root cause belum di-investigasi. Low priority selama mainnet stable.</li>
-          <li><strong>XMSS sig size in block</strong> — ~2.5KB signature di coinbase witness. Tidak memblok propagasi (terverifikasi via P2P relay Phase 6.9). Evaluasi optimisasi di Phase 3.</li>
-          <li><strong>Seed nodes</strong> — Hanya 1 node (104.234.26.7). Seed node EU/APAC sedang di-order. Risiko: single point of failure untuk peer discovery.</li>
+          <li><strong>XMSS sig size in block</strong> — ~2.5KB signature di coinbase. Tidak memblok propagasi. Evaluasi optimisasi di roadmap.</li>
         </ul>
       </div>
     </div>

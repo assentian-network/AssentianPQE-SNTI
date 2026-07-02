@@ -1,7 +1,7 @@
 # Assentian-PQE (SNTI) Mining Guide
 
-> **Status**: Testnet aktif. Mainnet belum diluncurkan.
-> Mining sekarang = testnet SNTI (tidak bernilai ekonomis, tapi penting untuk stabilitas jaringan).
+> **Status**: Mainnet live sejak 26 Jun 2026. Mining menghasilkan SNTI yang sesungguhnya.
+> Block reward: **50 SNTI/block**. Block time: **60 detik**.
 
 ## Daftar Isi
 
@@ -9,7 +9,7 @@
 2. [Platform yang Didukung](#2-platform-yang-didukung)
 3. [Instalasi & Build](#3-instalasi--build)
 4. [Menjalankan Node](#4-menjalankan-node)
-5. [CPU Mining](#5-cpu-mining)
+5. [CPU Mining (Solo)](#5-cpu-mining-solo)
 6. [Troubleshooting](#6-troubleshooting)
 
 ---
@@ -54,8 +54,8 @@ sudo apt install -y build-essential libtool autotools-dev automake \
 
 **Clone & build:**
 ```bash
-git clone https://github.com/asepganzu-svg/AssentianPQE-SNTI.git
-cd AssentianPQE-SNTI
+git clone https://github.com/assentian-network/snti.git
+cd snti
 ./autogen.sh
 ./configure --without-gui --disable-tests --disable-bench
 make -j$(nproc)
@@ -74,52 +74,56 @@ make -j$(nproc)
 
 ## 4. Menjalankan Node
 
-### Connect ke Testnet Assentian-PQE
+### Connect ke Mainnet Assentian-PQE
 
 ```bash
-./src/bitcoind -testnet \
-  -connect=104.234.26.7:39333 \
+./src/bitcoind \
+  -addnode=seed.assentian.network \
   -daemon
 ```
 
 **Cek status node:**
 ```bash
-./src/bitcoin-cli -testnet getblockchaininfo
+./src/bitcoin-cli getblockchaininfo
 ```
 
 Output yang diharapkan:
 ```json
 {
-  "chain": "test",
-  "blocks": 10,
+  "chain": "main",
+  "blocks": 1170,
   "bestblockhash": "...",
   "verificationprogress": 1.0
 }
 ```
 
-**Tunggu sampai sync penuh** (`verificationprogress` = 1.0 dan `blocks` sama dengan node VPS).
+**Tunggu sampai sync penuh** (`verificationprogress` = 1.0 dan `blocks` sama dengan node jaringan).
 
 ### Buat Wallet
 
 ```bash
-./src/bitcoin-cli -testnet createwallet "snti_miner"
-ADDR=$(./src/bitcoin-cli -testnet -rpcwallet=snti_miner getnewaddress)
+./src/bitcoin-cli createwallet "snti_miner"
+ADDR=$(./src/bitcoin-cli -rpcwallet=snti_miner getnewaddress)
 echo "Alamat mining kamu: $ADDR"
 ```
 
+Alamat SNTI dimulai dengan `snti1` (bech32m, post-quantum ready).
+
 ---
 
-## 5. CPU Mining
+## 5. CPU Mining (Solo)
+
+> **Catatan**: Pool mining (stratum) direncanakan Phase 3. Saat ini hanya solo mining yang tersedia.
 
 ### Method 1: Direct Mining (paling simpel)
 
 ```bash
 # Mine 1 blok ke alamat kamu
-./src/bitcoin-cli -testnet -rpcwallet=snti_miner generatetoaddress 1 "$ADDR"
+./src/bitcoin-cli -rpcwallet=snti_miner generatetoaddress 1 "$ADDR"
 
 # Mine terus-menerus (loop sederhana)
 while true; do
-  ./src/bitcoin-cli -testnet -rpcwallet=snti_miner generatetoaddress 1 "$ADDR"
+  ./src/bitcoin-cli -rpcwallet=snti_miner generatetoaddress 1 "$ADDR"
   sleep 1
 done
 ```
@@ -135,7 +139,7 @@ if [ -z "$ADDR" ]; then
   exit 1
 fi
 
-echo "Mining Assentian-PQE (SNTI) testnet ke $ADDR"
+echo "Mining Assentian-PQE (SNTI) mainnet ke $ADDR"
 echo "Ctrl+C untuk berhenti"
 echo ""
 
@@ -143,7 +147,7 @@ BLOCKS=0
 START=$(date +%s)
 
 while true; do
-  RESULT=$(./src/bitcoin-cli -testnet -rpcwallet=snti_miner generatetoaddress 1 "$ADDR" 2>&1)
+  RESULT=$(./src/bitcoin-cli -rpcwallet=snti_miner generatetoaddress 1 "$ADDR" 2>&1)
   if echo "$RESULT" | grep -q '"'; then
     BLOCKS=$((BLOCKS + 1))
     NOW=$(date +%s)
@@ -163,117 +167,59 @@ chmod +x mine.sh
 
 ```bash
 # Cek saldo (butuh 100 konfirmasi sebelum bisa dipakai)
-./src/bitcoin-cli -testnet -rpcwallet=snti_miner getbalance
-./src/bitcoin-cli -testnet -rpcwallet=snti_miner getwalletinfo
+./src/bitcoin-cli -rpcwallet=snti_miner getbalance
+./src/bitcoin-cli -rpcwallet=snti_miner getwalletinfo
 ```
 
 ### Generate Alamat XMSS (Post-Quantum Address)
 
 ```bash
 # Generate alamat XMSS baru
-./src/bitcoin-cli -testnet -rpcwallet=snti_miner getnewxmssaddress
+./src/bitcoin-cli -rpcwallet=snti_miner getnewxmssaddress
 
 # Cek info alamat XMSS
-./src/bitcoin-cli -testnet -rpcwallet=snti_miner getxmssaddressinfo "<alamat_xmss>"
+./src/bitcoin-cli -rpcwallet=snti_miner getxmssaddressinfo "<alamat_xmss>"
 ```
 
-> ⚠️ **PENTING**: Setiap alamat XMSS hanya boleh dipakai SEKALI untuk mengirim.
-> Ini adalah fitur keamanan, bukan bug — mencegah reuse key yang melemahkan post-quantum security.
+> ⚠️ **PENTING: JANGAN PERNAH jalankan `wallet.dat` yang sama di dua komputer/node sekaligus.**
+> Alamat XMSS cuma aman dipakai signing **satu kali**. Proteksi "retired setelah signing" itu dicatat per-key di disk `wallet.dat` itu sendiri (dan untuk address hasil mining, juga di ledger terpadu terpisah di datadir — lihat [WHITEPAPER.md §13.1](WHITEPAPER.md)) — tapi kedua mekanisme itu TIDAK melindungi dari **backup yang basi**. Kalau kamu restore/copy snapshot `wallet.dat` yang diambil SEBELUM address itu pernah dipakai sign, lalu salinan asli DAN salinan restore-annya sama-sama sign pakai address XMSS yang sama (leaf_index sama), itu sama saja pakai one-time key dua kali. Secara matematis, attacker yang melihat dua signature dari key yang sama bisa merekonstruksi private key dan mencuri semua dana di alamat itu — ini bukan bug yang bisa dipatch, ini sifat dasar skema XMSS.
+>
+> **Ini TIDAK dideteksi oleh blockchain.** Pengecekan leaf-reuse di level consensus SNTI cuma melindungi proof mining yang nempel di tiap block (supaya 2 miner tidak bisa pakai leaf yang sama dari tree yang sama) — BUKAN transaksi kirim/spend biasa. Dua node independen yang sign transaksi kirim biasa dari address yang sama (hasil restore) akan sama-sama berhasil dan sama-sama diterima on-chain — tidak ada warning apapun dari jaringan.
+>
+> Perlakukan `wallet.dat` seperti seed phrase hardware wallet: restore ke **satu** node yang hidup, jangan simpan backup lalu dijalankan paralel "buat jaga-jaga", dan kalau migrasi ke mesin baru, matikan dulu node lama dan pastikan tetap offline sebelum menyalakan yang baru.
 
 ---
 
 ## 6. Troubleshooting
 
-### Error: "Could not connect to server"
-```bash
-# Pastikan node sudah jalan
-ps aux | grep bitcoind | grep -v grep
+### Node tidak sync / 0 connections
 
-# Kalau tidak ada, jalankan ulang
-./src/bitcoind -testnet -connect=104.234.26.7:39333 -daemon
-sleep 5
-./src/bitcoin-cli -testnet getblockcount
+```bash
+# Cek koneksi
+./src/bitcoin-cli getpeerinfo
+
+# Tambah peer manual
+./src/bitcoin-cli addnode "seed.assentian.network" "add"
+./src/bitcoin-cli addnode "seed2.assentian.network" "add"
+./src/bitcoin-cli addnode "seed3.assentian.network" "add"
 ```
 
-### Error: "Fee estimation failed"
-```bash
-# Tambah -fallbackfee
-./src/bitcoind -testnet -connect=104.234.26.7:39333 -fallbackfee=0.00001 -daemon
-```
+### Build error: not enough RAM
 
-### Error: "Killed" saat build
 ```bash
-# Kurangi paralel job
+# Build dengan 1 thread
 make -j1
 ```
 
-### Node tidak sync
-```bash
-# Cek koneksi ke VPS
-./src/bitcoin-cli -testnet getpeerinfo | grep "addr\|synced_blocks"
+### RPC connection refused
 
-# Kalau tidak ada peer, coba connect manual
-./src/bitcoin-cli -testnet addnode "104.234.26.7:39333" "add"
+Pastikan node sudah berjalan:
+```bash
+ps aux | grep bitcoind
+# Kalau tidak ada, start ulang:
+./src/bitcoind -daemon
 ```
 
----
+### Lainnya
 
-## Info Jaringan Testnet
-
-| Parameter | Nilai |
-|---|---|
-| VPS IP | 104.234.26.7 |
-| P2P Port | 39333 |
-| RPC Port | 39332 (localhost only) |
-| Genesis Hash | `2d858f51fc4af7926bee59c82d06d58a3f260647145aaf6f89263bcb3643b66d` |
-| Block Explorer | http://104.234.26.7 |
-| Block Time | ~60 detik |
-| Mining Reward | 50 SNTI/blok |
-
----
-
-## Roadmap Mining
-
-| Gelombang | Device | Status |
-|---|---|---|
-| 1 | CPU | 🟢 Aktif (testnet sekarang) |
-| 2 | GPU | 🟡 Dalam pengembangan (stratum server) |
-| 3 | ASIC | 🔵 Direncanakan (setelah mainnet stabil) |
-
----
-
-*Assentian-PQE (SNTI) — Post Quantum Era Begins*
-*Copyright © 2026 Asep Mulya | assentianpqe@gmail.com*
-
----
-
-## 7. Stratum Mining (CPU Pool)
-
-Selain `generatetoaddress`, kamu bisa connect ke stratum server resmi:
-Host: 104.234.26.7
-Port: 3333
-Protocol: stratum+tcp
-### Connect dengan cpuminer-opt
-
-```bash
-# Install cpuminer-opt
-sudo apt install -y cpuminer-multi
-
-# Connect ke stratum Assentian-PQE
-minerd -a sha256d \
-  -o stratum+tcp://104.234.26.7:3333 \
-  -u YOUR_SNTI_ADDRESS \
-  -p x
-```
-
-### Cek Stats Pool
-
-```bash
-curl http://104.234.26.7:3334/
-```
-
-### Catatan Wave 1 (CPU Stratum)
-
-- Reward mining masuk ke **pool address** (bukan address kamu langsung)
-- Sistem reward ke individual miner (payout) masih dalam pengembangan
-- Wave 2 (GPU) akan implementasi `submitblock` proper dengan reward langsung ke miner
+Buka GitHub Issues: https://github.com/assentian-network/snti/issues

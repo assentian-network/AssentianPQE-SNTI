@@ -1,23 +1,67 @@
-# SNTI — Assentian-PQE Quantum Resistant Blockchain
+# SNTI — Assentian-PQE Quantum-Resistant Blockchain
 
-> **The world's first mineable post-quantum cryptocurrency.**
-> Bitcoin Core v27 fork with XMSS-SHA2_10_256 post-quantum signature scheme and XMSS Proof-of-Useful-Work (PoUW v2) mining.
+The world's first mineable post-quantum cryptocurrency. A Bitcoin Core v27 fork using **XMSS-SHA2_10_256** post-quantum signatures and **PoUW v2** (Proof-of-Useful-Work) mining.
+
+> **Mainnet is live** — Genesis block mined 26 Jun 2026. Block explorer at [assentian.network/explorer](https://assentian.network/explorer/)
+
+---
 
 ## Overview
 
 | Feature | Specification |
-|---------|---------------|
-| **Ticker** | SNTI |
-| **Signature Scheme** | XMSS-SHA2_10_256 (NIST SP 800-208) |
-| **Proof of Work** | PoUW v2 — XMSS tree building (no SHA-256 nonce) |
-| **Block Time** | 60 seconds |
-| **Max Supply** | ~210,000,000 SNTI |
-| **Initial Block Reward** | 50 SNTI |
-| **Halving Interval** | 2,100,000 blocks (~4 years at 60s/block) |
-| **P2P Port** | 9333 (mainnet), 19333 (testnet), 29333 (regtest) |
-| **RPC Port** | 8332 (mainnet), 18332 (testnet), 18443 (regtest) |
-| **Address Prefix** | `qn1` (mainnet), `tq1` (testnet), `qnr1` (regtest) |
-| **Script Types** | P2XMSS (pubkey known), P2XMSSHASH (hash-committed, mirip P2PKH) |
+|---|---|
+| Ticker | **SNTI** |
+| Signature Scheme | XMSS-SHA2_10_256 (NIST SP 800-208) |
+| Proof of Work | PoUW v2 — XMSS tree building (no SHA-256 nonce grinding) |
+| Block Time | 60 seconds |
+| Max Supply | 210,000,000 SNTI |
+| Initial Block Reward | 50 SNTI |
+| Halving Interval | 2,100,000 blocks (~4 years) |
+| P2P Port | 9333 (mainnet), 19333 (testnet) |
+| RPC Port | 9332 (mainnet), 18332 (testnet) |
+| Address Prefix | `snti1` (mainnet), `tsnti1` (testnet) |
+| Script Types | P2XMSS, P2XMSSHASH |
+
+---
+
+## Why SNTI?
+
+Classical blockchains (Bitcoin, Ethereum) rely on ECDSA/secp256k1 signatures — vulnerable to Shor's algorithm on a sufficiently powerful quantum computer. SNTI uses **XMSS**, a hash-based post-quantum signature scheme standardized by NIST (SP 800-208), as the signature scheme for every wallet, address, and mining reward. (Note: legacy ECDSA opcodes are inherited from the Bitcoin Core codebase and are not rejected at the consensus level — see WHITEPAPER.md §13.1 — but no wallet or tooling generates them and none has ever been used on-chain.)
+
+Mining also changes: instead of wasting energy on SHA-256 nonce grinding, **PoUW v2** requires miners to build XMSS cryptographic trees — work that directly produces post-quantum security material.
+
+---
+
+## Mainnet
+
+| Item | Detail |
+|---|---|
+| Genesis Block | `b4a26aef52f6f5038815f26917cb0ea1fd3b3b13fbc7cfb5c541088a6943a5ba` |
+| Genesis Time | 26 Jun 2026 (Unix: 1782474812) |
+| Genesis nBits | `0x2001a41a` |
+| Network | `mainnet` |
+| Explorer | https://assentian.network/explorer/ |
+| Web Wallet | https://assentian.network/wallet/ |
+| DNS Seeds | `seed.assentian.network`, `seed2.assentian.network`, `seed3.assentian.network` |
+
+### Connect to Mainnet
+
+```bash
+./src/bitcoind \
+  -datadir=~/.bitcoin \
+  -rpcuser=<user> -rpcpassword=<pass> \
+  -rpcport=9332 -port=9333 \
+  -rpcallowip=127.0.0.1 \
+  -walletcrosschain \
+  -daemon
+
+# Check sync status
+./src/bitcoin-cli -rpcport=9332 -rpcuser=<user> -rpcpassword=<pass> getblockchaininfo
+```
+
+DNS seeds are embedded in the binary — your node will automatically discover peers on first start.
+
+---
 
 ## Building from Source
 
@@ -32,23 +76,24 @@ sudo apt install -y build-essential libtool autotools-dev automake pkg-config \
 ### Build
 
 ```bash
-git clone https://github.com/asepganzu-svg/AssentianPQE-SNTI.git
-cd AssentianPQE-SNTI
+git clone https://github.com/assentian-network/snti.git
+cd snti
 ./autogen.sh
 ./configure --without-gui --disable-tests --disable-bench
 make -j$(nproc)
 ```
 
-Build dari nol bisa 15–30+ menit tergantung spek mesin.
+Build time: 15–30 minutes depending on hardware.
 
-### Binaries
+### Pre-built Binaries
 
-| Binary | Path | Fungsi |
-|--------|------|--------|
-| Node daemon | `src/bitcoind` | Full node |
-| RPC client | `src/bitcoin-cli` | Interaksi RPC |
-| Wallet tool | `src/bitcoin-wallet` | Manajemen wallet |
-| TX builder | `src/bitcoin-tx` | Buat transaksi raw |
+Stripped Linux x86-64 binaries available at:
+```
+https://assentian.network/bin/bitcoind
+https://assentian.network/bin/bitcoin-cli
+```
+
+SHA-256: `c3070e74998f0234bc856ec712e7b40fea540fb40f62a3c844ba96ef3689a7f0` (bitcoind)
 
 ---
 
@@ -56,54 +101,51 @@ Build dari nol bisa 15–30+ menit tergantung spek mesin.
 
 ```bash
 ./src/bitcoind -regtest -rpcport=18443 -daemon
-./src/bitcoin-cli -regtest -rpcport=18443 createwallet "my_wallet"
-ADDR=$(./src/bitcoin-cli -regtest -rpcport=18443 getnewaddress)
+./src/bitcoin-cli -regtest -rpcport=18443 createwallet "test_wallet"
+
+# Generate XMSS address
+ADDR=$(./src/bitcoin-cli -regtest -rpcport=18443 -rpcwallet=test_wallet getnewxmssaddress | python3 -c "import sys,json; print(json.load(sys.stdin)['address'])")
+
+# Mine a block
 ./src/bitcoin-cli -regtest -rpcport=18443 generatetoaddress 1 "$ADDR"
-./src/bitcoin-cli -regtest -rpcport=18443 getbalance
-```
 
-### XMSS Address (Regtest)
-
-```bash
-# Generate alamat XMSS baru
-./src/bitcoin-cli -regtest -rpcport=18443 -rpcwallet=my_wallet getnewxmssaddress
-
-# Cek info alamat (ismine, pubkey, leaf_index, remaining)
-XMSS_ADDR="<address dari output di atas>"
-./src/bitcoin-cli -regtest -rpcport=18443 -rpcwallet=my_wallet getxmssaddressinfo "$XMSS_ADDR"
-
-# Kirim ke alamat XMSS (via generic sendtoaddress — menghasilkan P2XMSSHASH)
-./src/bitcoin-cli -regtest -rpcport=18443 -rpcwallet=my_wallet sendtoaddress "$XMSS_ADDR" 1.0
-
-# Belanjakan dari alamat XMSS
-# PENTING: setiap alamat XMSS hanya sekali pakai — otomatis "retired" setelah sign
-./src/bitcoin-cli -regtest -rpcport=18443 -rpcwallet=my_wallet sendfromxmssaddress "$XMSS_ADDR" "<dest_addr>" 0.5
+# Check balance
+./src/bitcoin-cli -regtest -rpcport=18443 -rpcwallet=test_wallet getbalances
 ```
 
 ---
 
-## Connect ke Testnet (VPS)
+## PoUW v2 Algorithm
 
-Node testnet berjalan di VPS `104.234.26.7`:
+PoUW v2 fully replaces SHA-256 nonce grinding. XMSS tree building **is** the proof of work.
 
-```bash
-# Node listen di port 39333 (override dari default 19333)
-./src/bitcoind -testnet \
-  -datadir=/root/.assentian_testnet \
-  -rpcuser=user -rpcpassword=password \
-  -rpcport=39332 -port=39333 \
-  -rpcallowip=127.0.0.1 \
-  -walletcrosschain \
-  -daemon
+1. Miner selects a random SK_SEED (96 bytes: SK_SEED | SK_PRF | PUB_SEED)
+2. Builds an XMSS-SHA2_10_256 tree of height 10 (~2–6 seconds depending on hardware)
+3. Extracts the `xmssRoot` (32-byte Merkle root)
+4. Checks: `xmssRoot < target` — if not, repeat from step 1
+5. If valid: signs the block hash with leaf index 0
+6. Embeds auth_path + WOTS+ signature in coinbase OP_RETURN (~2,660 bytes)
+7. Broadcasts the block
 
-# Cek status
-./src/bitcoin-cli -testnet -datadir=/root/.assentian_testnet \
-  -rpcuser=user -rpcpassword=password -rpcport=39332 \
-  getblockchaininfo
-```
+`nNonce` is always 0. EMA difficulty adjusts per block (alpha=0.1, target=60s).
 
-Explorer: http://104.234.26.7
-Stratum: `stratum+tcp://104.234.26.7:3333`
+---
+
+## XMSS Address Model
+
+- Each XMSS address is used **at most once** for spending
+- After signing, the key is retired — wallet refuses to sign again with the same address
+- Change is automatically sent to a new XMSS address
+- Two script types:
+  - **P2XMSS** — `<64-byte-pubkey> OP_XMSS_CHECKSIG` (pubkey known to sender)
+  - **P2XMSSHASH** — `OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY OP_XMSS_CHECKSIG` (like P2PKH)
+
+> ⚠️ **CRITICAL: never run the same `wallet.dat` on two machines at once.**
+> The "retired after signing" protection above is tracked per-key on disk in `wallet.dat` itself (and, for mining-derived addresses, also in a shared on-disk ledger — see [WHITEPAPER.md §13.1](WHITEPAPER.md)) — but neither mechanism survives a **stale backup**. If you restore or copy a `wallet.dat` snapshot taken *before* a signature was made, and both the original and the restored copy later sign with the same XMSS address (same `leaf_index`), you produce two signatures from the same one-time key. XMSS's security collapses under key reuse: an attacker who observes both signatures can mathematically reconstruct the private key and steal all funds on that address.
+>
+> **This is not caught by the blockchain.** SNTI's consensus-level leaf-reuse check only protects the mining proof embedded in each block (so two miners can't reuse the same mining tree's leaf) — it does **not** inspect ordinary spending transactions. Two independent nodes signing regular sends from the same restored address will both succeed and both be accepted on-chain; nothing on the network will warn you.
+>
+> Treat `wallet.dat` restores like a hardware wallet seed — restore to exactly one live node, never run backups "just in case" in parallel, and if you must migrate to a new machine, shut down the old node first and confirm it stays offline.
 
 ---
 
@@ -111,92 +153,63 @@ Stratum: `stratum+tcp://104.234.26.7:3333`
 
 ```
 src/
-├── pouw_v2.h               # PoUW v2: PoUWv2Proof, CheckPoUWv2(), CalcNextTargetEMA()
+├── pouw_v2.h               # PoUW v2: proof struct, CheckPoUWv2(), CalcNextTargetEMA()
 ├── primitives/block.h      # CBlockHeader — xmssRoot, nLeafIndex, commitmentsRoot
-├── pow.cpp                 # EMA difficulty adjustment
-├── validation.cpp          # CheckPoUWv2() — verifikasi blok PoUW v2
-├── rpc/mining.cpp          # GenerateBlock() — loop mining (SK_SEED search)
+├── pow.cpp                 # EMA difficulty adjustment + stuck-chain recovery
+├── validation.cpp          # Block validation for PoUW v2
+├── rpc/mining.cpp          # GenerateBlock() — mining loop
 ├── wallet/
-│   ├── xmss_signer.h/cpp  # CXMSSSigner — signing, state, key retirement
-│   └── rpc/xmss.h/cpp     # RPC: getnewxmssaddress, sendfromxmssaddress, dll
+│   ├── xmss_signer.h/cpp   # CXMSSSigner — signing, state, key retirement
+│   └── rpc/xmss.h/cpp      # RPC: getnewxmssaddress, getxmssaddressinfo, etc.
 └── script/
-    ├── interpreter.cpp     # OP_XMSS_CHECKSIG — verifikasi sig transaksi (5-chunk)
-    └── sign.cpp            # SignStep() — signing transaksi XMSS
+    ├── interpreter.cpp     # OP_XMSS_CHECKSIG — signature verification
+    └── sign.cpp            # SignStep() — XMSS transaction signing
+explorer/
+├── server.py               # Flask API + web wallet backend
+├── index.html              # Block explorer UI
+└── snti-coin.svg           # SNTI coin icon
 ```
-
----
-
-## PoUW v2 Algorithm
-
-PoUW v2 menggantikan SHA-256 nonce grinding sepenuhnya. XMSS tree building **adalah** proof-of-work-nya.
-
-1. Miner pilih SK_SEED acak (96 bytes: SK_SEED | SK_PRF | PUB_SEED)
-2. Bangun XMSS-SHA2_10_256 tree tinggi 10 (~6 detik, 4 core CPU)
-3. Ekstrak `xmssRoot` (32-byte Merkle root)
-4. Cek: `xmssRoot < target` — jika tidak, ulangi dari langkah 1
-5. Jika valid: sign hash blok dengan key di leaf index 0
-6. Embed auth_path + WOTS+ signature di coinbase OP_RETURN (2660 bytes)
-7. Broadcast blok
-
-**`nNonce` selalu 0** — tidak ada nonce grinding di PoUW v2.
-
-**EMA difficulty**: per-blok dengan alpha=0.1, target 60 detik.
-
-### Key lifecycle mining
-
-Setiap percobaan mining menghasilkan key XMSS baru dan hanya memakai index 0 dari kapasitas 1024 signature. Ini disengaja: menghindari risiko persistensi state yang crash-unsafe. Index 1023 tidak pernah dipakai (ada known bug di reference library — lihat DEVDOCS.md).
 
 ---
 
 ## XMSS Parameters
 
 | Parameter | Value |
-|-----------|-------|
+|---|---|
 | Algorithm | XMSS-SHA2_10_256 |
 | Tree Height | 10 (1024 leaves) |
 | Security Level | 256-bit post-quantum |
-| Public Key | 64 bytes (root \|\| PUB_SEED) |
+| Public Key | 64 bytes |
 | Signature Size | ~2,500 bytes |
-| OID | 0x00000001 |
+| Standard | NIST SP 800-208 |
 
 ---
 
-## XMSS Address Model
-
-SNTI menggunakan **swept one-time-address** untuk spending:
-- Setiap alamat XMSS dipakai **paling banyak sekali** untuk spending (index 0)
-- Setelah sign, key langsung `retired` — wallet menolak sign kedua kali di alamat yang sama
-- Dana kembalian otomatis ke alamat XMSS baru
-
-Dua jenis script output:
-- **P2XMSS** — `<64-byte-pubkey> OP_XMSS_CHECKSIG` (pubkey diketahui sender)
-- **P2XMSSHASH** — `OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY OP_XMSS_CHECKSIG` (seperti P2PKH — sender hanya punya hash, pubkey direveal saat spend)
-
-`sendtoaddress` ke alamat XMSS menghasilkan P2XMSSHASH secara otomatis.
-
----
-
-## Status Aktif (Jun 25 2026)
+## Status (30 Jun 2026)
 
 | Item | Status |
-|------|--------|
-| PoUW v2 mining | ✅ Berjalan |
-| P2XMSS + P2XMSSHASH spending | ✅ Berjalan |
-| XMSS key retirement | ✅ Berjalan |
-| Stratum server (hybrid) | ✅ Berjalan |
-| WOTS+ verification di CheckPoUWv2 | ✅ Berjalan (auth_path non-zero, result=1 di semua blok) |
-| DNS seeds | 🟡 Belum (tunggu domain) |
-
-Detail teknis lengkap: lihat [`DEVDOCS.md`](DEVDOCS.md).
+|---|---|
+| Mainnet | ✅ Live — block 1170+ |
+| PoUW v2 mining | ✅ Operational |
+| P2XMSS + P2XMSSHASH spending | ✅ Operational |
+| XMSS key retirement | ✅ Operational |
+| DNS seeds (3 nodes) | ✅ Operational |
+| Web wallet (custodial) | ✅ Operational |
+| Non-custodial wallet | ✅ Operational |
+| Block explorer | ✅ Operational |
+| Pool mining | 🔄 In development (Phase 3) |
+| External security audit | 🔄 Planned |
 
 ---
 
 ## References
 
-- [NIST SP 800-208](https://csrc.nist.gov/publications/detail/sp/800-208/final) — XMSS Signature Scheme
-- [XMSS Reference Implementation](https://github.com/XMSS/xmss-reference)
+- [NIST SP 800-208](https://doi.org/10.6028/NIST.SP.800-208) — Recommendation for Stateful Hash-Based Signature Schemes
+- [RFC 8391](https://tools.ietf.org/html/rfc8391) — XMSS: eXtended Merkle Signature Scheme
 - [Bitcoin Core](https://github.com/bitcoin/bitcoin) — Base codebase (v27)
+
+---
 
 ## License
 
-BSL-1.1, konversi ke GPL-2.0 pada 15/Jun/2030.
+BSL-1.1, converting to GPL-2.0 on 15 Jun 2030.

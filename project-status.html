@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="icon" type="image/svg+xml" href="/snti-coin.svg"><link rel="shortcut icon" href="/snti-coin.svg">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Assentian-PQE Project Status</title>
@@ -44,17 +45,18 @@ code{background:rgba(0,212,170,.1);color:var(--accent);padding:1px 6px;border-ra
   </header>
 
   <div class="intro">
-    <strong>Update terakhir: 29 Juni 2026.</strong> Awalnya disusun 20 Jun 2026 sebagai rekonsiliasi tunggal dari FIX_LOG.md dan AUDIT.md. Sejak itu: <strong>Mainnet launched 28 Jun 2026</strong> (block 786+), deep code audit 29 Jun menemukan dan memfix 12 bug (5 kritis, 5 tinggi, 2 medium), dan PoUW V2 difficulty stuck-chain fix diterapkan. Lihat juga <a href="/changelog">changelog</a> dan <a href="/mainnet-checklist.html">mainnet checklist</a>.
+    <strong>Update terakhir: 30 Juni 2026.</strong> <strong>Mainnet launched 26 Jun 2026</strong> (block 1170+). Deep code audit 29 Jun menemukan dan memfix 12 bug (5 kritis, 5 tinggi, 2 medium). 3-node network aktif (Indonesia + USA + Singapore) dengan DNS seed live. Lihat juga <a href="/changelog">changelog</a> dan <a href="/mainnet-checklist.html">mainnet checklist</a>.
   </div>
 
   <div class="section">
-    <div class="section-header"><div class="section-title">✅ Mainnet Live — 28 Jun 2026 (786+ blocks)</div></div>
+    <div class="section-header"><div class="section-title">✅ Mainnet Live — 26 Jun 2026 (1170+ blocks)</div></div>
     <div class="list">
-      <div class="item">✅ Mainnet genesis block — hash <code>b4a26aef...</code>, nBits <code>0x2001a41a</code>, timestamp 28 Jun 2026</div>
-      <div class="item">✅ VPS miner 24/7 — systemd-managed, mining ke address VPS (3700+ SNTI reward)</div>
+      <div class="item">✅ Mainnet genesis block — hash <code>b4a26aef...</code>, nBits <code>0x2001a41a</code>, timestamp 26 Jun 2026 (Unix: 1782474812)</div>
+      <div class="item">✅ 3-node network — Indonesia (main VPS) + USA (KC) + Singapore (SG), semua mining 24/7 via systemd</div>
+      <div class="item">✅ DNS seed live — seed.assentian.network, seed2.assentian.network, seed3.assentian.network (round-robin 3 IP)</div>
+      <div class="item">✅ Send/receive SNTI — transaksi antar wallet verified end-to-end di mainnet</div>
       <div class="item">✅ Web wallet live — assentian.network/wallet/ (custodial, Flask + SQLite)</div>
       <div class="item">✅ Block explorer — assentian.network/explorer/, API /api/ proxied via nginx</div>
-      <div class="item">✅ Mining installer — VirtualBox miner + install.sh dengan JWT embed</div>
       <div class="item">✅ SSL + domain — assentian.network (Certbot, Let's Encrypt)</div>
     </div>
   </div>
@@ -104,7 +106,7 @@ code{background:rgba(0,212,170,.1);color:var(--accent);padding:1px 6px;border-ra
     </div>
   </div>
 
-  <div class="footer-note">Update terakhir: 29 Juni 2026. Commit referensi: lihat <a href="/changelog">changelog</a>.</div>
+  <div class="footer-note">Update terakhir: 30 Juni 2026. Commit referensi: lihat <a href="/changelog">changelog</a>.</div>
 </div>
 </body>
 </html>

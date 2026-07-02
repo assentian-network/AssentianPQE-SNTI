@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Quant developers
+// Copyright (c) 2025 The Assentian-PQE developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -279,6 +279,8 @@ RPCHelpMan getxmssaddressinfo()
                 {RPCResult::Type::STR_HEX, "pubkey", "The 64-byte XMSS public key (hex, if ismine)"},
                 {RPCResult::Type::NUM, "leaf_index", "Current leaf index (if ismine)"},
                 {RPCResult::Type::NUM, "remaining", "Remaining signatures (if ismine)"},
+                {RPCResult::Type::BOOL, "retired", "True if key is one-time-spent or blacklisted (cannot sign again, if ismine)"},
+                {RPCResult::Type::STR, "warning", "Non-empty when key is spent, blacklisted, or near exhaustion (if ismine)"},
             },
         },
         RPCExamples{
@@ -308,6 +310,7 @@ RPCHelpMan getxmssaddressinfo()
         bool found = false;
         std::vector<uint8_t> found_pubkey;
         uint32_t found_idx = 0;
+        bool found_retired = false;
 
         auto* signer = pwallet->GetXMSSSigner();
         if (signer) {
@@ -319,6 +322,7 @@ RPCHelpMan getxmssaddressinfo()
                     found = true;
                     found_pubkey = pubkey;
                     found_idx = signer->GetLeafIndex(pubkey);
+                    found_retired = signer->IsXMSSKeyRetired(pubkey);
                     break;
                 }
             }
@@ -326,9 +330,27 @@ RPCHelpMan getxmssaddressinfo()
 
         result.pushKV("ismine", found);
         if (found) {
+            uint32_t remaining = (found_idx <= 1024) ? (1024 - found_idx) : 0;
+
+            // SNTI: mirror listxmsskeys' warning logic so callers (e.g. a
+            // miner script deciding whether to keep paying rewards to this
+            // address) can rely on either RPC for the same status.
+            std::string warning;
+            if (found_retired) {
+                warning = "SPENT: one-time address already used — key cannot sign again";
+            } else if (remaining == 0) {
+                warning = "CRITICAL: key fully exhausted (0 signatures remaining)";
+            } else if (remaining < 10) {
+                warning = strprintf("CRITICAL: only %u signature(s) remaining", remaining);
+            } else if (remaining < 200) {
+                warning = strprintf("WARNING: only %u signatures remaining — generate a new key soon", remaining);
+            }
+
             result.pushKV("pubkey", HexStr(found_pubkey));
             result.pushKV("leaf_index", (int)found_idx);
-            result.pushKV("remaining", (int)(1024 - found_idx));
+            result.pushKV("remaining", (int)remaining);
+            result.pushKV("retired", found_retired);
+            result.pushKV("warning", warning);
         }
 
         return result;

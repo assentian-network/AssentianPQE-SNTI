@@ -131,6 +131,38 @@ struct Params {
      *  the preimage is SHA256(nVersion||hashPrevBlock||hashMerkleRoot||nTime||nBits),
      *  which binds the proof to the block's transaction set (fix for audit bug #1). */
     int nPoUWv3StartHeight{std::numeric_limits<int>::max()}; //!< disabled unless set
+    /** Height at which leaf-index reuse prevention (SNTI M7) is enforced.
+     *  Blocks below this height are exempt — they pre-date the check and may
+     *  contain reused leaf indices mined by earlier binary versions. */
+    int nPoUWLeafReuseActivation{std::numeric_limits<int>::max()}; //!< disabled unless set
+    /** Height at which Failed-Seed-List entries must cryptographically prove
+     *  their claimed xmss_root derives from their claimed sk_seed (audit T-1).
+     *  Below this height a miner could submit an arbitrary (sk_seed, root)
+     *  pair unchecked; blocks below this height are exempt for compatibility
+     *  with already-mined history. */
+    int nPoUWFSLSeedVerifyHeight{std::numeric_limits<int>::max()}; //!< disabled unless set
+    /** Height at which stuck-chain difficulty recovery (GetNextWorkRequired(),
+     *  pow.cpp) requires corroboration from prior, already-confirmed
+     *  inter-block gaps before granting the full 20x EMA-easing jump on a
+     *  single block's self-reported timestamp gap (KRITIS #5, 2 Jul 2026).
+     *  Below this height a single miner-chosen timestamp was sufficient to
+     *  trigger it, exempted here for compatibility with already-mined
+     *  history. Below this height the OLD single-block-gap logic is used
+     *  byte-for-byte unchanged. */
+    int nPoUWStuckRecoveryHardenHeight{std::numeric_limits<int>::max()}; //!< disabled unless set
+    /** Grandfather exemption for the strict nBits ("bad-diffbits") check in
+     *  ContextualCheckBlockHeader() (discovered 2 Jul 2026 via the first-ever
+     *  fresh IBD sync attempt from genesis). The PoUW v2 difficulty algorithm
+     *  (EMA clamp, stuck-chain recovery, 3-block moving average) was tuned
+     *  several times early in mainnet's life via direct node restarts rather
+     *  than proper activation-height gating, so blocks mined under an older
+     *  version of the formula don't recompute to the same nBits under the
+     *  current one. Blocks at height <= this value skip the nBits equality
+     *  check entirely (no other header/PoW rule is relaxed). Default 0 means
+     *  no exemption (strict check always enforced) -- this only needs a
+     *  nonzero value on mainnet, whose specific historical mismatches (height
+     *  7-273, scanned exhaustively 2 Jul 2026) this exists to grandfather in. */
+    int nPoUWDiffbitsGrandfatherHeight{0};
     size_t nPoUWMaxSigSize{4096};        //!< Maximum XMSS signature size in coinbase scriptSig
 
     /** SNTI: XMSS sighash chain ID — prevents cross-chain tx replay.

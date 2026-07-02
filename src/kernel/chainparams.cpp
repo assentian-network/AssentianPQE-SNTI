@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Quant developers
+// Copyright (c) 2025 The Assentian-PQE developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -66,12 +66,12 @@ static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits
  * Assentian-PQE Mainnet — Pure Post-Quantum Proof-of-Useful-Work
  *
  * SNTI PoUW v2: Pure XMSS Tree Building
- *   - P2P Port:      39333
- *   - Genesis:       Jun 24, 2026
+ *   - P2P Port:      9333
+ *   - Genesis:       Jun 26, 2026
  *   - Block Time:    ~60 seconds (EMA difficulty adjustment)
  *   - Halving:       Every 2,100,000 blocks (~4 years at 60s/block)
- *   - Max Supply:    21,000,000 SNTI
- *   - Address:       bech32m prefix "qn"
+ *   - Max Supply:    210,000,000 SNTI
+ *   - Address:       bech32m prefix "snti"
  *   - PoW:           Pure XMSS tree building (NO SHA-256 nonce)
  *
  * PoUW v2 approach:
@@ -139,6 +139,10 @@ public:
         consensus.nPoUWStartHeight = 1;
         consensus.nPoUWv2StartHeight = 1;   // v1 proofs never valid on mainnet
         consensus.nPoUWv3StartHeight = 200; // hashMerkleRoot included in preimage from block 200
+        consensus.nPoUWLeafReuseActivation = 1000; // M7: leaf-reuse prevention active from block 1000
+        consensus.nPoUWFSLSeedVerifyHeight = 3000; // audit T-1: FSL sk_seed must match claimed root from block 3000
+        consensus.nPoUWStuckRecoveryHardenHeight = 4400; // audit KRITIS #5 (2 Jul 2026): require corroborated stuck-chain evidence, chain height was 3907 when written
+        consensus.nPoUWDiffbitsGrandfatherHeight = 300; // 2 Jul 2026: exhaustive scan of all 3907 blocks found nBits mismatches only at height 7-273 (pre-"Sesi 4" difficulty algorithm churn); grandfathers those in so fresh IBD sync from genesis is possible again
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 1; // mainnet
 
@@ -162,9 +166,13 @@ public:
         consensus.hashGenesisBlock = genesis.GetHash();
 
         vSeeds.clear();
-        // SNTI DNS seeds — assentian.network (registered 28/Jun/2026)
-        // A record: seed.assentian.network → 104.234.26.7
+        // SNTI DNS seeds — assentian.network
+        // seed  → 104.234.26.7 (Main VPS, Indonesia)
+        // seed2 → 166.88.227.172 (Seed-US, Kansas City)
+        // seed3 → 103.195.190.192 (Seed-APAC, Singapore)
         vSeeds.emplace_back("seed.assentian.network.");
+        vSeeds.emplace_back("seed2.assentian.network.");
+        vSeeds.emplace_back("seed3.assentian.network.");
 
         // SNTI mainnet hardcoded seed nodes.
         // TODO(mainnet): add 2+ nodes in EU and APAC before public launch.
@@ -248,6 +256,9 @@ public:
         consensus.nPoUWStartHeight = 1;
         consensus.nPoUWv2StartHeight = 1;   // v1 proofs never valid on testnet
         consensus.nPoUWv3StartHeight = 200; // hashMerkleRoot included in preimage from block 200
+        consensus.nPoUWLeafReuseActivation = 200; // M7: enforce from block 200 on testnet
+        consensus.nPoUWFSLSeedVerifyHeight = 200; // audit T-1: enforce from block 200 on testnet
+        consensus.nPoUWStuckRecoveryHardenHeight = 200; // audit KRITIS #5: enforce from block 200 on testnet
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 2; // testnet
 
@@ -496,6 +507,8 @@ public:
         consensus.nPoUWStartHeight = 1;
         consensus.nPoUWv2StartHeight = 1; // v1 proofs never valid on regtest
         consensus.nPoUWv3StartHeight = 1; // regtest: use new preimage from genesis
+        consensus.nPoUWFSLSeedVerifyHeight = 1; // audit T-1: enforce from genesis on regtest
+        consensus.nPoUWStuckRecoveryHardenHeight = 1; // audit KRITIS #5: enforce from genesis on regtest
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 4; // regtest (3=signet, avoid chain_id collision)
 

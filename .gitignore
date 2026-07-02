@@ -160,3 +160,19 @@ dist/
 # SNTI: sensitive runtime files — never commit
 explorer/.jwt_secret
 explorer/wallet.db
+.claude/
+
+# SNTI: private genesis key — NEVER commit
+qnt_genesis_key.txt
+qnt_genesis_key.c
+qnt_genesis_mine.c
+qnt_genesis_mine.py
+mine_genesis.sh
+mine_local.sh
+mine_testnet_genesis.c
+
+# env / secrets
+.env
+.env.*
+*.pem
+*.key

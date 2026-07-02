@@ -4064,11 +4064,9 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
         }
 
         // SNTI M7: leaf index reuse prevention via persistent DB (DB_POUW_LEAF).
-        // ConnectBlock writes MakePoUWLeafKey(xmss_pk, nLeafIndex) → block_hash
-        // for every PoUW block; DisconnectBlock erases it on reorg.
-        // This replaces the previous 1024-block in-memory chain scan with an
-        // O(1) DB read that covers the full chain history.
-        {
+        // Only enforced from nPoUWLeafReuseActivation onwards — blocks mined before
+        // that height are grandfathered (pre-dates the M7 check binary).
+        if (nHeight >= consensusParams.nPoUWLeafReuseActivation) {
             std::vector<uint8_t> xmss_pk_vec(v2_proof.xmss_pk, v2_proof.xmss_pk + 64);
             uint256 leaf_key = MakePoUWLeafKey(xmss_pk_vec, block.nLeafIndex);
             uint256 existing_block;
@@ -4122,6 +4120,21 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
                         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-fsl-root-valid",
                             strprintf("PoUW v2: FSL entry has root <= target (would be a valid proof, "
                                       "not a failed seed): root=%s", failed_root.GetHex()));
+                    }
+                    // Audit T-1: rebuild the XMSS root from the claimed sk_seed and
+                    // confirm it actually matches entry.xmss_root. Without this, a
+                    // miner could submit an arbitrary (sk_seed, root) pair — the FSL
+                    // wouldn't prove any real mining work was performed.
+                    if (nHeight >= consensusParams.nPoUWFSLSeedVerifyHeight) {
+                        std::vector<uint8_t> seed_vec(entry.sk_seed, entry.sk_seed + PoUWv2KeyDer::SEED_BYTES);
+                        std::vector<uint8_t> rebuilt_root;
+                        if (!XMSS::ComputeRootFromSeed(seed_vec, rebuilt_root) ||
+                            rebuilt_root.size() != 32 ||
+                            memcmp(rebuilt_root.data(), entry.xmss_root, 32) != 0) {
+                            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-fsl-seed-mismatch",
+                                strprintf("PoUW v2: FSL entry's xmss_root does not derive from its claimed "
+                                          "sk_seed (root=%s)", failed_root.GetHex()));
+                        }
                     }
                 }
                 fsl_found = true;
@@ -4204,7 +4217,7 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
                              "PoUW: XMSS signature verification failed");
     }
 
-    // SNTI Fix2: check leaf index not already used
+    // SNTI Fix2 / M7: check leaf index not already used (only from nPoUWLeafReuseActivation)
     if (xmss_sig.size() < 4) {
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-sig-too-short",
                              "PoUW: XMSS signature too short to extract leaf index");
@@ -4213,12 +4226,14 @@ static bool CheckPoUW(const CBlock& block, BlockValidationState& state, const Co
                         ((uint32_t)xmss_sig[1] << 16) |
                         ((uint32_t)xmss_sig[2] <<  8) |
                          (uint32_t)xmss_sig[3];
-    uint256 leaf_key = MakePoUWLeafKey(xmss_pk, leaf_idx);
-    uint256 existing_block;
-    if (chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaf_key), existing_block)) {
-        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-leaf-reuse",
-                             strprintf("PoUW: XMSS leaf index %u already used in block %s",
-                                       leaf_idx, existing_block.GetHex()));
+    if (nHeight >= consensusParams.nPoUWLeafReuseActivation) {
+        uint256 leaf_key = MakePoUWLeafKey(xmss_pk, leaf_idx);
+        uint256 existing_block;
+        if (chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaf_key), existing_block)) {
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "pouw-leaf-reuse",
+                                 strprintf("PoUW: XMSS leaf index %u already used in block %s",
+                                           leaf_idx, existing_block.GetHex()));
+        }
     }
     LogPrint(BCLog::VALIDATION, "PoUW: block %s verified (pk=%s, leaf_idx=%u, sig_len=%d)\n",
              block.GetHash().GetHex(), HexStr(xmss_pk).substr(0, 16), leaf_idx, (int)xmss_sig.size());
@@ -4329,8 +4344,17 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
     const int nHeight = pindexPrev->nHeight + 1;
 
     // Check proof of work
+    // SNTI FIX (2 Jul 2026): grandfather blocks at/below nPoUWDiffbitsGrandfatherHeight
+    // out of the strict nBits equality check. The PoUW v2 difficulty formula was
+    // tuned several times very early in mainnet's life via direct restarts (not
+    // activation-height-gated), so a handful of blocks in that early range don't
+    // recompute to the same nBits under the current formula -- discovered via the
+    // first-ever fresh IBD sync attempt from genesis, which was unconditionally
+    // rejecting at height 7 and would have rejected 49 more times through height
+    // 273. No other header/PoW rule is relaxed by this exemption.
     const Consensus::Params& consensusParams = chainman.GetConsensus();
-    if (block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams))
+    if (nHeight > consensusParams.nPoUWDiffbitsGrandfatherHeight &&
+        block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "bad-diffbits", "incorrect proof of work");
 
     // Check against checkpoints
