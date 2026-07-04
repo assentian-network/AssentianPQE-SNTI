@@ -63,17 +63,34 @@ jobs:
         run: |
           export PATH="$PWD/cov-analysis/bin:$PATH"
           # secp256k1/leveldb/minisketch/univalue/crc32c are vendored upstream
-          # subtrees, already audited independently — they are the bulk of
-          # cov-int's size but not something we intend to fix here even if
-          # Coverity flags something in them (same rationale as excluding
-          # them from the CodeQL "worth chasing" triage). Removing their
-          # translation units from the emit database before packaging keeps
-          # cov-int.tgz under Coverity Scan's free-tier upload limit.
+          # subtrees, already audited independently, so we don't intend to
+          # act on findings there regardless (same rationale as excluding
+          # them from the CodeQL "worth chasing" triage) -- deleting their
+          # translation units is a legitimate scope reduction on its own
+          # merits, but earlier runs assumed (without measuring) that they
+          # were also the bulk of cov-int's size. Run 28707223098 proved
+          # that wrong: 98/612 TUs deleted, tgz stayed at exactly 566MB.
+          # Coverity Scan's free-tier upload cap is documented at 500MB
+          # (scan.coverity.com/faq.html), so keep this step for scope
+          # hygiene, but the actual size source is still unknown -- the du
+          # breakdown below is diagnostic only, no more guessing.
+          echo "cov-int size before strip:"
+          du -sh cov-int
           echo "TUs before: $(cov-manage-emit --dir cov-int list | wc -l)"
           cov-manage-emit --dir cov-int \
             --tu-pattern "file('.*/(secp256k1|leveldb|minisketch|univalue|crc32c)/.*')" \
             delete
           echo "TUs after: $(cov-manage-emit --dir cov-int list | wc -l)"
+          echo "cov-int size after strip:"
+          du -sh cov-int
+          echo "cov-int top-level breakdown:"
+          du -h --max-depth=1 cov-int | sort -rh
+          echo "cov-int/emit breakdown (if present):"
+          du -h --max-depth=2 cov-int/emit 2>/dev/null | sort -rh | head -30
+          echo "cov-int/output breakdown (if present):"
+          du -h --max-depth=2 cov-int/output 2>/dev/null | sort -rh | head -30
+          echo "cov-int/config breakdown (if present):"
+          du -h --max-depth=1 cov-int/config 2>/dev/null | sort -rh | head -30
 
       - name: Package build artifacts
         run: |
