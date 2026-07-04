@@ -69,11 +69,11 @@ jobs:
           # them from the CodeQL "worth chasing" triage). Removing their
           # translation units from the emit database before packaging keeps
           # cov-int.tgz under Coverity Scan's free-tier upload limit.
-          echo "TUs before: $(cov-manage-emit --dir cov-int list-tus | wc -l)"
-          cov-manage-emit --dir cov-int --tu-pattern \
-            "file(regex(\".*/(secp256k1|leveldb|minisketch|univalue|crc32c)/.*\"))" \
+          echo "TUs before: $(cov-manage-emit --dir cov-int list | wc -l)"
+          cov-manage-emit --dir cov-int \
+            --tu-pattern "file('.*/(secp256k1|leveldb|minisketch|univalue|crc32c)/.*')" \
             delete
-          echo "TUs after: $(cov-manage-emit --dir cov-int list-tus | wc -l)"
+          echo "TUs after: $(cov-manage-emit --dir cov-int list | wc -l)"
 
       - name: Package build artifacts
         run: |
