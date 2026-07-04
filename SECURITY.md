@@ -1,3 +1,4 @@
+
 # Security Policy — Assentian-PQE (SNTI)
 
 ## Scope
@@ -31,7 +32,7 @@ Report privately via email. Include:
 3. Potential impact assessment
 4. (Optional) Suggested fix
 
-**Contact:** assentianpqe@gmail.com *(replace with actual contact email)*
+**Contact:** admin@assentian.network **.**
 
 PGP encryption available on request.
 

@@ -4,19 +4,14 @@
 // Miner collects 10-20 failed SK_SEEDs during mining loop.
 // Their Merkle root is committed in block header (commitmentsRoot).
 // Full seed list embedded in coinbase OP_RETURN for node verification.
-// Node derives wallet keypairs via HKDF — provably from real mining work.
 
 #ifndef ASSENTIAN_POUW_V2_KEYDER_H
 #define ASSENTIAN_POUW_V2_KEYDER_H
 
-#include <crypto/hmac_sha256.h>
-#include <crypto/hmac_sha512.h>
 #include <hash.h>
 #include <uint256.h>
 #include <cstring>
 #include <vector>
-#include <array>
-#include <string>
 
 namespace PoUWv2KeyDer {
 
@@ -27,91 +22,6 @@ static constexpr size_t MIN_FAILED_SEEDS = 10;
 
 // Magic for coinbase OP_RETURN seed list
 static constexpr uint8_t SEEDS_MAGIC[4] = {'F','S','L',0x01}; // Failed Seed List v1
-
-// HKDF derivation salt
-static const std::string WALLET_DERIVE_SALT = "SNTI-WalletDerivation-v1";
-
-// ── HKDF-SHA256 ──────────────────────────────────────────────────────────────
-// RFC 5869 HKDF with SHA-256, supporting up to 255*32 = 8160 bytes output.
-// Extract: PRK = HMAC-SHA256(salt, IKM)
-// Expand:  T(i) = HMAC-SHA256(PRK, T(i-1) || info || i), OKM = T(1)||T(2)||...
-inline void HKDF_SHA256(
-    const uint8_t* ikm,    size_t ikm_len,   // Input Key Material (SK_SEED)
-    const uint8_t* salt,   size_t salt_len,  // Salt
-    const uint8_t* info,   size_t info_len,  // Context info
-    uint8_t* okm,          size_t okm_len)   // Output Key Material
-{
-    // Extract: PRK = HMAC-SHA256(salt, IKM)
-    uint8_t prk[32];
-    CHMAC_SHA256 extract_hmac(salt, salt_len);
-    extract_hmac.Write(ikm, ikm_len);
-    extract_hmac.Finalize(prk);
-
-    // Expand: produce ceil(okm_len/32) blocks
-    uint8_t t_prev[32] = {};
-    size_t t_prev_len = 0;
-    size_t written = 0;
-    for (uint8_t counter = 1; written < okm_len; counter++) {
-        // T(i) = HMAC-SHA256(PRK, T(i-1) || info || i)
-        CHMAC_SHA256 expand_hmac(prk, 32);
-        if (t_prev_len > 0) expand_hmac.Write(t_prev, t_prev_len);
-        expand_hmac.Write(info, info_len);
-        expand_hmac.Write(&counter, 1);
-        expand_hmac.Finalize(t_prev);
-        t_prev_len = 32;
-
-        size_t copy_len = okm_len - written;
-        if (copy_len > 32) copy_len = 32;
-        memcpy(okm + written, t_prev, copy_len);
-        written += copy_len;
-    }
-}
-
-// ── DerivedWalletKey ─────────────────────────────────────────────────────────
-struct DerivedWalletKey {
-    uint8_t seed[SEED_BYTES];      // 96-byte XMSS seed for keypair generation
-    uint8_t commitment[32];        // SHA256(failed_root || sk_seed || block_height)
-    uint32_t block_height;
-
-    // Derive wallet seed from failed SK_SEED via HKDF
-    static DerivedWalletKey FromFailedSeed(
-        const uint8_t* failed_sk_seed,  // 96-byte failed SK_SEED
-        const uint8_t* failed_root,     // 32-byte XMSS root of failed tree
-        uint32_t height)
-    {
-        DerivedWalletKey dk;
-        dk.block_height = height;
-
-        // Commitment = SHA256(failed_root || failed_sk_seed || height_BE4)
-        uint8_t height_be[4];
-        height_be[0] = (height >> 24) & 0xFF;
-        height_be[1] = (height >> 16) & 0xFF;
-        height_be[2] = (height >>  8) & 0xFF;
-        height_be[3] =  height        & 0xFF;
-
-        CHash256 hasher;
-        hasher.Write({failed_root, 32});
-        hasher.Write({failed_sk_seed, SEED_BYTES});
-        hasher.Write({height_be, 4});
-        uint256 commitment_hash;
-        hasher.Finalize(commitment_hash);
-        memcpy(dk.commitment, commitment_hash.begin(), 32);
-
-        // Derive wallet seed via HKDF
-        // IKM  = failed_sk_seed (96 bytes)
-        // salt = WALLET_DERIVE_SALT
-        // info = commitment (32 bytes) — binds derivation to this specific block
-        HKDF_SHA256(
-            failed_sk_seed, SEED_BYTES,
-            reinterpret_cast<const uint8_t*>(WALLET_DERIVE_SALT.data()),
-            WALLET_DERIVE_SALT.size(),
-            dk.commitment, 32,
-            dk.seed, SEED_BYTES
-        );
-
-        return dk;
-    }
-};
 
 // ── FailedSeedList ───────────────────────────────────────────────────────────
 // Container for 10-20 failed seeds per block
@@ -236,16 +146,6 @@ struct FailedSeedList {
     bool VerifyAgainstHeader(const uint256& header_commitments_root) const {
         if (entries.size() < MIN_FAILED_SEEDS) return false;
         return ComputeMerkleRoot() == header_commitments_root;
-    }
-
-    // Derive all wallet keys from failed seeds
-    std::vector<DerivedWalletKey> DeriveWalletKeys() const {
-        std::vector<DerivedWalletKey> keys;
-        for (const auto& e : entries) {
-            keys.push_back(DerivedWalletKey::FromFailedSeed(
-                e.sk_seed, e.xmss_root, block_height));
-        }
-        return keys;
     }
 };
 

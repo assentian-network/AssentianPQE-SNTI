@@ -145,7 +145,7 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
     block.hashMerkleRoot = BlockMerkleRoot(block);
 
     // SNTI PoUW v2: Stateful XMSS mining loop
-    // - Reuse SK across blocks (1 tree = 1024 blocks)
+    // - Reuse SK across blocks (1 tree = XMSS_MAX_LEAVES blocks, see xmss_miner_state.h)
     // - leafIndex tracked persistently to prevent WOTS+ key reuse
     // - New tree built only when current tree exhausted
     {
@@ -238,8 +238,8 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
         target.SetCompact(block.nBits);
         LogPrintf("PoUW v2: block.nBits=%08x target=%s\n", block.nBits, ArithToUint256(target).GetHex().substr(0,16));
 
-        LogPrintf("PoUW v2: mining with leaf %u/1024, root=%s\n",
-                  state.nextLeafIndex,
+        LogPrintf("PoUW v2: mining with leaf %u/%u, root=%s\n",
+                  state.nextLeafIndex, PoUWv2::XMSS_MAX_LEAVES,
                   state.xmssRoot.GetHex().substr(0, 16));
 
         // PoUW v2: satu sign attempt per leaf

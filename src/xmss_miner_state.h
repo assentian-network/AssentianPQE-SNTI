@@ -3,7 +3,7 @@
 //
 // Menyimpan SK dan leafIndex ke disk agar:
 // 1. Leaf tidak di-reuse setelah restart
-// 2. Tree 1024 leaves dipakai untuk 1024 block sebelum rebuild
+// 2. Tree height-10 dipakai untuk XMSS_MAX_LEAVES (1023) block sebelum rebuild
 // 3. Mencegah WOTS+ key reuse (catastrophic jika terjadi)
 
 #ifndef ASSENTIAN_XMSS_MINER_STATE_H
@@ -38,7 +38,23 @@ namespace PoUWv2 {
 // SK size untuk XMSS-SHA2_10_256 dengan OID prefix:
 // OID(4) + idx(4) + SK_SEED(32) + SK_PRF(32) + PUB_SEED(32) + root(32) = 136 bytes
 static constexpr size_t MINER_SK_BYTES = 2048; // BDS state included (fast impl ~1373 bytes)
-static constexpr uint32_t XMSS_MAX_LEAVES = 1024; // 2^10
+// SNTI FIX (3 Jul 2026): the vendored xmss-reference xmss_core_sign() wipes
+// SK_SEED/SK_PRF/PUB_SEED/root in-place the moment idx reaches the tree's
+// last representable index (idx >= 2^full_height - 1), *before* using them
+// to actually produce that signature -- for full_height==64 the reference
+// code deliberately skips signing at that index instead ("we do not use the
+// last signature to be on the safe side"), but that guard is NOT applied for
+// smaller heights like ours (10). The result: a sign attempt at leaf 1023
+// always succeeds structurally but produces a cryptographically broken
+// signature (computed from zeroed key material) that CheckPoUWv2/consensus
+// correctly rejects -- confirmed 100% reproducible in production (see
+// job_queue.md, two independent trees, both failed exactly at leaf 1023).
+// Rather than patch the vendored/audited crypto library, we simply never
+// attempt that doomed last leaf: a height-10 tree safely yields 1023 usable
+// signatures (0..1022), not the theoretical 1024. This is a mining/wallet
+// efficiency+correctness fix only -- consensus validation was already
+// rejecting leaf-1023 blocks before this change and continues to do so.
+static constexpr uint32_t XMSS_MAX_LEAVES = 1023; // 2^10 - 1 (leaf 1023 is unusable, see above)
 static constexpr uint32_t STATE_MAGIC = 0x534E5432; // "SNT2"
 // SNTI SECURITY FIX (audit KRITIS #6, 2 Jul 2026): v2 adds ownerStamp, a
 // per-datadir instance ID recording which machine/process last wrote this

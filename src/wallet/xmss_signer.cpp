@@ -82,6 +82,36 @@ std::vector<uint8_t> CXMSSSigner::GenerateKey(const std::string& label)
         return {};
     }
 
+    // SNTI SECURITY FIX (audit 2 Jul 2026): seed the unified ownership
+    // ledger (xmss_tree_ledger.h) immediately at generation time, not
+    // lazily at first sign. Before this fix, a wallet-native key had NO
+    // ledger until SignXMSS() created one at first use -- so the
+    // ownership-stamp protection built for mining trees (KRITIS #6, 2 Jul
+    // 2026) never actually covered wallet addresses, which are the vast
+    // majority of keys in the system. A wallet.dat restored to a second
+    // device before this key's first (and only) use would sign there with
+    // no local record that another device already holds the same key.
+    // Seeding here, at the one moment we know with certainty that
+    // nextLeafIndex==0 (we just generated this tree ourselves), closes
+    // that gap for every new key from now on. See SignXMSS() for the
+    // matching migration/lazy-init path that covers keys generated before
+    // this fix existed.
+    {
+        uint256 root;
+        std::memcpy(root.begin(), pubkey.data(), 32);
+        PoUWv2::XMSSMinerState fresh_state;
+        fresh_state.xmssRoot = root;
+        fresh_state.nextLeafIndex = 0;
+        fresh_state.sk = entry.key.GetPrivKey();
+        fresh_state.skLen = (uint32_t)fresh_state.sk.size();
+        fs::path datadir = gArgs.GetDataDirNet();
+        if (!PoUWv2::XMSSTreeLedgerInit(datadir, fresh_state)) {
+            LogPrintf("SNTI WARNING: failed to seed ownership ledger for newly generated "
+                      "key root=%s -- SignXMSS() will retry lazily at first sign\n",
+                      root.GetHex().substr(0, 16));
+        }
+    }
+
     CKeyID key_id = GetXMSSKeyID(pubkey);
     key_id_map[key_id] = pubkey;
     xmss_keys[pubkey] = std::move(entry);
@@ -123,7 +153,7 @@ bool CXMSSSigner::Sign(const uint256& hash, const std::vector<uint8_t>& pubkey, 
     if (it == xmss_keys.end()) return false;
 
     // SNTI: Anti-reuse — check if key is exhausted before signing
-    if (it->second.leaf_index >= 1024) {
+    if (it->second.leaf_index >= PoUWv2::XMSS_MAX_LEAVES) {
         LogPrintf("CXMSSSigner::Sign: XMSS key exhausted (index=%u), need new key\n", it->second.leaf_index);
         return false;
     }
@@ -179,30 +209,54 @@ bool CXMSSSigner::SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubk
     auto it = xmss_keys.find(pubkey);
     if (it == xmss_keys.end()) return false;
 
-    // SNTI fix (1 Jul 2026): if this pubkey's tree is tracked by the
-    // unified leaf ledger (xmss_tree_ledger.h) -- i.e. it originated from
-    // mining and may have leaves already consumed by the miner outside
-    // this wallet's own bookkeeping -- route the sign through the SAME
-    // claim path mining.cpp uses, instead of this object's own CXMSSKey
-    // copy (which is only ever a point-in-time import snapshot and cannot
-    // by itself know what the miner has done since). This closes the gap
-    // that let a wallet spend attempt reuse a leaf a block had already
-    // been signed with: see job_queue.md "BUG KRITIS" 1 Jul 2026 for the
-    // incident this fixes.
-    if (pubkey.size() == 64) {
-        uint256 root;
-        std::memcpy(root.begin(), pubkey.data(), 32);
-        fs::path datadir = gArgs.GetDataDirNet();
-        if (PoUWv2::XMSSTreeLedgerExists(datadir, root)) {
-            std::vector<uint8_t> hash_vec(hash.begin(), hash.end());
-            uint32_t leaf_used = 0;
-            bool ok = PoUWv2::XMSSTreeLedgerClaimAndSign(datadir, root, hash_vec, sig, leaf_used);
-            LogPrintf("SNTI: wallet spend via unified ledger for root=%s: %s%s\n",
-                      root.GetHex().substr(0, 16), ok ? "signed" : "REFUSED",
-                      ok ? strprintf(" (leaf=%u)", leaf_used) : " (exhausted, blacklisted, or divergent history)");
-            return ok;
-        }
-        if (it->second.imported) {
+    // All XMSS pubkeys managed by this signer are 64 bytes (GenerateKey()
+    // and AddXMSSKey() both refuse anything else at insertion time) -- this
+    // is defense-in-depth only, never expected to trigger.
+    if (pubkey.size() != 64) return false;
+
+    uint256 root;
+    std::memcpy(root.begin(), pubkey.data(), 32);
+    fs::path datadir = gArgs.GetDataDirNet();
+
+    // SNTI SECURITY FIX (audit 2 Jul 2026, gap #3 hardening): wallet-native
+    // keys are one-time-use by design -- a WOTS+ leaf signing two different
+    // messages leaks the tree's private key. This must be checked BEFORE
+    // routing to the ledger below: the ledger's own exhaustion check allows
+    // up to XMSS_MAX_LEAVES (1023) leaves (correct for multi-use mining trees), so without
+    // this guard a "retired" native address could keep signing with leaves
+    // 1..1023 the moment it became ledger-backed, silently reintroducing
+    // the exact one-time-use violation this wallet exists to prevent.
+    // Imported keys are exempted here (imported keys were never subject to
+    // the one-shot policy -- their retirement is governed entirely by the
+    // ledger's own exhaustion/blacklist state, same as before this fix).
+    if (!it->second.imported && it->second.retired) {
+        LogPrintf("SNTI: SignXMSS refused -- key is retired (one-time XMSS address already used)\n");
+        return false;
+    }
+
+    if (!PoUWv2::XMSSTreeLedgerExists(datadir, root)) {
+        if (!it->second.imported) {
+            // SNTI SECURITY FIX (audit 2 Jul 2026): every wallet-native key
+            // should already have a ledger from GenerateKey() or the
+            // LoadState() migration pass. Reaching here means neither ran
+            // for this specific key yet (e.g. a wallet.dat loaded through
+            // some path that predates this fix, or an in-memory key added
+            // via a code path other than GenerateKey()/LoadState()). Seed
+            // it now from this wallet's own SK -- safe because a native,
+            // still-fresh (not retired, checked above) key means THIS
+            // wallet is the only place that has ever held it and it has
+            // never been signed with, so nextLeafIndex==0 is correct here.
+            PoUWv2::XMSSMinerState fresh_state;
+            fresh_state.xmssRoot = root;
+            fresh_state.nextLeafIndex = 0;
+            fresh_state.sk = it->second.key.GetPrivKey();
+            fresh_state.skLen = (uint32_t)fresh_state.sk.size();
+            if (!PoUWv2::XMSSTreeLedgerInit(datadir, fresh_state)) {
+                LogPrintf("SNTI: SignXMSS refused -- failed to initialize ownership ledger "
+                          "for wallet-native root=%s\n", root.GetHex().substr(0, 16));
+                return false;
+            }
+        } else {
             // SNTI fix (1 Jul 2026): this key's sk came from importxmsskey
             // (mining or some other external system), and there is no
             // unified-ledger file for its root -- meaning this wallet
@@ -210,12 +264,11 @@ bool CXMSSSigner::SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubk
             // have been mined past leaf 0 before this ledger existed, or
             // after rotating away from being the "active" tree that
             // XMSSTreeLedgerSeedFromActive() adopts on first mining after
-            // upgrade). Refuse outright rather than fall through to the
-            // one-shot policy below, which would sign with THIS wallet's
-            // own (possibly leaf-0) copy and risk exactly the leaf-reuse
-            // this whole fix exists to prevent. Funds here are considered
-            // unspendable until/unless their true leaf position can be
-            // independently reconstructed and seeded into the ledger.
+            // upgrade). Refuse outright rather than assume leaf 0 and risk
+            // exactly the leaf-reuse this whole fix exists to prevent.
+            // Funds here are considered unspendable until/unless their
+            // true leaf position can be independently reconstructed and
+            // seeded into the ledger.
             LogPrintf("SNTI: SignXMSS refused -- imported key for root=%s has no unified ledger "
                       "entry, true leaf position unverifiable, refusing to risk leaf reuse\n",
                       root.GetHex().substr(0, 16));
@@ -223,49 +276,33 @@ bool CXMSSSigner::SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubk
         }
     }
 
-    // Fallback path: wallet-native key (created by GenerateKey(), never
-    // touched by mining or any other external signer). This wallet is the
-    // sole holder of this key's state, so the one-time-use policy below is
-    // safe -- there is no second system that could have advanced a leaf
-    // behind this wallet's back.
-    //
-    // SNTI FIX (gap #3, 20/Jun/2026): refuse a second sign with the same
-    // key. Every XMSS address is one-time-use by design here -- reusing a
-    // leaf index lets an attacker reconstruct the private key from two
-    // signatures, so this is a hard block, not just leaf_index bookkeeping.
-    if (it->second.retired) {
-        LogPrintf("SNTI: SignXMSS refused -- key is retired (one-time XMSS address already used)\n");
-        return false;
-    }
-
-    // SNTI L4: warn when signing with a nearly-exhausted key.
-    {
-        uint32_t idx = it->second.leaf_index;
-        uint32_t remaining = (idx <= 1024) ? (1024 - idx) : 0;
-        if (remaining < 200) {
-            LogPrintf("XMSS WARNING: signing with key that has only %u signature(s) remaining "
-                      "(pk[0]=%02x%02x...). Generate a new XMSS key to avoid exhaustion.\n",
-                      remaining,
-                      pubkey.size() > 0 ? pubkey[0] : 0u,
-                      pubkey.size() > 1 ? pubkey[1] : 0u);
-        }
-    }
-
-    // Convert uint256 to vector
+    // SNTI fix (1 Jul 2026): route every sign -- native or imported -- through
+    // the unified ledger's single claim path (mining.cpp uses the same one),
+    // instead of this object's own CXMSSKey copy (which is only ever a
+    // point-in-time snapshot and cannot by itself know what another holder
+    // of the same key has done since). This closes the gap that let a
+    // wallet spend attempt reuse a leaf a block had already been signed
+    // with: see job_queue.md "BUG KRITIS" 1 Jul 2026 for the incident this
+    // originally fixed, and the 2 Jul 2026 audit for why native keys were
+    // still exposed until this rewrite.
     std::vector<uint8_t> hash_vec(hash.begin(), hash.end());
+    uint32_t leaf_used = 0;
+    bool ok = PoUWv2::XMSSTreeLedgerClaimAndSign(datadir, root, hash_vec, sig, leaf_used);
+    LogPrintf("SNTI: wallet spend via unified ledger for root=%s: %s%s\n",
+              root.GetHex().substr(0, 16), ok ? "signed" : "REFUSED",
+              ok ? strprintf(" (leaf=%u)", leaf_used) : " (exhausted, blacklisted, or divergent history)");
 
-    // Sign via CXMSSKey (stateful — advances leaf index)
-    // Note: Sign() is logically const (doesn't change key identity)
-    // but advances internal state. We use const_cast for the key reference.
-    XMSS::CXMSSKey& key = const_cast<XMSS::CXMSSKey&>(it->second.key);
-    bool success = key.Sign(hash_vec, sig);
-
-    if (success) {
-        const_cast<uint32_t&>(it->second.leaf_index)++;
+    if (ok && !it->second.imported) {
+        // SNTI SECURITY FIX (audit 2 Jul 2026): wallet-native keys stop at
+        // leaf 0 by design (see the retired check above and
+        // IsXMSSKeyRetired()) -- mark retired immediately so a second call
+        // is refused up front, without depending on the ledger's own much
+        // higher (XMSS_MAX_LEAVES=1023) exhaustion threshold.
         const_cast<bool&>(it->second.retired) = true;
+        const_cast<uint32_t&>(it->second.leaf_index) = leaf_used + 1;
     }
 
-    return success;
+    return ok;
 }
 
 uint32_t CXMSSSigner::GetXMSSLeafIndex(const std::vector<uint8_t>& pubkey) const
@@ -301,9 +338,17 @@ bool CXMSSSigner::IsXMSSKeyRetired(const std::vector<uint8_t>& pubkey) const
     auto it = xmss_keys.find(pubkey);
     if (it == xmss_keys.end()) return false;
 
-    // SNTI fix (1 Jul 2026): tree-backed keys are "retired" (unspendable)
-    // only when the ledger says they're exhausted or blacklisted -- not
-    // after a single sign, since the tree has up to 1024 usable leaves.
+    // SNTI fix (1 Jul 2026, refined 2 Jul 2026 audit): tree-backed keys are
+    // "retired" (unspendable) once the ledger says so -- but the threshold
+    // depends on what kind of tree this is. Imported (mining) trees are
+    // designed for up to XMSS_MAX_LEAVES (1023) leaves, so exhaustion is the right signal.
+    // Wallet-native keys are one-time-use BY DESIGN (WOTS+ leaks the
+    // private key on a second signature from the same leaf) -- for those,
+    // ANY leaf claimed at all (next_leaf >= 1) means this address's single
+    // usable leaf has already signed. Using the XMSS_MAX_LEAVES (1023) mining threshold
+    // here for a native key would silently let a "retired" one-time
+    // address keep reporting as spendable through leaves 1..1023 -- the
+    // exact bug the SignXMSS() rewrite above also had to guard against.
     if (pubkey.size() == 64) {
         uint256 root;
         std::memcpy(root.begin(), pubkey.data(), 32);
@@ -311,7 +356,7 @@ bool CXMSSSigner::IsXMSSKeyRetired(const std::vector<uint8_t>& pubkey) const
         if (PoUWv2::IsXMSSTreeBlacklisted(root)) return true;
         uint32_t next_leaf = 0, max_leaves = 0;
         if (PoUWv2::XMSSTreeLedgerStatus(datadir, root, next_leaf, max_leaves)) {
-            return next_leaf >= max_leaves;
+            return it->second.imported ? (next_leaf >= max_leaves) : (next_leaf >= 1);
         }
     }
     return it->second.retired;
@@ -490,6 +535,36 @@ bool CXMSSSigner::LoadState(const std::vector<uint8_t>& data)
         CKeyID key_id = GetXMSSKeyID(pubkey);
         key_id_map[key_id] = pubkey;
         xmss_keys[pubkey] = std::move(entry);
+
+        // SNTI SECURITY FIX (audit 2 Jul 2026): one-time migration for
+        // legacy wallet-native keys that predate ledger-at-generation (see
+        // GenerateKey()). Any key that is native (!imported), still fresh
+        // (!retired), and has no ledger yet gets one seeded here, from the
+        // SK this wallet has held all along -- safe because a native key
+        // this wallet is loading from its own wallet.dat, that has never
+        // been signed with (retired==false), has definitely never had a
+        // leaf claimed, so nextLeafIndex==0 is correct. This is the
+        // earliest point post-upgrade (wallet load) we can close the
+        // ownership-stamp gap for addresses generated before this fix
+        // existed, narrowing the window during which a second device
+        // holding the same restored wallet.dat could sign undetected.
+        if (!imported && !retired && pubkey.size() == 64) {
+            uint256 root;
+            std::memcpy(root.begin(), pubkey.data(), 32);
+            fs::path datadir = gArgs.GetDataDirNet();
+            if (!PoUWv2::XMSSTreeLedgerExists(datadir, root)) {
+                PoUWv2::XMSSMinerState fresh_state;
+                fresh_state.xmssRoot = root;
+                fresh_state.nextLeafIndex = 0;
+                fresh_state.sk = sk;
+                fresh_state.skLen = (uint32_t)sk.size();
+                if (PoUWv2::XMSSTreeLedgerInit(datadir, fresh_state)) {
+                    LogPrint(BCLog::WALLETDB, "CXMSSSigner::LoadState: migrated legacy "
+                             "native key root=%s into ownership ledger\n",
+                             root.GetHex().substr(0, 16));
+                }
+            }
+        }
     }
 
     LogPrint(BCLog::WALLETDB, "CXMSSSigner::LoadState: loaded %u keys (%s format)\n",
@@ -501,7 +576,7 @@ bool CXMSSSigner::HasExhaustedKeys() const
 {
     LOCK(cs_xmss_signer);
     for (const auto& [pubkey, entry] : xmss_keys) {
-        if (entry.leaf_index >= 1024) return true;  // XMSS-SHA2_10_256 max
+        if (entry.leaf_index >= PoUWv2::XMSS_MAX_LEAVES) return true;  // XMSS-SHA2_10_256 usable max
     }
     return false;
 }
