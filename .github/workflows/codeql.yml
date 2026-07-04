@@ -1,0 +1,56 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Weekly full scan, Monday 03:00 UTC.
+    - cron: '0 3 * * 1'
+  workflow_dispatch: {}
+
+jobs:
+  analyze:
+    name: Analyze (C/C++)
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential libtool autotools-dev automake pkg-config \
+            bsdmainutils python3 \
+            libevent-dev libssl-dev libsqlite3-dev \
+            libboost-dev libboost-system-dev libboost-filesystem-dev \
+            libboost-test-dev libboost-thread-dev
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: cpp
+          queries: security-and-quality
+
+      - name: Build (matches production configure flags)
+        run: |
+          ./autogen.sh
+          ./configure \
+            --disable-bench --without-gui --disable-zmq --disable-shared \
+            --with-pic --enable-benchmark=no --enable-module-recovery \
+            --disable-module-ecdh --without-miniupnpc --without-natpmp \
+            --enable-tests
+          make -j"$(nproc)"
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:cpp"
