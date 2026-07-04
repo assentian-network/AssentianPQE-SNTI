@@ -85,12 +85,14 @@ jobs:
           du -sh cov-int
           echo "cov-int top-level breakdown:"
           du -h --max-depth=1 cov-int | sort -rh
-          echo "cov-int/emit breakdown (if present):"
-          du -h --max-depth=2 cov-int/emit 2>/dev/null | sort -rh | head -30
-          echo "cov-int/output breakdown (if present):"
-          du -h --max-depth=2 cov-int/output 2>/dev/null | sort -rh | head -30
-          echo "cov-int/config breakdown (if present):"
-          du -h --max-depth=1 cov-int/config 2>/dev/null | sort -rh | head -30
+          echo "cov-int/emit breakdown, depth 3 (previous run showed 784M in emit/, only 22M in emit/*/config -- drilling one level deeper to find the other ~762M):"
+          du -h --max-depth=3 cov-int/emit 2>/dev/null | sort -rh | head -60
+          echo "cov-int/emit/*/  individual files (not just dirs), top 40 by size:"
+          find cov-int/emit -mindepth 2 -maxdepth 2 -printf '%s\t%p\n' 2>/dev/null | sort -rn | head -40 | awk '{printf "%.1fM\t%s\n", $1/1048576, $2}'
+          echo "file types of the 10 biggest entries:"
+          find cov-int/emit -mindepth 2 -maxdepth 2 -printf '%s\t%p\n' 2>/dev/null | sort -rn | head -10 | while read -r sz f; do file "$f"; done
+          echo "total file count under cov-int/emit:"
+          find cov-int/emit -type f | wc -l
 
       - name: Package build artifacts
         run: |
