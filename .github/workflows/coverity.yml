@@ -53,11 +53,16 @@ jobs:
       - name: Build under cov-build
         run: |
           export PATH="$PWD/cov-analysis/bin:$PATH"
-          cov-build --dir cov-int make -j"$(nproc)"
+          # Only capture the binaries that actually ship to production —
+          # a plain `make` also builds test_bitcoin + fuzz targets, which
+          # bloats cov-int well past Coverity Scan's free-tier upload limit
+          # (previous run hit HTTP 413) without adding relevant coverage.
+          cov-build --dir cov-int make -j"$(nproc)" bitcoind bitcoin-cli bitcoin-tx bitcoin-wallet
 
       - name: Package build artifacts
         run: |
           tar czf cov-int.tgz cov-int
+          du -sh cov-int.tgz
 
       - name: Submit build to Coverity Scan
         env:
