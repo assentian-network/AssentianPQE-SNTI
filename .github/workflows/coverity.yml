@@ -59,6 +59,22 @@ jobs:
           # (previous run hit HTTP 413) without adding relevant coverage.
           cov-build --dir cov-int make -j"$(nproc)" -C src bitcoind bitcoin-cli bitcoin-tx bitcoin-wallet
 
+      - name: Strip vendored subtrees from cov-int
+        run: |
+          export PATH="$PWD/cov-analysis/bin:$PATH"
+          # secp256k1/leveldb/minisketch/univalue/crc32c are vendored upstream
+          # subtrees, already audited independently — they are the bulk of
+          # cov-int's size but not something we intend to fix here even if
+          # Coverity flags something in them (same rationale as excluding
+          # them from the CodeQL "worth chasing" triage). Removing their
+          # translation units from the emit database before packaging keeps
+          # cov-int.tgz under Coverity Scan's free-tier upload limit.
+          echo "TUs before: $(cov-manage-emit --dir cov-int list-tus | wc -l)"
+          cov-manage-emit --dir cov-int --tu-pattern \
+            "file(regex(\".*/(secp256k1|leveldb|minisketch|univalue|crc32c)/.*\"))" \
+            delete
+          echo "TUs after: $(cov-manage-emit --dir cov-int list-tus | wc -l)"
+
       - name: Package build artifacts
         run: |
           tar czf cov-int.tgz cov-int
