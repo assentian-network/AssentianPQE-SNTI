@@ -1,0 +1,73 @@
+name: "Coverity Scan"
+
+on:
+  push:
+    branches: [ "main" ]
+  schedule:
+    # Weekly, Monday 04:00 UTC (Coverity Scan free tier caps builds/week, stay well under).
+    - cron: '0 4 * * 1'
+  workflow_dispatch: {}
+
+jobs:
+  coverity:
+    name: Build & submit to Coverity Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    if: github.repository == 'assentian-network/AssentianPQE-SNTI'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential libtool autotools-dev automake pkg-config \
+            bsdmainutils python3 curl \
+            libevent-dev libssl-dev libsqlite3-dev \
+            libboost-dev libboost-system-dev libboost-filesystem-dev \
+            libboost-test-dev libboost-thread-dev
+
+      - name: Download Coverity Build Tool
+        env:
+          COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+        run: |
+          curl --fail --silent --show-error \
+            --data-urlencode "project=AssentianPQE-SNTI" \
+            --data-urlencode "token=${COVERITY_SCAN_TOKEN}" \
+            -o cov-analysis.tgz \
+            https://scan.coverity.com/download/linux64
+          mkdir cov-analysis
+          tar xzf cov-analysis.tgz --strip-components=1 -C cov-analysis
+
+      - name: Configure (matches production configure flags)
+        run: |
+          ./autogen.sh
+          ./configure \
+            --disable-bench --without-gui --disable-zmq --disable-shared \
+            --with-pic --enable-benchmark=no --enable-module-recovery \
+            --disable-module-ecdh --without-miniupnpc --without-natpmp \
+            --enable-tests
+
+      - name: Build under cov-build
+        run: |
+          export PATH="$PWD/cov-analysis/bin:$PATH"
+          cov-build --dir cov-int make -j"$(nproc)"
+
+      - name: Package build artifacts
+        run: |
+          tar czf cov-int.tgz cov-int
+
+      - name: Submit build to Coverity Scan
+        env:
+          COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+          COVERITY_SCAN_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
+        run: |
+          curl --fail --silent --show-error \
+            --form token="${COVERITY_SCAN_TOKEN}" \
+            --form email="${COVERITY_SCAN_EMAIL}" \
+            --form file=@cov-int.tgz \
+            --form version="$(git rev-parse --short HEAD)" \
+            --form description="GitHub Actions build ${{ github.run_number }} (${{ github.sha }})" \
+            "https://scan.coverity.com/builds?project=AssentianPQE-SNTI"
