@@ -336,6 +336,12 @@ const API = '';
 let token = localStorage.getItem('snti_token') || '';
 let userData = {};
 
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', (i===0) === (tab==='login')));
   document.getElementById('loginForm').style.display = tab === 'login' ? '' : 'none';
@@ -346,7 +352,19 @@ async function apiCall(path, opts={}) {
   const headers = {'Content-Type':'application/json'};
   if (token) headers['Authorization'] = 'Bearer ' + token;
   const r = await fetch(API + path, {headers, ...opts});
-  return r.json();
+  const data = await r.json();
+  // bitcoind only allows one scantxoutset scan at a time node-wide, so
+  // balance/txs/watches (all scan-backed) can collide across concurrent
+  // requests -- e.g. two of them firing together on dashboard load, or two
+  // users hitting the shared node at the same instant. Retry once instead
+  // of surfacing a transient error as "balance unknown".
+  const msg = data && data.error && (data.error.message || data.error);
+  if (typeof msg === 'string' && msg.includes('Scan already in progress')) {
+    await new Promise(res => setTimeout(res, 500));
+    const r2 = await fetch(API + path, {headers, ...opts});
+    return r2.json();
+  }
+  return data;
 }
 
 async function doLogin() {
@@ -392,7 +410,8 @@ async function loadBalance() {
   const res = await apiCall('/api/wallet/balance');
   if (res.error) return;
   const total = res.balance || 0;
-  const mature = res.mature || 0;
+  const spendable = res.spendable || 0;
+  const stuck = res.stuck || 0;
   const immature = res.immature || 0;
   document.getElementById('dBalance').textContent = total.toFixed(8);
 
@@ -411,11 +430,15 @@ async function loadBalance() {
     if (sendBtn) { sendBtn.disabled = false; sendBtn.title = ''; }
   }
 
-  // Detail row: mature + immature
+  // SNTI FIX (5 Jul 2026): funds sitting at a retired one-time-use XMSS
+  // address are on-chain and real, but can never be signed/moved again --
+  // showing them as "Spendable" was actively misleading. Break the detail
+  // row into three honest buckets instead of two.
   const det = document.getElementById('balanceDetail');
   if (total > 0) {
     det.innerHTML = `
-      <span style="color:#22c55e">✓ Spendable: ${mature.toFixed(6)} SNTI</span>
+      <span style="color:#22c55e">✓ Spendable: ${spendable.toFixed(6)} SNTI</span>
+      ${stuck > 0 ? `<span style="color:#ef4444">✗ Stuck (address retired, tidak bisa dikirim): ${stuck.toFixed(6)} SNTI</span>` : ''}
       ${immature > 0 ? `<span style="color:#f59e0b">⏳ Immature: ${immature.toFixed(6)} SNTI</span>` : ''}`;
   } else {
     det.innerHTML = '';
@@ -429,13 +452,19 @@ async function loadBalance() {
       ℹ Address ini belum menerima SNTI.<br>
       • Mine ke address ini agar koin masuk ke sini<br>
       • Atau tambahkan watch address di bawah untuk pantau koin dari VirtualBox`;
-  } else if (immature > 0 && mature === 0) {
-    const need = 100 - (res.tip_height - 0);
+  } else if (stuck > 0 && spendable === 0 && immature === 0) {
+    note.innerHTML = `
+      ✗ Seluruh saldo (${stuck.toFixed(6)} SNTI) tersangkut permanen di address yang sudah <strong>retired</strong> (key XMSS one-time-use sudah terpakai sign sekali, tidak bisa sign lagi). Dana ini tidak bisa dikirim ke mana pun lagi.<br>
+      Tunggu mining reward baru masuk ke address Anda saat ini untuk bisa mengirim lagi.`;
+  } else if (immature > 0 && spendable === 0 && stuck === 0) {
     note.innerHTML = `
       ⏳ Semua saldo masih <strong>immature</strong> — hasil mining butuh <strong>100 konfirmasi</strong> sebelum bisa digunakan.<br>
       Saat ini: block ${res.tip_height}. Koin bisa dipakai setelah ~${immature / 50 * 100 | 0} blok lagi.`;
-  } else if (immature > 0) {
-    note.innerHTML = `⏳ ${immature.toFixed(6)} SNTI masih immature (menunggu 100 konfirmasi). Hanya ${mature.toFixed(6)} SNTI yang bisa dipakai sekarang.`;
+  } else if (immature > 0 || stuck > 0) {
+    const parts = [];
+    if (stuck > 0) parts.push(`${stuck.toFixed(6)} SNTI tersangkut permanen (address retired)`);
+    if (immature > 0) parts.push(`${immature.toFixed(6)} SNTI masih immature (menunggu 100 konfirmasi)`);
+    note.innerHTML = `⏳ ${parts.join(', ')}. Hanya ${spendable.toFixed(6)} SNTI yang bisa dipakai sekarang.`;
   } else {
     note.style.display = 'none';
   }
@@ -471,7 +500,8 @@ async function doSend() {
       document.getElementById('dAddr').textContent = res.new_address;
       el.textContent += '\n' + (res.note || '');
     }
-    loadBalance(); loadUTXOs();
+    await loadBalance();
+    await loadUTXOs();
   }
 }
 
@@ -653,18 +683,23 @@ async function loadWatches() {
   }
   container.innerHTML = watches.map(w => `
     <div class="watch-row">
-      <span class="watch-label">${w.label || 'No label'}</span>
+      <span class="watch-label">${escapeHtml(w.label || 'No label')}</span>
       <span class="watch-addr">
-        <a href="/explorer/?search=${w.address}" target="_blank" title="${w.address}">
-          ${w.address.slice(0,12)}…${w.address.slice(-8)}
+        <a href="/explorer/?search=${encodeURIComponent(w.address)}" target="_blank" title="${escapeHtml(w.address)}">
+          ${escapeHtml(w.address.slice(0,12))}…${escapeHtml(w.address.slice(-8))}
         </a>
       </span>
       <span class="watch-bal ${w.balance === null ? 'unknown' : ''}">
         ${w.balance === null ? 'scanning...' : w.balance.toFixed(6) + ' SNTI'}
       </span>
-      <button class="watch-del" onclick="removeWatch('${w.address}')" title="Remove">✕</button>
+      <button class="watch-del" data-address="${escapeHtml(w.address)}" title="Remove">✕</button>
     </div>`).join('');
 }
+
+document.getElementById('watchList').addEventListener('click', (e) => {
+  const btn = e.target.closest('.watch-del');
+  if (btn) removeWatch(btn.dataset.address);
+});
 
 async function showDashboard() {
   if (!userData.username) {
@@ -679,9 +714,12 @@ async function showDashboard() {
   if (localStorage.getItem('snti_xmss_warn_dismissed') !== '1') {
     document.getElementById('xmssWarnBanner').style.display = 'flex';
   }
-  loadBalance();
-  loadUTXOs();
-  loadWatches();
+  // loadBalance/loadUTXOs/loadWatches are all backed by bitcoind's
+  // scantxoutset, which only allows one scan in flight at a time -- run
+  // them one after another instead of in parallel so they don't race.
+  await loadBalance();
+  await loadUTXOs();
+  await loadWatches();
   loadMinerStatus();
   setInterval(loadMinerStatus, 30000);
 }

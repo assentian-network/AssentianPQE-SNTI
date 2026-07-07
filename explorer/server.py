@@ -7,6 +7,7 @@ Proxies bitcoind RPC calls for the Quant post-quantum cryptocurrency block explo
 import os
 import re
 import json
+import shlex
 import sqlite3
 import secrets
 import time
@@ -20,6 +21,13 @@ from flask_limiter.util import get_remote_address
 
 _EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
 _SNTI_ADDR_RE = re.compile(r'^(snti|tsnti|sntirt)1[ac-hj-np-z02-9]{38,87}$')
+# SNTI SECURITY FIX (4 Jul 2026 internal audit): username is embedded verbatim
+# (comment line + RPC_USER="...") into the generated install.sh in
+# _generate_install_script(). Without a character whitelist, a username
+# containing a literal newline or `"` breaks out of that context and injects
+# arbitrary shell commands into a script other people (the user themselves,
+# or support/admin debugging on their behalf) may download and run.
+_USERNAME_RE = re.compile(r'^[a-zA-Z0-9_-]{3,32}$')
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SNTI_DIR = os.path.dirname(BASE_DIR)
@@ -93,6 +101,35 @@ def init_db():
         UNIQUE(user_id, address),
         FOREIGN KEY(user_id) REFERENCES users(id)
     )""")
+    # SNTI FIX (5 Jul 2026): mining rewards used to accumulate on a single
+    # wallet-native address forever (getnewxmssaddress only rotated on the
+    # NEXT send, after the address was already retired by the first spend --
+    # see job_queue.md "koin dini hilang"). Wallet-native XMSS keys are
+    # one-time-use by cryptographic design (xmss_signer.cpp), so an address
+    # that received hundreds of separate block rewards can only ever have
+    # ONE of them recovered; the rest become permanently unspendable the
+    # moment the address signs anything. This table tracks every address
+    # ever assigned to a user so mining can rotate to a fresh one after
+    # EVERY block (each address then only ever holds the one UTXO its
+    # one-time key can safely spend) and balance/send can be computed
+    # across the user's full address history instead of just the latest one.
+    conn.execute("""CREATE TABLE IF NOT EXISTS mining_addresses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        address TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        UNIQUE(user_id, address),
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )""")
+    # Backfill: every existing user's current address predates this table --
+    # register it now so balance/send aggregation (below) sees it too.
+    for user_id, addr, created_at in conn.execute(
+        "SELECT id, xmss_address, created_at FROM users WHERE xmss_address IS NOT NULL AND xmss_address != ''"
+    ).fetchall():
+        conn.execute(
+            "INSERT OR IGNORE INTO mining_addresses (user_id, address, created_at) VALUES (?,?,?)",
+            (user_id, addr, created_at)
+        )
     conn.commit()
     conn.close()
 
@@ -209,6 +246,47 @@ def rpc_call(method, params=None):
         return {"error": "RPC call timed out"}
     except Exception as e:
         return {"error": str(e)}
+
+# SNTI FIX (5 Jul 2026): scantxoutset derives its search script from the
+# address string alone, which can only ever produce the hash-committed
+# P2XMSSHASH form -- it is structurally unable to find P2XMSS-pure
+# (full-pubkey) outputs, the form sendfromxmssaddress emits for internal
+# transfers between two addresses already known to this wallet (see
+# xmss.cpp). Confirmed live: a real 49.9997448 SNTI P2XMSS-pure UTXO showed
+# balance=0 via scantxoutset/nc_balance while gettxout/listunspent both saw
+# it correctly. listunspent reads the wallet's own UTXO index (matches via
+# IsMine, not a re-derived script) so it sees both forms, but only for
+# addresses this wallet actually holds keys for -- for a genuinely external
+# watched address it returns nothing. Combine both sources so watch-address
+# balances stay correct whether the address is wallet-owned or truly
+# external, deduplicated by (txid, vout).
+def _scan_addresses(addresses):
+    seen = set()
+    combined = []
+    lu = rpc_call("listunspent", [0, 9999999, addresses, True, {"include_immature_coinbase": True}])
+    if isinstance(lu, list):
+        for u in lu:
+            key = (u.get("txid"), u.get("vout"))
+            seen.add(key)
+            combined.append(u)
+    scan = rpc_call("scantxoutset", ["start", [f"addr({a})" for a in addresses]])
+    if isinstance(scan, dict) and isinstance(scan.get("unspents"), list):
+        for u in scan["unspents"]:
+            key = (u.get("txid"), u.get("vout"))
+            if key in seen:
+                continue
+            # SNTI FIX (5 Jul 2026): real descriptors always carry a checksum
+            # suffix (e.g. "addr(snti1...)#gx3qfwd7"), so a bare
+            # startswith/endswith(")") check never matched -- "address"
+            # silently never got set for any scantxoutset-sourced entry,
+            # which broke retired-address ("stuck") categorization in
+            # wallet_balance (everything fell through to "spendable").
+            m = re.match(r"addr\(([^)]+)\)", u.get("desc", ""))
+            if m:
+                u = dict(u)
+                u["address"] = m.group(1)
+            combined.append(u)
+    return combined
 
 # ---------------------------------------------------------------------------
 # Security headers
@@ -703,8 +781,8 @@ def wallet_signup():
     password = data.get("password") or ""
     if not username or not email or not password:
         return jsonify({"error": "username, email, and password required"}), 400
-    if len(username) < 3:
-        return jsonify({"error": "username must be at least 3 characters"}), 400
+    if not _USERNAME_RE.match(username):
+        return jsonify({"error": "username must be 3-32 characters, letters/numbers/underscore/hyphen only"}), 400
     if not _EMAIL_RE.match(email):
         return jsonify({"error": "invalid email address"}), 400
     if len(password) < 8:
@@ -733,6 +811,13 @@ def wallet_signup():
             (username, email, _hash_pw(password), xmss_address, miner_rpc_pass, int(time.time()))
         )
         row = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+        # SNTI FIX (5 Jul 2026): register in mining_addresses from birth so
+        # balance/send aggregation (see wallet_balance/wallet_send) sees this
+        # address without needing a separate backfill pass later.
+        conn.execute(
+            "INSERT OR IGNORE INTO mining_addresses (user_id, address, created_at) VALUES (?,?,?)",
+            (row[0], xmss_address, int(time.time()))
+        )
         conn.commit()
         conn.close()
         token = _make_token(row[0], username)
@@ -770,6 +855,26 @@ def wallet_me():
         return jsonify({"error": "user not found"}), 404
     return jsonify({"username": row[0], "email": row[1], "address": row[2], "created_at": row[3]})
 
+def _get_user_addresses(user_id):
+    """SNTI FIX (5 Jul 2026): a user can now have many custodial addresses
+    (mining rotates a fresh one every block -- see next_mining_address /
+    _rotate_address in the miner loop). Returns every address ever assigned
+    to this user, oldest first, so balance/txs/send can operate across all
+    of them instead of just the single 'current' one.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    addrs = [r[0] for r in conn.execute(
+        "SELECT address FROM mining_addresses WHERE user_id=? ORDER BY created_at ASC", (user_id,)
+    ).fetchall()]
+    legacy = conn.execute("SELECT xmss_address FROM users WHERE id=?", (user_id,)).fetchone()
+    conn.close()
+    # Defensive: cover accounts whose current address somehow predates the
+    # mining_addresses backfill (should not happen after this fix, but the
+    # column is still the source of truth for "current" elsewhere).
+    if legacy and legacy[0] and legacy[0] not in addrs:
+        addrs.append(legacy[0])
+    return addrs
+
 @app.route("/api/wallet/balance")
 @jwt_required_full
 def wallet_balance():
@@ -778,32 +883,70 @@ def wallet_balance():
     conn.close()
     if not row:
         return jsonify({"error": "user not found"}), 404
-    address = row[0]
-    # scantxoutset: reliable for any address, works regardless of wallet index
-    scan = rpc_call("scantxoutset", ["start", [f"addr({address})"]])
-    if isinstance(scan, dict) and "error" in scan:
-        return jsonify({"error": scan["error"]}), 502
-    utxos = scan.get("unspents", []) if isinstance(scan, dict) else []
-    balance = scan.get("total_amount", 0) if isinstance(scan, dict) else 0
-    # Separate mature vs immature coinbase
-    chain_info = rpc_call("getblockchaininfo")
-    tip_height = chain_info.get("blocks", 0) if isinstance(chain_info, dict) else 0
-    immature = sum(u.get("amount", 0) for u in utxos
-                   if u.get("coinbase") and (tip_height - u.get("height", 0)) < 100)
-    mature = balance - immature
+    current_address = row[0]
+    addresses = _get_user_addresses(request.user_id)
+    if not addresses:
+        return jsonify({"error": "user not found"}), 404
+    # SNTI FIX (5 Jul 2026, gap found during P2XMSS-pure recovery): scantxoutset
+    # derives its search script from the address string alone, which can only
+    # ever produce the hash-committed P2XMSSHASH form -- it is structurally
+    # unable to find P2XMSS-pure (full-pubkey) outputs. listunspent instead
+    # reads the wallet's own UTXO index (matches via IsMine), so it sees both
+    # forms -- BUT it has the opposite gap: confirmed live (dini's account,
+    # 5 Jul 2026) that once a one-time-use address's key is marked "retired"
+    # (has signed once), listunspent stops listing ALL of that address's
+    # remaining UTXOs -- not just the spent one -- even though scantxoutset
+    # and gettxout both confirm they are still genuinely unspent on-chain.
+    # This made the dashboard show a 0 balance for funds that were still
+    # real, just permanently unspendable, which is exactly as alarming as
+    # actually losing them. Use _scan_addresses() (merges both, deduped by
+    # txid:vout) so either RPC's blind spot is covered by the other.
+    utxos = _scan_addresses(addresses)
+    tip_height = rpc_call("getblockchaininfo")
+    tip_height = tip_height.get("blocks", 0) if isinstance(tip_height, dict) else 0
+
+    # SNTI FIX (5 Jul 2026): "mature" used to mean only "not immature", which
+    # silently lumped in UTXOs sitting at a RETIRED one-time-use address --
+    # on-chain and confirmed, but permanently un-signable, not actually
+    # spendable in any real sense. Labeling that "Spendable" (as the frontend
+    # did) is actively misleading, not just imprecise -- surface it as its
+    # own "stuck" bucket instead so users can tell real spendable funds apart
+    # from funds that exist but can never move again.
+    retired_addrs = set()
+    for a in addresses:
+        info = rpc_call("getxmssaddressinfo", [a])
+        if isinstance(info, dict) and info.get("retired"):
+            retired_addrs.add(a)
+    balance = 0.0
+    immature = 0.0
+    stuck = 0.0
+    for u in utxos:
+        amt = u.get("amount", 0)
+        balance += amt
+        if u.get("coinbase") and (tip_height - u.get("height", 0)) < 100:
+            immature += amt
+        elif u.get("address") in retired_addrs:
+            stuck += amt
+    spendable = balance - immature - stuck
     # SNTI SECURITY FIX (2 Jul 2026): surface the wallet's own retired/warning
     # status to the frontend -- previously this was computed accurately by
     # the backend (getxmssaddressinfo) but never read by the explorer, so
     # users got no warning before hitting a dead address.
-    addr_info = rpc_call("getxmssaddressinfo", [address])
+    # SNTI FIX (5 Jul 2026): this now only describes the CURRENT receiving
+    # address (older rotated addresses are expected to retire once spent --
+    # that is no longer a problem since each only ever holds one UTXO).
+    addr_info = rpc_call("getxmssaddressinfo", [current_address])
     retired = bool(addr_info.get("retired")) if isinstance(addr_info, dict) else False
     warning = addr_info.get("warning", "") if isinstance(addr_info, dict) else ""
     return jsonify({
-        "address": address,
+        "address": current_address,
         "balance": balance,
-        "mature": mature,
+        "spendable": spendable,
+        "stuck": stuck,
         "immature": immature,
+        "mature": spendable + stuck,  # kept for older clients: "confirmed, not immature"
         "utxo_count": len(utxos),
+        "address_count": len(addresses),
         "tip_height": tip_height,
         "retired": retired,
         "warning": warning
@@ -829,68 +972,117 @@ def wallet_send():
     conn.close()
     if not row or not row[0]:
         return jsonify({"error": "user not found"}), 404
-    from_address = row[0]
+    current_address = row[0]
 
-    # SNTI SECURITY FIX (2 Jul 2026): precheck retired/blacklist status so the
-    # user gets a clear explanation instead of a raw RPC error, and so we
-    # don't even attempt a sign that the backend would refuse anyway.
-    addr_info = rpc_call("getxmssaddressinfo", [from_address])
-    if isinstance(addr_info, dict) and addr_info.get("retired"):
-        return jsonify({
-            "error": "Address pengirim ini sudah tidak bisa menandatangani transaksi lagi "
-                     "(XMSS one-time-use sudah terpakai, atau address di-blacklist demi keamanan). "
-                     + (addr_info.get("warning") or ""),
-            "retired": True
-        }), 409
+    addresses = _get_user_addresses(request.user_id)
+    if not addresses:
+        return jsonify({"error": "user not found"}), 404
 
     # SNTI SECURITY FIX (2 Jul 2026): sendtoxmssaddress does coin selection
     # across the ENTIRE shared node wallet (all users' XMSS UTXOs live in one
     # wallet, no per-user isolation) -- it could spend another user's UTXO to
     # fund this send. sendfromxmssaddress scopes selection to UTXOs actually
-    # sitting at from_address (see SNTI FIX comment in src/wallet/rpc/xmss.cpp).
-    result = rpc_call("sendfromxmssaddress", [from_address, to_address, amount])
-    if isinstance(result, dict) and "error" in result:
-        return jsonify(result), 400
+    # sitting at a specific address (see SNTI FIX comment in xmss.cpp).
+    #
+    # SNTI FIX (5 Jul 2026): a user's balance is now spread across many
+    # one-time-use addresses (mining rotates a fresh one every block -- see
+    # next_mining_address). Each address's XMSS key can safely sign exactly
+    # ONE UTXO ever (xmss_signer.cpp: a WOTS+ leaf signing two different
+    # messages leaks the private key), so a single sendfromxmssaddress call
+    # can never move more than one address's balance. Drain addresses one at
+    # a time (oldest first) until the requested amount is covered, instead of
+    # requiring a single address to hold the full amount.
+    remaining = amount
+    sent_total = 0.0
+    txids = []
+    skipped = []
+    for addr in addresses:
+        if remaining <= 0:
+            break
+        addr_info = rpc_call("getxmssaddressinfo", [addr])
+        if isinstance(addr_info, dict) and addr_info.get("retired"):
+            continue  # already spent (or blacklisted) -- nothing left to move here
+        # SNTI FIX (5 Jul 2026): listunspent (not scantxoutset -- see
+        # wallet_balance for why) already excludes immature coinbase by
+        # default, so its result IS the spendable set directly.
+        spendable = rpc_call("listunspent", [0, 9999999, [addr]])
+        if isinstance(spendable, dict) and "error" in spendable:
+            continue
+        if not isinstance(spendable, list) or not spendable:
+            continue
+        # Only ONE UTXO can ever be signed per address (see xmss.cpp) -- the
+        # RPC itself always picks it; we only need the largest UTXO's value
+        # to decide how much of `remaining` this address can contribute.
+        cap = max(u.get("amount", 0) for u in spendable)
+        if cap <= 0:
+            continue
+        if cap <= remaining:
+            # Draining this address fully: subtract the fee from the amount
+            # instead of requiring the UTXO to exceed its own value.
+            send_amt = cap
+            subtract_fee = True
+        else:
+            send_amt = remaining
+            subtract_fee = False
+        result = rpc_call("sendfromxmssaddress", [addr, to_address, send_amt, "", subtract_fee])
+        if isinstance(result, dict) and "error" in result:
+            skipped.append({"address": addr, "error": result["error"]})
+            continue
+        txids.append({"address": addr, "txid": result, "amount": send_amt})
+        sent_total += send_amt
+        remaining -= send_amt
 
-    # XMSS keys are one-time-use: a wallet-native address (no mining ledger)
-    # retires entirely after one signature. Rotate to a fresh address so
-    # future incoming funds aren't received at a key that can no longer sign.
-    # NOTE: this does NOT rescue funds left in OTHER unspent UTXOs still
-    # sitting at from_address (the backend can only sign one UTXO per XMSS
-    # address per send) -- see job_queue.md follow-up for a proper fix
-    # (auto-sweep / ledger-backed wallet-native addresses).
-    response = {"txid": result}
-    new_addr = rpc_call("getnewxmssaddress")
-    if isinstance(new_addr, dict) and new_addr.get("address"):
-        conn = sqlite3.connect(DB_PATH)
-        conn.execute("UPDATE users SET xmss_address=? WHERE id=?", (new_addr["address"], request.user_id))
-        conn.commit()
-        conn.close()
-        response["new_address"] = new_addr["address"]
+    if not txids:
+        return jsonify({
+            "error": "No spendable funds found across any of your addresses",
+            "skipped": skipped
+        }), 409
+
+    response = {
+        "txid": txids[0]["txid"],       # backward compat: primary/first tx
+        "txids": [t["txid"] for t in txids],
+        "details": txids,
+        "amount_requested": amount,
+        "amount_sent": round(sent_total, 8),
+        "fully_covered": remaining <= 1e-8
+    }
+    if remaining > 1e-8:
         response["note"] = (
-            "Address lama sudah dipakai untuk mengirim dan tidak bisa dipakai lagi (XMSS one-time-use). "
-            "Address baru sudah otomatis dibuat untuk menerima dana berikutnya."
+            f"Hanya {round(sent_total, 8)} dari {amount} SNTI yang berhasil dikirim -- sisa "
+            f"({round(remaining, 8)}) tidak cukup tersedia di address yang belum retired/matang."
         )
+
+    # If the send happened to drain the account's CURRENT display address,
+    # rotate it so future manual deposits/display don't point at a dead key.
+    cur_info = rpc_call("getxmssaddressinfo", [current_address])
+    if isinstance(cur_info, dict) and cur_info.get("retired"):
+        new_addr = rpc_call("getnewxmssaddress")
+        if isinstance(new_addr, dict) and new_addr.get("address"):
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute(
+                "INSERT OR IGNORE INTO mining_addresses (user_id, address, created_at) VALUES (?,?,?)",
+                (request.user_id, new_addr["address"], int(time.time()))
+            )
+            conn.execute("UPDATE users SET xmss_address=? WHERE id=?", (new_addr["address"], request.user_id))
+            conn.commit()
+            conn.close()
+            response["new_address"] = new_addr["address"]
+            response["note"] = (response.get("note", "") + " "
+                "Address penerima Anda saat ini sudah terpakai untuk mengirim tadi -- "
+                "address baru sudah otomatis dibuat untuk menerima dana berikutnya."
+            ).strip()
     return jsonify(response)
 
 @app.route("/api/wallet/txs")
 @jwt_required_full
 def wallet_txs():
-    conn = sqlite3.connect(DB_PATH)
-    row = conn.execute("SELECT xmss_address FROM users WHERE id=?", (request.user_id,)).fetchone()
-    conn.close()
-    if not row:
+    addresses = _get_user_addresses(request.user_id)
+    if not addresses:
         return jsonify({"error": "user not found"}), 404
-    address = row[0]
-    # SNTI FIX (2 Jul 2026): listunspent doesn't work for XMSS addresses
-    # (same reason wallet_balance already switched to scantxoutset) -- this
-    # tab was silently showing "No unspent outputs" even when the balance
-    # tab correctly showed a positive balance.
-    scan = rpc_call("scantxoutset", ["start", [f"addr({address})"]])
-    if isinstance(scan, dict) and "error" in scan:
-        return jsonify({"txs": []})
-    utxos = scan.get("unspents", []) if isinstance(scan, dict) else []
-    return jsonify({"txs": utxos})
+    # SNTI FIX (5 Jul 2026): use the merged scan -- see wallet_balance() for
+    # why neither RPC alone is enough (scantxoutset misses P2XMSS-pure;
+    # listunspent misses a retired one-time-use address's remaining UTXOs).
+    return jsonify({"txs": _scan_addresses(addresses)})
 
 # ---------------------------------------------------------------------------
 # API: Non-custodial tools
@@ -910,11 +1102,8 @@ def nc_new_address():
 def nc_balance(address):
     if not _SNTI_ADDR_RE.match(address):
         return jsonify({"error": "invalid SNTI address format"}), 400
-    result = rpc_call("scantxoutset", ["start", [f"addr({address})"]])
-    if isinstance(result, dict) and "error" in result:
-        return jsonify(result), 502
-    utxos = result.get("unspents", []) if isinstance(result, dict) else []
-    balance = result.get("total_amount", 0) if isinstance(result, dict) else 0
+    utxos = _scan_addresses([address])
+    balance = sum(u.get("amount", 0) for u in utxos)
     return jsonify({"address": address, "balance": balance, "utxos": utxos})
 
 @app.route("/api/wallet/get-install-script", methods=["POST"])
@@ -949,6 +1138,14 @@ def _generate_install_script(user_id):
     if not row:
         return jsonify({"error": "user not found"}), 404
     username, wallet_address, miner_rpc_pass = row
+    # SNTI SECURITY FIX (4 Jul 2026 internal audit): username is embedded
+    # into a generated bash script below. Signup now enforces _USERNAME_RE,
+    # but accounts created before that check existed may still have an
+    # unsafe username (spaces, quotes, embedded newlines) sitting in the DB.
+    # Refuse to generate a script for those rather than risk command
+    # injection into whatever machine downloads and runs it.
+    if not _USERNAME_RE.match(username):
+        return jsonify({"error": "username contains unsupported characters; please contact support to rename your account before installing"}), 400
     # Backfill: existing users created before this column existed get a random password now
     if not miner_rpc_pass:
         miner_rpc_pass = secrets.token_hex(20)
@@ -970,6 +1167,12 @@ def _generate_install_script(user_id):
     }
     script_token = pyjwt.encode(payload, JWT_SECRET, algorithm="HS256")
     api_base = "https://assentian.network"
+    # Defense-in-depth on top of _USERNAME_RE / server-generated values above:
+    # never interpolate a raw value into shell-assignment context unquoted.
+    username_sh = shlex.quote(username)
+    wallet_address_sh = shlex.quote(wallet_address or "")
+    script_token_sh = shlex.quote(script_token)
+    miner_rpc_pass_sh = shlex.quote(miner_rpc_pass)
     script = f'''#!/bin/bash
 # ============================================================
 # SNTI Miner Installer — assentian.network
@@ -978,15 +1181,28 @@ def _generate_install_script(user_id):
 # ============================================================
 set -e
 
-SNTI_TOKEN="{script_token}"
+SNTI_TOKEN={script_token_sh}
 SNTI_API="{api_base}"
 INSTALL_DIR="$HOME/snti-miner"
 DATADIR="$HOME/.snti_mainnet"
-RPC_USER="{username}"
-RPC_PASS="{miner_rpc_pass}"
+RPC_USER={username_sh}
+RPC_PASS={miner_rpc_pass_sh}
 RPC_PORT="9332"
 P2P_PORT="9333"
 WALLET_NAME="snti_wallet"
+WALLET_ADDRESS={wallet_address_sh}
+CUR_USER="$(whoami)"
+SVC_NODE="snti-mainnet-node"
+# SNTI FIX (multi-user-per-device, see job_queue.md): the node (bitcoind,
+# port 9332/9333, $INSTALL_DIR/$DATADIR) is a SINGLETON PER MACHINE -- the
+# first account that installs on a machine sets it up, every account after
+# that just reuses it instead of restarting/reconfiguring it (which used
+# to kill whichever OTHER account was already mining on that box). The
+# mining LOOP stays per-account: its own directory and systemd service
+# name, so N accounts can mine side-by-side on the same machine without
+# stepping on each other.
+MINER_DIR="$HOME/snti-miner-$RPC_USER"
+SVC_MINER="snti-miner-$RPC_USER"
 
 GREEN="\\033[0;32m"; YELLOW="\\033[0;33m"; RED="\\033[0;31m"; NC="\\033[0m"
 ok()  {{ echo -e "${{GREEN}}[OK]${{NC}} $1"; }}
@@ -999,19 +1215,57 @@ echo "  ║   SNTI Post-Quantum Miner Installer      ║"
 echo "  ║   assentian.network                      ║"
 echo "  ╚══════════════════════════════════════════╝"
 echo ""
-echo "  User    : {username}"
-echo "  Datadir : $DATADIR"
-echo "  API     : $SNTI_API"
+echo "  User      : {username}"
+echo "  Miner dir : $MINER_DIR"
+echo "  Node dir  : $DATADIR (shared, satu per mesin)"
+echo "  API       : $SNTI_API"
 echo ""
 
 # -- 1. Dependencies
 inf "Installing dependencies..."
 sudo apt-get update -qq 2>/dev/null || true
-sudo apt-get install -y -qq libevent-dev libssl-dev libminiupnpc-dev libnatpmp-dev libsqlite3-0 curl python3 2>/dev/null || \\
+sudo apt-get install -y -qq libevent-dev libssl-dev libminiupnpc-dev libnatpmp-dev libsqlite3-0 curl python3 cron 2>/dev/null || \\
   err "apt install failed — run as sudo or check internet connection"
 ok "Dependencies installed"
 
-# -- 2. Download binaries
+# -- 2. Detect systemd (menentukan cara node/mining auto-restart)
+HAS_SYSTEMD=false
+if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1 && sudo systemctl list-units >/dev/null 2>&1; then
+  HAS_SYSTEMD=true
+  ok "systemd terdeteksi — node & mining akan auto-restart kalau crash atau reboot"
+else
+  inf "systemd tidak terdeteksi (WSL1 / container minimal?) — pakai fallback cron watchdog"
+fi
+
+# -- 3. Deteksi apakah node sudah terpasang di mesin ini (oleh akun lain
+# atau instalasi sebelumnya) -- kalau ya, JANGAN disentuh/restart sama sekali.
+NODE_EXISTS=false
+[ -f "$DATADIR/bitcoin.conf" ] && NODE_EXISTS=true
+
+# Hentikan instalasi lama MILIK AKUN INI SAJA (bukan node atau miner akun lain)
+pkill -f "$MINER_DIR/snti-miner-loop.sh" >/dev/null 2>&1 || true
+if $HAS_SYSTEMD; then
+  sudo systemctl stop "$SVC_MINER" >/dev/null 2>&1 || true
+fi
+
+# Migrasi dari versi installer LAMA (pre-multi-user: satu direktori/service
+# global "$HOME/snti-miner" + "snti-miner.service" dipakai bareng node) --
+# HANYA kalau instalasi lama itu kepunyaan akun yang SAMA (dicek dari
+# RPC_USER di snti.env lama), supaya tidak pernah mematikan miner akun lain.
+OLD_MINER_ENV="$HOME/snti-miner/snti.env"
+if [ -f "$OLD_MINER_ENV" ]; then
+  OLD_RPC_USER=$(sed -n 's/^RPC_USER="\\(.*\\)"$/\\1/p' "$OLD_MINER_ENV" 2>/dev/null | head -1)
+  if [ "$OLD_RPC_USER" = "$RPC_USER" ]; then
+    inf "Instalasi lama (pre-multi-user) akun ini terdeteksi — migrasi ke slot per-akun"
+    pkill -f "$HOME/snti-miner/snti-miner-loop.sh" >/dev/null 2>&1 || true
+    if $HAS_SYSTEMD; then
+      sudo systemctl disable --now "snti-miner" >/dev/null 2>&1 || true
+    fi
+  fi
+fi
+sleep 1
+
+# -- 4. Download binaries (shared, satu per mesin)
 inf "Downloading SNTI node binaries..."
 mkdir -p "$INSTALL_DIR" || err "Cannot create $INSTALL_DIR — check permissions"
 if [ -x "$INSTALL_DIR/bitcoind" ] && [ -x "$INSTALL_DIR/bitcoin-cli" ] && "$INSTALL_DIR/bitcoind" -version >/dev/null 2>&1; then
@@ -1021,8 +1275,6 @@ else
   [ "${{FREE_MB:-0}}" -lt 500 ] && err "Not enough disk space (need 500MB free, have ${{FREE_MB}}MB at $INSTALL_DIR)"
   _download() {{
     local url="$1" dest="$2" label="$3"
-    pkill -f "$dest" >/dev/null 2>&1 || true
-    sleep 1
     rm -f "$dest"
     curl -fSL --progress-bar "$url" -o "$dest" || {{ rm -f "$dest"; err "Failed to download $label (disk full? try: df -h)"; }}
   }}
@@ -1032,13 +1284,14 @@ else
   ok "Binaries downloaded to $INSTALL_DIR"
 fi
 
-# Shortcut
-CLI="$INSTALL_DIR/bitcoin-cli -datadir=$DATADIR -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -rpcport=$RPC_PORT"
-
-# -- 3. Setup datadir & config
-inf "Setting up node configuration..."
-mkdir -p "$DATADIR"
-cat > "$DATADIR/bitcoin.conf" << EOF
+# -- 5. Setup datadir & config -- HANYA kalau node belum ada di mesin ini
+# (node shared per mesin, config-nya tidak boleh ditimpa akun lain). Kalau
+# sudah ada, baca kredensial RPC yang SEBENARNYA dipakai node itu (bisa
+# beda dari RPC_USER/RPC_PASS akun ini sendiri kalau node dipasang akun lain).
+if ! $NODE_EXISTS; then
+  inf "Setting up node configuration..."
+  mkdir -p "$DATADIR"
+  cat > "$DATADIR/bitcoin.conf" << EOF
 rpcuser=$RPC_USER
 rpcpassword=$RPC_PASS
 rpcport=$RPC_PORT
@@ -1047,29 +1300,218 @@ rpcallowip=127.0.0.1
 walletcrosschain=1
 addnode=104.234.26.7:9333
 EOF
-ok "Config written to $DATADIR/bitcoin.conf"
-
-# -- 4. Start node
-inf "Starting SNTI node..."
-if pgrep -f "bitcoind.*snti_mainnet" > /dev/null 2>&1; then
-  ok "Node already running"
+  ok "Config written to $DATADIR/bitcoin.conf"
+  NODE_RPC_USER="$RPC_USER"
+  NODE_RPC_PASS="$RPC_PASS"
 else
-  "$INSTALL_DIR/bitcoind" -datadir="$DATADIR" -daemon -wallet="$WALLET_NAME" \\
-    -rpcuser="$RPC_USER" -rpcpassword="$RPC_PASS" -rpcport="$RPC_PORT" \\
-    -port="$P2P_PORT" -walletcrosschain
-  inf "Waiting for node to start..."
-  for i in $(seq 1 30); do
-    H=$($CLI getblockcount 2>/dev/null) && [[ "$H" =~ ^[0-9]+$ ]] && break
-    sleep 2
-  done
+  inf "Node sudah terpasang di mesin ini (shared dengan akun lain) — reuse, tidak ditimpa"
+  NODE_RPC_USER=$(sed -n 's/^rpcuser=\\(.*\\)$/\\1/p' "$DATADIR/bitcoin.conf" | head -1)
+  NODE_RPC_PASS=$(sed -n 's/^rpcpassword=\\(.*\\)$/\\1/p' "$DATADIR/bitcoin.conf" | head -1)
 fi
 
-H=$($CLI getblockcount 2>/dev/null) || err "Node failed to start — check $DATADIR/debug.log"
-ok "Node started (height: $H)"
+CLI="$INSTALL_DIR/bitcoin-cli -datadir=$DATADIR -rpcuser=$NODE_RPC_USER -rpcpassword=$NODE_RPC_PASS -rpcport=$RPC_PORT"
 
-# -- 5. Wait for initial sync
-inf "Syncing blockchain (this may take a few minutes)..."
-PREV_H=0
+# -- 6. Tulis file env PER-AKUN (dibaca oleh loop mining di setiap start,
+# termasuk sesudah reboot) -- RPC_USER/RPC_PASS di sini adalah kredensial
+# NODE yang sedang aktif (bisa milik akun lain kalau mesin ini shared).
+mkdir -p "$MINER_DIR"
+cat > "$MINER_DIR/snti.env" << EOF
+DATADIR="$DATADIR"
+INSTALL_DIR="$INSTALL_DIR"
+RPC_USER="$NODE_RPC_USER"
+RPC_PASS="$NODE_RPC_PASS"
+RPC_PORT="$RPC_PORT"
+SNTI_API="$SNTI_API"
+SNTI_TOKEN="$SNTI_TOKEN"
+WALLET_NAME="$WALLET_NAME"
+WALLET_ADDRESS="$WALLET_ADDRESS"
+EOF
+ok "Config akun ditulis ke $MINER_DIR/snti.env"
+
+# -- 7. Tulis mining loop (wallet+address+heartbeat+generatetoaddress) — dipanggil oleh service/cron
+cat > "$MINER_DIR/snti-miner-loop.sh" << 'MINERSCRIPT'
+#!/bin/bash
+set -uo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
+source "$SCRIPT_DIR/snti.env"
+
+CLI="$INSTALL_DIR/bitcoin-cli -datadir=$DATADIR -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -rpcport=$RPC_PORT"
+
+echo "[miner] waiting for node RPC..."
+for i in $(seq 1 60); do
+  $CLI getblockcount >/dev/null 2>&1 && break
+  sleep 2
+done
+
+echo "[miner] waiting for sync..."
+while true; do
+  IBD=$($CLI getblockchaininfo 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['initialblockdownload'])" 2>/dev/null || echo "true")
+  {{ [ "$IBD" = "False" ] || [ "$IBD" = "false" ]; }} && break
+  sleep 5
+done
+echo "[miner] synced, height $($CLI getblockcount 2>/dev/null)"
+
+WLIST=$($CLI listwallets 2>/dev/null | python3 -c "import sys,json; print(','.join(json.load(sys.stdin)))" 2>/dev/null || echo "")
+if [[ "$WLIST" != *"$WALLET_NAME"* ]]; then
+  $CLI loadwallet "$WALLET_NAME" >/dev/null 2>&1 || $CLI createwallet "$WALLET_NAME" >/dev/null 2>&1 || true
+fi
+
+if [ -n "$WALLET_ADDRESS" ]; then
+  ADDRESS="$WALLET_ADDRESS"
+else
+  ADDR_JSON=$($CLI getnewxmssaddress 2>&1)
+  ADDRESS=$(echo "$ADDR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['address'])" 2>/dev/null)
+  if [ -z "$ADDRESS" ]; then
+    echo "[miner] failed to get mining address: $ADDR_JSON" >&2
+    exit 1
+  fi
+  curl -sf -X POST "$SNTI_API/api/wallet/watch" \\
+    -H "Authorization: Bearer $SNTI_TOKEN" \\
+    -H "Content-Type: application/json" \\
+    -d "{{\\"address\\":\\"$ADDRESS\\",\\"label\\":\\"Miner - $(hostname)\\"}}" > /dev/null 2>&1 || true
+fi
+echo "[miner] mining to $ADDRESS"
+
+_heartbeat() {{
+  while true; do
+    curl -sf -X POST "$SNTI_API/api/wallet/miner-heartbeat" \\
+      -H "Authorization: Bearer $SNTI_TOKEN" \\
+      -H "Content-Type: application/json" \\
+      -d "{{\\"hostname\\":\\"$(hostname)\\"}}" > /dev/null 2>&1 || true
+    sleep 30
+  done
+}}
+_heartbeat &
+
+# SNTI FIX (5 Jul 2026): wallet-native XMSS addresses are one-time-use by
+# cryptographic design (a WOTS+ leaf signing two different messages leaks
+# the private key -- see xmss_signer.cpp). Mining used to reuse the SAME
+# address for every block forever, so an address could pile up hundreds of
+# separate 50-SNTI UTXOs that only ONE could ever be recovered later (see
+# job_queue.md "koin dini hilang"). Rotate to a fresh server-issued address
+# after every block instead, so each address only ever holds the exact one
+# UTXO its one-time key can safely spend.
+_rotate_address() {{
+  local resp addr
+  resp=$(curl -sf -X POST "$SNTI_API/api/wallet/next-mining-address" \\
+    -H "Authorization: Bearer $SNTI_TOKEN" \\
+    -H "Content-Type: application/json" 2>&1)
+  addr=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin)['address'])" 2>/dev/null)
+  echo "$addr"
+}}
+
+BLOCK=0
+while true; do
+  RESULT=$($CLI generatetoaddress 1 "$ADDRESS" 2>&1)
+  if echo "$RESULT" | python3 -c "import sys,json; b=json.load(sys.stdin); exit(0 if b else 1)" 2>/dev/null; then
+    BLOCK=$((BLOCK+1))
+    HASH=$(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin)[0][:16])" 2>/dev/null)
+    H=$($CLI getblockcount 2>/dev/null || echo "?")
+    echo "  [$BLOCK] Blok #$H ditemukan: ${{HASH}}..."
+    NEW_ADDR=$(_rotate_address)
+    if [ -n "$NEW_ADDR" ]; then
+      ADDRESS="$NEW_ADDR"
+      echo "  [miner] rotasi ke address baru: $ADDRESS"
+    else
+      echo "  [warn] gagal ambil address baru dari server -- tetap mining ke $ADDRESS untuk sementara (dana tetap aman, cuma menumpuk di 1 address sampai rotasi berhasil)" >&2
+    fi
+  fi
+done
+MINERSCRIPT
+chmod +x "$MINER_DIR/snti-miner-loop.sh"
+ok "Mining loop script written to $MINER_DIR/snti-miner-loop.sh"
+
+# -- 8. Jalankan node (kalau belum ada, shared) + miner (selalu, per akun):
+# systemd kalau ada, fallback nohup+cron kalau tidak
+if $HAS_SYSTEMD; then
+  if ! $NODE_EXISTS; then
+    inf "Mendaftarkan systemd service node (shared, sekali per mesin)..."
+    sudo tee "/etc/systemd/system/$SVC_NODE.service" > /dev/null << EOF
+[Unit]
+Description=SNTI Mainnet Node (shared)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$CUR_USER
+WorkingDirectory=$DATADIR
+ExecStart=$INSTALL_DIR/bitcoind -datadir=$DATADIR -wallet=$WALLET_NAME -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -rpcport=$RPC_PORT -port=$P2P_PORT -walletcrosschain
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now "$SVC_NODE"
+    ok "Node service terdaftar & aktif"
+  else
+    inf "Node service sudah ada di mesin ini — memastikan tetap jalan (tidak direstart)..."
+    sudo systemctl is-active --quiet "$SVC_NODE" 2>/dev/null || sudo systemctl start "$SVC_NODE" >/dev/null 2>&1 || true
+  fi
+
+  inf "Mendaftarkan systemd service mining loop (akun ini: $RPC_USER)..."
+  sudo tee "/etc/systemd/system/$SVC_MINER.service" > /dev/null << EOF
+[Unit]
+Description=SNTI Miner Loop ($RPC_USER)
+After=$SVC_NODE.service network-online.target
+Requires=$SVC_NODE.service
+
+[Service]
+Type=simple
+User=$CUR_USER
+WorkingDirectory=$MINER_DIR
+ExecStart=$MINER_DIR/snti-miner-loop.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now "$SVC_MINER"
+  ok "Service terdaftar & aktif — otomatis restart kalau crash, otomatis start lagi kalau mesin reboot"
+else
+  inf "Menjalankan node (kalau belum ada) + miner via nohup (fallback tanpa systemd)..."
+  if ! $NODE_EXISTS; then
+    nohup "$INSTALL_DIR/bitcoind" -datadir="$DATADIR" -wallet="$WALLET_NAME" \\
+      -rpcuser="$RPC_USER" -rpcpassword="$RPC_PASS" -rpcport="$RPC_PORT" \\
+      -port="$P2P_PORT" -walletcrosschain > "$DATADIR/node.log" 2>&1 < /dev/null &
+    disown
+  fi
+  nohup "$MINER_DIR/snti-miner-loop.sh" > "$MINER_DIR/miner.log" 2>&1 < /dev/null &
+  disown
+
+  cat > "$MINER_DIR/snti-watchdog.sh" << EOF
+#!/bin/bash
+pgrep -f "$INSTALL_DIR/bitcoind" > /dev/null 2>&1 || \\
+  ( nohup "$INSTALL_DIR/bitcoind" -datadir="$DATADIR" -wallet="$WALLET_NAME" \\
+    -rpcuser="$NODE_RPC_USER" -rpcpassword="$NODE_RPC_PASS" -rpcport="$RPC_PORT" \\
+    -port="$P2P_PORT" -walletcrosschain > "$DATADIR/node.log" 2>&1 < /dev/null & )
+sleep 5
+pgrep -f "$MINER_DIR/snti-miner-loop.sh" > /dev/null 2>&1 || \\
+  ( nohup "$MINER_DIR/snti-miner-loop.sh" > "$MINER_DIR/miner.log" 2>&1 < /dev/null & )
+EOF
+  chmod +x "$MINER_DIR/snti-watchdog.sh"
+
+  ( crontab -l 2>/dev/null | grep -vF "$MINER_DIR/snti-watchdog.sh" ; \\
+    echo "@reboot sleep 20 && $MINER_DIR/snti-watchdog.sh" ; \\
+    echo "* * * * * $MINER_DIR/snti-watchdog.sh" ) | crontab -
+  ok "Tidak ada systemd — pakai cron watchdog (cek tiap menit + @reboot) sebagai fallback auto-restart"
+fi
+
+# -- 9. Tunggu node sampai sinkron (feedback interaktif di sesi instalasi ini)
+inf "Menunggu node online..."
+for i in $(seq 1 60); do
+  H=$($CLI getblockcount 2>/dev/null) && [[ "$H" =~ ^[0-9]+$ ]] && break
+  sleep 2
+done
+H=$($CLI getblockcount 2>/dev/null) || err "Node gagal start — cek log: journalctl -u $SVC_NODE -n 50  (atau $DATADIR/node.log kalau tanpa systemd)"
+ok "Node online (height: $H)"
+
+inf "Sinkronisasi blockchain (bisa beberapa menit)..."
 while true; do
   H=$($CLI getblockcount 2>/dev/null) || H=0
   IBD=$($CLI getblockchaininfo 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['initialblockdownload'])" 2>/dev/null || echo "true")
@@ -1082,71 +1524,40 @@ while true; do
   sleep 5
 done
 
-# -- 6. Create wallet if needed
-WLIST=$($CLI listwallets 2>/dev/null | python3 -c "import sys,json; print(','.join(json.load(sys.stdin)))" 2>/dev/null || echo "")
-if [[ "$WLIST" != *"$WALLET_NAME"* ]]; then
-  $CLI createwallet "$WALLET_NAME" > /dev/null 2>&1 || true
-fi
-ok "Wallet ready"
-
-# -- 7. Tentukan address tujuan mining
-inf "Menentukan address mining..."
-WALLET_ADDRESS="{wallet_address}"
-
-if [ -n "$WALLET_ADDRESS" ]; then
-  # Mine langsung ke address web wallet user — koin masuk ke dashboard
-  ADDRESS="$WALLET_ADDRESS"
-  ok "Mine ke address web wallet Anda: $ADDRESS"
-  ok "Koin langsung masuk ke dashboard $SNTI_API/wallet/"
-else
-  # Fallback: generate address lokal
-  ADDR_JSON=$($CLI getnewxmssaddress 2>&1)
-  ADDRESS=$(echo "$ADDR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['address'])" 2>/dev/null)
-  [ -z "$ADDRESS" ] && err "Failed to generate address: $ADDR_JSON"
-  ok "Address lokal: $ADDRESS"
-  # Register sebagai watch address
-  curl -sf -X POST "$SNTI_API/api/wallet/watch" \\
-    -H "Authorization: Bearer $SNTI_TOKEN" \\
-    -H "Content-Type: application/json" \\
-    -d "{{\\\"address\\\":\\\"$ADDRESS\\\",\\\"label\\\":\\\"Miner — $(hostname)\\\"}}" > /dev/null 2>&1 || true
-fi
-
-# -- 8. Heartbeat background loop
-_heartbeat() {{
-  while true; do
-    curl -sf -X POST "$SNTI_API/api/wallet/miner-heartbeat" \\
-      -H "Authorization: Bearer $SNTI_TOKEN" \\
-      -H "Content-Type: application/json" \\
-      -d "{{\\\"hostname\\\":\\\"$(hostname)\\\"}}" > /dev/null 2>&1 || true
-    sleep 30
-  done
-}}
-_heartbeat &
-HEARTBEAT_PID=$!
-
-# -- 9. Start mining
 echo ""
 echo "  ╔══════════════════════════════════════════╗"
-echo "  ║   Mining started!                        ║"
+echo "  ║   Mining berjalan di background!         ║"
 echo "  ║   Rewards → {username}                   ║"
 echo "  ║   Cek saldo: $SNTI_API/wallet/           ║"
-echo "  ║   Status online: $SNTI_API/wallet/       ║"
-echo "  ║   Ctrl+C untuk berhenti                  ║"
 echo "  ╚══════════════════════════════════════════╝"
 echo ""
-
-trap "kill $HEARTBEAT_PID 2>/dev/null; exit" INT TERM
-
-BLOCK=0
-while true; do
-  RESULT=$($CLI generatetoaddress 1 "$ADDRESS" 2>&1)
-  if echo "$RESULT" | python3 -c "import sys,json; blocks=json.load(sys.stdin); exit(0 if blocks else 1)" 2>/dev/null; then
-    BLOCK=$((BLOCK+1))
-    HASH=$(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin)[0][:16])" 2>/dev/null)
-    H=$($CLI getblockcount 2>/dev/null || echo "?")
-    echo "  [$BLOCK] Blok #$H ditemukan: ${{HASH}}..."
-  fi
-done
+if [ -n "$WALLET_ADDRESS" ]; then
+  ok "Mining ke address web wallet Anda: $WALLET_ADDRESS"
+else
+  ok "Address mining akan dibuat otomatis — cek beberapa saat lagi via log di bawah"
+fi
+echo ""
+if $HAS_SYSTEMD; then
+  echo "  Mining ini JALAN TERUS walau terminal ditutup, dan OTOMATIS START LAGI kalau:"
+  echo "    - proses crash              (systemd Restart=always)"
+  echo "    - mesin reboot/mati-hidup   (systemd enabled di boot)"
+  echo ""
+  echo "  Perintah berguna:"
+  echo "    systemctl status $SVC_NODE $SVC_MINER     # cek status"
+  echo "    journalctl -u $SVC_MINER -f               # lihat blok ditemukan (live)"
+  echo "    sudo systemctl disable --now $SVC_MINER   # STOP mining akun ini SAJA"
+  echo "    (JANGAN stop $SVC_NODE kalau akun lain di mesin ini masih mining -- itu node shared)"
+else
+  echo "  Mining ini JALAN TERUS walau terminal ditutup, dan OTOMATIS START LAGI kalau:"
+  echo "    - proses mati        (cron cek tiap menit)"
+  echo "    - mesin reboot        (cron @reboot)"
+  echo ""
+  echo "  Perintah berguna:"
+  echo "    tail -f $MINER_DIR/miner.log       # lihat blok ditemukan (live)"
+  echo "    crontab -l                         # lihat jadwal watchdog"
+  echo "    crontab -l | grep -vF $MINER_DIR | crontab -   # STOP watchdog akun ini, lalu: pkill -f $MINER_DIR/snti-miner-loop.sh"
+fi
+echo ""
 '''
     from flask import Response
     return Response(
@@ -1261,20 +1672,19 @@ def watch_list():
     conn.close()
     if not rows:
         return jsonify({"watches": []})
-    # Single batched scantxoutset for all watch addresses
-    descriptors = [f"addr({addr})" for addr, _, _ in rows]
-    scan = rpc_call("scantxoutset", ["start", descriptors])
-    scan_ok = isinstance(scan, dict) and "error" not in scan
+    # SNTI FIX (5 Jul 2026): see _scan_addresses() -- batched scantxoutset
+    # alone missed P2XMSS-pure outputs for watched addresses this wallet
+    # also happens to hold keys for (common here since it's a shared node
+    # wallet, e.g. watching another of your own rotated addresses).
+    utxos = _scan_addresses([addr for addr, _, _ in rows])
     balance_map = {}
-    if scan_ok:
-        for utxo in scan.get("unspents", []):
-            desc = utxo.get("desc", "")
-            if desc.startswith("addr(") and desc.endswith(")"):
-                addr = desc[5:-1]
-                balance_map[addr] = balance_map.get(addr, 0) + utxo.get("amount", 0)
+    for utxo in utxos:
+        addr = utxo.get("address")
+        if addr:
+            balance_map[addr] = balance_map.get(addr, 0) + utxo.get("amount", 0)
     result = []
     for address, label, created_at in rows:
-        balance = balance_map.get(address, 0) if scan_ok else None
+        balance = balance_map.get(address, 0)
         result.append({"address": address, "label": label or "", "balance": balance, "created_at": created_at})
     return jsonify({"watches": result})
 
@@ -1331,6 +1741,34 @@ def miner_heartbeat():
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
+
+@app.route("/api/wallet/next-mining-address", methods=["POST"])
+@jwt_required
+def next_mining_address():
+    """SNTI FIX (5 Jul 2026): mints a fresh wallet-native address and records
+    it in mining_addresses. Called by the miner loop before EVERY block
+    (see _generate_install_script) instead of reusing one static address
+    forever -- each wallet-native address is one-time-use by cryptographic
+    design (xmss_signer.cpp), so an address that piles up many block rewards
+    can only ever have ONE of them recovered later. Rotating per-block means
+    every address this user ever mines to holds exactly the one UTXO its
+    one-time key can safely spend.
+    """
+    addr_result = rpc_call("getnewxmssaddress")
+    if isinstance(addr_result, dict) and "error" in addr_result:
+        return jsonify({"error": "node unavailable, cannot create new address"}), 503
+    address = addr_result.get("address", "") if isinstance(addr_result, dict) else str(addr_result)
+    if not address:
+        return jsonify({"error": "node returned no address"}), 502
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "INSERT OR IGNORE INTO mining_addresses (user_id, address, created_at) VALUES (?,?,?)",
+        (request.user_id, address, int(time.time()))
+    )
+    conn.execute("UPDATE users SET xmss_address=? WHERE id=?", (address, request.user_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"address": address})
 
 @app.route("/api/wallet/miner-status")
 @jwt_required
