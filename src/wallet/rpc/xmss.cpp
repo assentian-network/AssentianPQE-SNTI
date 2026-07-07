@@ -404,6 +404,15 @@ RPCHelpMan sendtoxmssaddress()
         if (!XMSSAddr::Decode(addr_str, hash, Params().Bech32HRP())) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid XMSS address");
         }
+        // SNTI SECURITY FIX (4 Jul 2026 internal audit): refuse to pay an
+        // address whose private key was published on-chain as a PoUW v2
+        // "failed seed" -- anyone who scanned the chain can steal funds
+        // sent there. See DB_POUW_BURNED_ADDR in validation.cpp.
+        if (pwallet->chain().isKnownBurnedPoUWAddress(hash)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
+                "This address's private key was published on-chain (PoUW v2 failed-seed list) and "
+                "is known to anyone who has scanned the blockchain. Funds sent here are not safe.");
+        }
 
         CAmount nAmount = AmountFromValue(request.params[1]);
         if (nAmount <= 0) {
@@ -524,6 +533,14 @@ RPCHelpMan sendfromxmssaddress()
         CTxDestination dest;
         uint160 to_hash;
         bool to_xmss = XMSSAddr::Decode(to_addr_str, to_hash, Params().Bech32HRP());
+
+        // SNTI SECURITY FIX (4 Jul 2026 internal audit): see matching check
+        // in sendtoxmssaddress() -- refuse destinations known-burned via FSL.
+        if (to_xmss && pwallet->chain().isKnownBurnedPoUWAddress(to_hash)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
+                "This destination address's private key was published on-chain (PoUW v2 failed-seed "
+                "list) and is known to anyone who has scanned the blockchain. Funds sent here are not safe.");
+        }
 
         if (to_xmss) {
             // Try to get full pubkey for P2XMSS output

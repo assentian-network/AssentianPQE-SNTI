@@ -2046,6 +2046,28 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
 // SNTI Fix2: PoUW leaf index tracking helpers
 static const uint8_t DB_POUW_LEAF = 'L';
 
+// SNTI SECURITY HARDENING (4 Jul 2026 internal audit): every "failed" XMSS
+// seed a miner publishes in a block's FSL (see pouw_v2_keyder.h) is a real
+// SK_SEED that was actually used to build a real tree via xmss_keypair --
+// it just didn't beat the mining target. The seed is broadcast in plaintext
+// forever, so ANYONE can rebuild that tree and therefore knows its private
+// key. Nothing currently pays to a failed root (mining only pays the
+// *winning* root -- see GenerateBlock in rpc/mining.cpp), but if a user ever
+// manually sent funds to one of these addresses, they would be trivially
+// stealable by any chain-watcher. This is a wallet-side advisory index only
+// (never rejects a block, so it carries zero fork risk) that lets
+// sendtoxmssaddress/sendfromxmssaddress warn/refuse before creating such a
+// transaction. Keyed by Hash160(root||PUB_SEED) -- the same value that goes
+// into a P2XMSSHASH address -- so a wallet can check it with just the
+// address hash it already decoded, without needing the raw root.
+static const uint8_t DB_POUW_BURNED_ADDR = 'B';
+
+bool IsKnownBurnedPoUWAddress(ChainstateManager& chainman, const uint160& addr_hash)
+{
+    bool dummy;
+    return chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_BURNED_ADDR, addr_hash), dummy);
+}
+
 // Reconstruct the merkle root as it was BEFORE the miner embedded the PoUW
 // proof (PW2\x02) and FSL (FSL\x01) into the coinbase.  The miner signs this
 // "base" root; those outputs are appended afterwards, so we strip them to
@@ -2636,6 +2658,32 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
             uint256 bh = block.GetHash();
             m_chainman.m_blockman.m_block_tree_db->Write(std::make_pair(DB_POUW_LEAF, cb_key), bh);
             LogPrint(BCLog::VALIDATION, "PoUW Fix2: marked leaf=%u block=%s\n", cb_leaf, bh.GetHex());
+        }
+
+        // SNTI SECURITY HARDENING (4 Jul 2026 internal audit): index every
+        // FSL "failed seed" address in this coinbase as burned (see
+        // DB_POUW_BURNED_ADDR comment above). CheckPoUW() already verified
+        // this FSL is well-formed and (from nPoUWFSLSeedVerifyHeight) that
+        // each entry's root really derives from its claimed seed -- this is
+        // a pure additive index, never affects block validity, so it is
+        // safe to write here regardless of chain height/activation.
+        for (const auto& out : cbTx.vout) {
+            const CScript& s = out.scriptPubKey;
+            if (s.empty() || s[0] != OP_RETURN) continue;
+            CScript::const_iterator pc = s.begin() + 1;
+            opcodetype opc; std::vector<uint8_t> d;
+            if (!s.GetOp(pc, opc, d) || d.size() < 4) continue;
+            if (d[0] != 'F' || d[1] != 'S' || d[2] != 'L' || d[3] != 0x01) continue;
+            PoUWv2KeyDer::FailedSeedList fsl;
+            if (!fsl.Deserialize(d.data(), d.size())) break;
+            for (const auto& entry : fsl.entries) {
+                std::vector<uint8_t> pubkey64(entry.xmss_root, entry.xmss_root + 32);
+                pubkey64.insert(pubkey64.end(), entry.sk_seed + 64, entry.sk_seed + 96); // PUB_SEED
+                uint160 addr_hash;
+                CHash160().Write(pubkey64).Finalize(addr_hash);
+                m_chainman.m_blockman.m_block_tree_db->Write(std::make_pair(DB_POUW_BURNED_ADDR, addr_hash), true);
+            }
+            break;
         }
     }
 

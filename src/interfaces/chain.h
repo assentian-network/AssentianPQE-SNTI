@@ -8,6 +8,7 @@
 #include <blockfilter.h>
 #include <common/settings.h>
 #include <primitives/transaction.h> // For CTransactionRef
+#include <uint256.h> // For uint160
 #include <util/result.h>
 
 #include <functional>
@@ -188,6 +189,15 @@ public:
     //! the current chain UTXO set. Iterates through all the keys in the map and
     //! populates the values.
     virtual void findCoins(std::map<COutPoint, Coin>& coins) = 0;
+
+    //! SNTI: return whether `addr_hash` (Hash160 of an XMSS pubkey, i.e. the
+    //! same value embedded in a P2XMSSHASH address) is a known-burned PoUW v2
+    //! "failed seed" address -- one whose private key was published on-chain
+    //! in a block's Failed-Seed-List and is therefore known to anyone who has
+    //! scanned the chain. Used by sendtoxmssaddress/sendfromxmssaddress to
+    //! refuse creating a transaction that would send funds somewhere
+    //! trivially stealable. See DB_POUW_BURNED_ADDR in validation.cpp.
+    virtual bool isKnownBurnedPoUWAddress(const uint160& addr_hash) = 0;
 
     //! Estimate fraction of total transactions verified if blocks up to
     //! the specified block hash are verified.

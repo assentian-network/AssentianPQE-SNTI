@@ -613,6 +613,10 @@ public:
                int{FillBlock(block2, block2_out, lock, active, chainman().m_blockman)};
     }
     void findCoins(std::map<COutPoint, Coin>& coins) override { return FindCoins(m_node, coins); }
+    bool isKnownBurnedPoUWAddress(const uint160& addr_hash) override
+    {
+        return IsKnownBurnedPoUWAddress(chainman(), addr_hash);
+    }
     double guessVerificationProgress(const uint256& block_hash) override
     {
         LOCK(::cs_main);

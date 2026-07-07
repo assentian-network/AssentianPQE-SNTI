@@ -286,6 +286,15 @@ PackageMempoolAcceptResult ProcessNewPackage(Chainstate& active_chainstate, CTxM
 /* Mempool validation helper functions */
 
 /**
+ * SNTI: return whether `addr_hash` (Hash160 of an XMSS pubkey) is a known-
+ * burned PoUW v2 "failed seed" address -- see DB_POUW_BURNED_ADDR in
+ * validation.cpp for what this means and why. Used by wallet send paths
+ * (via interfaces::Chain::isKnownBurnedPoUWAddress) to warn/refuse before
+ * paying an address whose private key is public knowledge.
+ */
+bool IsKnownBurnedPoUWAddress(ChainstateManager& chainman, const uint160& addr_hash);
+
+/**
  * Check if transaction will be final in the next block to be created.
  */
 bool CheckFinalTxAtTip(const CBlockIndex& active_chain_tip, const CTransaction& tx) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
