@@ -196,6 +196,7 @@ public:
             {
                 {0,  consensus.hashGenesisBlock},
                 {90, uint256S("da8569ca75a811dc36ea22849ae53ad95ae643ff764e2960519e236b84952d96")},
+                {49306, uint256S("c09451417288befca9d57553bc0a1aaad4261c8408101f64b98f6696083b9e01")},
             }
         };
 
