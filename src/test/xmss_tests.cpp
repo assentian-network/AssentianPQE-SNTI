@@ -333,4 +333,86 @@ BOOST_AUTO_TEST_CASE(xmss_fsl_tampered_seed_mismatch_detected)
     BOOST_CHECK(roots_mismatch);
 }
 
+// SNTI FIX (3 Jul 2026): documents WHY XMSS_MAX_LEAVES is 1023, not the
+// theoretical 1024, for height-10 trees. The vendored xmss-reference
+// xmss_core_sign() wipes SK_SEED/SK_PRF/PUB_SEED/root in place the moment
+// idx reaches the tree's last representable index (2^height - 1 = 1023),
+// *before* using them to actually produce that signature -- for
+// full_height==64 the reference code deliberately skips signing at that
+// index instead, but that guard does not apply to height 10. Reproduced in
+// production twice, both times exactly at leaf 1023 (see job_queue.md).
+// This test pins the exact boundary so nobody raises XMSS_MAX_LEAVES back
+// to 1024 without this test catching it.
+BOOST_AUTO_TEST_CASE(xmss_last_leaf_1023_produces_unverifiable_signature)
+{
+    XMSS::CXMSSKey key;
+    BOOST_REQUIRE(key.Generate());
+    std::vector<uint8_t> pk = key.GetPubKey();
+
+    // Fast-forward through leaves 0..(XMSS_MAX_LEAVES-2) = 0..1021. Every-leaf
+    // verification of this safe range is covered by the ledger exhaustion
+    // test below; here we only need to reach the boundary.
+    std::vector<uint8_t> hash(32, 0), sig;
+    for (uint32_t i = 0; i < PoUWv2::XMSS_MAX_LEAVES - 1; i++) {
+        BOOST_REQUIRE(key.Sign(hash, sig));
+    }
+
+    // Leaf XMSS_MAX_LEAVES-1 (1022, the last SAFE leaf) must still verify.
+    std::vector<uint8_t> hash_ok(32, 0x77), sig_ok;
+    BOOST_REQUIRE(key.Sign(hash_ok, sig_ok));
+    BOOST_CHECK(key.Verify(hash_ok, sig_ok, pk));
+
+    // Leaf 1023 (index == 2^height - 1): xmss_core_sign "succeeds"
+    // structurally (ret==0) but the signature is cryptographically broken
+    // because the SK was wiped before use -- verification MUST fail. This
+    // is exactly the failure CheckPoUWv2/consensus caught in production.
+    std::vector<uint8_t> hash_bad(32, 0x88), sig_bad;
+    BOOST_REQUIRE(key.Sign(hash_bad, sig_bad));
+    BOOST_CHECK(!key.Verify(hash_bad, sig_bad, pk));
+}
+
+// SNTI FIX (3 Jul 2026): proves the actual fix on the real mining/wallet
+// code path (BuildNewTree + XMSSTreeLedgerClaimAndSign, exactly what
+// mining.cpp and xmss_signer.cpp use) -- every one of the XMSS_MAX_LEAVES
+// (1023) claimable leaves must produce a signature that verifies, and the
+// ledger must report exhausted at 1023 without ever attempting the doomed
+// leaf 1023.
+BOOST_AUTO_TEST_CASE(ledger_exhausts_at_1023_all_signatures_valid)
+{
+    fs::path dir = JoinPath(fs::temp_directory_path(), "snti_ledger_test_exhaustion");
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+
+    PoUWv2::XMSSMinerState state;
+    BOOST_REQUIRE(PoUWv2::BuildNewTree(state));
+
+    XMSS::CXMSSKey pubkey_extractor;
+    BOOST_REQUIRE(pubkey_extractor.Load(state.sk));
+    std::vector<uint8_t> pk = pubkey_extractor.GetPubKey();
+
+    BOOST_REQUIRE(PoUWv2::XMSSTreeLedgerInit(dir, state));
+
+    for (uint32_t i = 0; i < PoUWv2::XMSS_MAX_LEAVES; i++) {
+        std::vector<uint8_t> hash(32, (uint8_t)(i & 0xFF)), sig;
+        uint32_t leaf_used = 999;
+        BOOST_REQUIRE(PoUWv2::XMSSTreeLedgerClaimAndSign(dir, state.xmssRoot, hash, sig, leaf_used));
+        BOOST_CHECK_EQUAL(leaf_used, i);
+
+        XMSS::CXMSSKey verifier;
+        BOOST_CHECK(verifier.Verify(hash, sig, pk));
+    }
+
+    uint32_t next_leaf = 0, max_leaves = 0;
+    BOOST_REQUIRE(PoUWv2::XMSSTreeLedgerStatus(dir, state.xmssRoot, next_leaf, max_leaves));
+    BOOST_CHECK_EQUAL(next_leaf, PoUWv2::XMSS_MAX_LEAVES);
+    BOOST_CHECK_EQUAL(max_leaves, PoUWv2::XMSS_MAX_LEAVES);
+
+    // Must refuse further signing -- never attempts the doomed leaf 1023.
+    std::vector<uint8_t> hash(32, 0xEE), sig;
+    uint32_t leaf_used = 999;
+    BOOST_CHECK(!PoUWv2::XMSSTreeLedgerClaimAndSign(dir, state.xmssRoot, hash, sig, leaf_used));
+
+    fs::remove_all(dir);
+}
+
 BOOST_AUTO_TEST_SUITE_END()

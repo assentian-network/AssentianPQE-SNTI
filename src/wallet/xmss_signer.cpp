@@ -153,7 +153,7 @@ bool CXMSSSigner::Sign(const uint256& hash, const std::vector<uint8_t>& pubkey, 
     if (it == xmss_keys.end()) return false;
 
     // SNTI: Anti-reuse — check if key is exhausted before signing
-    if (it->second.leaf_index >= 1024) {
+    if (it->second.leaf_index >= PoUWv2::XMSS_MAX_LEAVES) {
         LogPrintf("CXMSSSigner::Sign: XMSS key exhausted (index=%u), need new key\n", it->second.leaf_index);
         return false;
     }
@@ -222,7 +222,7 @@ bool CXMSSSigner::SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubk
     // keys are one-time-use by design -- a WOTS+ leaf signing two different
     // messages leaks the tree's private key. This must be checked BEFORE
     // routing to the ledger below: the ledger's own exhaustion check allows
-    // up to 1024 leaves (correct for multi-use mining trees), so without
+    // up to XMSS_MAX_LEAVES (1023) leaves (correct for multi-use mining trees), so without
     // this guard a "retired" native address could keep signing with leaves
     // 1..1023 the moment it became ledger-backed, silently reintroducing
     // the exact one-time-use violation this wallet exists to prevent.
@@ -297,7 +297,7 @@ bool CXMSSSigner::SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubk
         // leaf 0 by design (see the retired check above and
         // IsXMSSKeyRetired()) -- mark retired immediately so a second call
         // is refused up front, without depending on the ledger's own much
-        // higher (1024-leaf) exhaustion threshold.
+        // higher (XMSS_MAX_LEAVES=1023) exhaustion threshold.
         const_cast<bool&>(it->second.retired) = true;
         const_cast<uint32_t&>(it->second.leaf_index) = leaf_used + 1;
     }
@@ -341,11 +341,11 @@ bool CXMSSSigner::IsXMSSKeyRetired(const std::vector<uint8_t>& pubkey) const
     // SNTI fix (1 Jul 2026, refined 2 Jul 2026 audit): tree-backed keys are
     // "retired" (unspendable) once the ledger says so -- but the threshold
     // depends on what kind of tree this is. Imported (mining) trees are
-    // designed for up to 1024 leaves, so exhaustion is the right signal.
+    // designed for up to XMSS_MAX_LEAVES (1023) leaves, so exhaustion is the right signal.
     // Wallet-native keys are one-time-use BY DESIGN (WOTS+ leaks the
     // private key on a second signature from the same leaf) -- for those,
     // ANY leaf claimed at all (next_leaf >= 1) means this address's single
-    // usable leaf has already signed. Using the 1024-leaf mining threshold
+    // usable leaf has already signed. Using the XMSS_MAX_LEAVES (1023) mining threshold
     // here for a native key would silently let a "retired" one-time
     // address keep reporting as spendable through leaves 1..1023 -- the
     // exact bug the SignXMSS() rewrite above also had to guard against.
@@ -576,7 +576,7 @@ bool CXMSSSigner::HasExhaustedKeys() const
 {
     LOCK(cs_xmss_signer);
     for (const auto& [pubkey, entry] : xmss_keys) {
-        if (entry.leaf_index >= 1024) return true;  // XMSS-SHA2_10_256 max
+        if (entry.leaf_index >= PoUWv2::XMSS_MAX_LEAVES) return true;  // XMSS-SHA2_10_256 usable max
     }
     return false;
 }
