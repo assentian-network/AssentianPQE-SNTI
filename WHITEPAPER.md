@@ -1,6 +1,6 @@
 # Assentian-PQE (SNTI)
 ## The First Mineable Post-Quantum Cryptocurrency
-### Whitepaper v1.1 | June 2026
+### Whitepaper v1.2 | Updated July 2026
 
 ---
 
@@ -36,7 +36,7 @@ Assentian-PQE (SNTI) is the **world's first mineable post-quantum cryptocurrency
 Unlike theoretical proposals or migration promises, Assentian-PQE is **already running**:
 
 - ✅ Mainnet genesis block mined — June 26, 2026 (hash: `b4a26aef...`)
-- ✅ Mainnet live — 1170+ blocks, 3-node network (Indonesia + USA + Singapore)
+- ✅ Mainnet live — 49,306+ blocks (as of 7 Jul 2026), 3-node network (Indonesia + USA + Singapore), all three nodes mining
 - ✅ DNS seed live — seed/seed2/seed3.assentian.network
 - ✅ CPU mining operational, solo mining via RPC
 - ✅ Block explorer live at assentian.network/explorer/
@@ -525,7 +525,7 @@ Total Supply: **210,000,000 SNTI** (hard cap — 10× Bitcoin's 21M, scaled for 
 ### ✅ Phase 1: Mainnet Launched — June 26, 2026
 
 - ✅ Mainnet genesis block — June 26, 2026 (`b4a26aef...`, nBits `0x2001a41a`)
-- ✅ 3-node network — Indonesia + USA (KC) + Singapore (SG), 1170+ blocks
+- ✅ 3-node network — Indonesia + USA (KC) + Singapore (SG), all mining, 49,306+ blocks (as of 7 Jul 2026)
 - ✅ DNS seeds — seed/seed2/seed3.assentian.network (3 IPs, round-robin)
 - ✅ Web wallet — assentian.network/wallet/
 - ✅ Block explorer — assentian.network/explorer/
@@ -934,7 +934,7 @@ The answer is Assentian-PQE.
 
 ---
 
-*Assentian-PQE Whitepaper v1.1 | June 26, 2026*
+*Assentian-PQE Whitepaper v1.2 | Updated 7 July 2026*
 *Genesis: "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia"*
 *Contact: assentianpqe@gmail.com*
 *GitHub: https://github.com/assentian-network/snti*
