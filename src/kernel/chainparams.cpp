@@ -142,6 +142,7 @@ public:
         consensus.nPoUWLeafReuseActivation = 1000; // M7: leaf-reuse prevention active from block 1000
         consensus.nPoUWFSLSeedVerifyHeight = 3000; // audit T-1: FSL sk_seed must match claimed root from block 3000
         consensus.nPoUWStuckRecoveryHardenHeight = 4400; // audit KRITIS #5 (2 Jul 2026): require corroborated stuck-chain evidence, chain height was 3907 when written
+        consensus.nPoUWTieredStuckRecoveryHeight = 49500; // SNTI M6 (6 Jul 2026): tiered 1-gap/2-gap stuck recovery, chain height was 49306 (stalled since block 49306, ~14h) when written -- buffer left for coordinated 3-node deploy
         consensus.nPoUWDiffbitsGrandfatherHeight = 300; // 2 Jul 2026: exhaustive scan of all 3907 blocks found nBits mismatches only at height 7-273 (pre-"Sesi 4" difficulty algorithm churn); grandfathers those in so fresh IBD sync from genesis is possible again
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 1; // mainnet
@@ -260,6 +261,7 @@ public:
         consensus.nPoUWLeafReuseActivation = 200; // M7: enforce from block 200 on testnet
         consensus.nPoUWFSLSeedVerifyHeight = 200; // audit T-1: enforce from block 200 on testnet
         consensus.nPoUWStuckRecoveryHardenHeight = 200; // audit KRITIS #5: enforce from block 200 on testnet
+        consensus.nPoUWTieredStuckRecoveryHeight = 210; // SNTI M6: tiered stuck recovery from block 210 on testnet
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 2; // testnet
 
@@ -510,6 +512,7 @@ public:
         consensus.nPoUWv3StartHeight = 1; // regtest: use new preimage from genesis
         consensus.nPoUWFSLSeedVerifyHeight = 1; // audit T-1: enforce from genesis on regtest
         consensus.nPoUWStuckRecoveryHardenHeight = 1; // audit KRITIS #5: enforce from genesis on regtest
+        consensus.nPoUWTieredStuckRecoveryHeight = 1; // SNTI M6: tiered stuck recovery from genesis on regtest
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 4; // regtest (3=signet, avoid chain_id collision)
 

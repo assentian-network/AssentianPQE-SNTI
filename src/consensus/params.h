@@ -150,6 +150,21 @@ struct Params {
      *  history. Below this height the OLD single-block-gap logic is used
      *  byte-for-byte unchanged. */
     int nPoUWStuckRecoveryHardenHeight{std::numeric_limits<int>::max()}; //!< disabled unless set
+    /** Height at which the stuck-chain recovery in GetNextWorkRequired()
+     *  (pow.cpp) becomes tiered by amount of confirmed evidence instead of
+     *  all-or-nothing (SNTI M6, 6 Jul 2026): 2 confirmed slow prior gaps
+     *  still gets the full 20x jump; 1 confirmed slow gap (previously
+     *  treated the same as 0, i.e. no relief at all) now gets a moderate 4x
+     *  jump. Still uses ONLY confirmed history, never this candidate's own
+     *  timestamp, so the KRITIS #5 threat model is unchanged. Must be set
+     *  comfortably above the current tip at deploy time and identically on
+     *  every node -- GetNextWorkRequired() is exact-match-checked in
+     *  ContextualCheckBlockHeader(), so a node still on the old rule would
+     *  reject blocks a node on the new rule considers valid, and vice versa.
+     *  Below this height the old all-or-nothing rule is reproduced
+     *  byte-for-byte so already-mined history (and any future fresh IBD
+     *  resync re-checking it) keeps recomputing to the same nBits. */
+    int nPoUWTieredStuckRecoveryHeight{std::numeric_limits<int>::max()}; //!< disabled unless set
     /** Grandfather exemption for the strict nBits ("bad-diffbits") check in
      *  ContextualCheckBlockHeader() (discovered 2 Jul 2026 via the first-ever
      *  fresh IBD sync attempt from genesis). The PoUW v2 difficulty algorithm
