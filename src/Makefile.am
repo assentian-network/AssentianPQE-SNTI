@@ -732,6 +732,8 @@ libbitcoin_common_a_SOURCES = \
   xmss_tree_ledger.cpp \
   xmss_tree_ledger.h \
   xmss_blacklist.h \
+  xmss_leaf_key.cpp \
+  xmss_leaf_key.h \
   $(BITCOIN_CORE_H)
 
 if USE_LIBEVENT
