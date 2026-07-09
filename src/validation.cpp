@@ -44,7 +44,6 @@
 #include <reverse_iterator.h>
 #include <script/script.h>
 #include <script/sigcache.h>
-#include <script/solver.h>
 #include <signet.h>
 #include <tinyformat.h>
 #include <txdb.h>
@@ -69,6 +68,7 @@
 // SNTI: XMSS PoUW verification
 #include <xmss_bridge.h>
 #include <pouw_v2.h>
+#include <xmss_leaf_key.h>
 #include <pouw_v2_keyder.h>
 
 #include <algorithm>
@@ -2100,86 +2100,13 @@ static uint256 ComputePoUWBaseMerkleRoot(const CBlock& block)
     return ComputeMerkleRoot(std::move(leaves));
 }
 
-static uint256 MakePoUWLeafKey(const std::vector<uint8_t>& pubkey64, uint32_t leaf_idx)
-{
-    uint8_t idx_be[4];
-    idx_be[0] = (leaf_idx >> 24) & 0xFF;
-    idx_be[1] = (leaf_idx >> 16) & 0xFF;
-    idx_be[2] = (leaf_idx >>  8) & 0xFF;
-    idx_be[3] =  leaf_idx        & 0xFF;
-    CHash256 hasher;
-    hasher.Write(pubkey64);
-    hasher.Write({idx_be, 4});
-    uint256 result;
-    hasher.Finalize(result);
-    return result;
-}
-
-// ---------------------------------------------------------------------------
 // SNTI DRAFT (9 Jul 2026, not activated -- see nXMSSSpendLeafReuseActivation):
-// consensus-level leaf-reuse dedup extended to XMSS *spend* inputs.
-//
-// Reuses MakePoUWLeafKey() / DB_POUW_LEAF verbatim and deliberately does NOT
-// introduce a separate keyspace: a tree leaf's secret material is the same
-// regardless of whether it was claimed by mining or by a wallet spend, so a
-// leaf burned by one context is exactly as unsafe to reuse in the other.
-// Keeping one table means the existing mining-leaf check (below, in the PoUW
-// verification path) automatically also rejects a mining leaf that a prior
-// *spend* already used, with zero change to that code.
-// ---------------------------------------------------------------------------
-
-// Extract (pubkey, leaf_idx) from a scriptSig spending a P2XMSS/P2XMSSHASH
-// output, using the identical chunk-reassembly rule as OP_XMSS_CHECKSIG in
-// interpreter.cpp: the scriptSig is pure pushes; the LAST push is the
-// 64-byte pubkey (== stacktop(-1) at OP_XMSS_CHECKSIG time); every push
-// before it, in order, is a signature chunk (1-520 bytes) that concatenates
-// into the raw XMSS signature, whose first 4 bytes are the leaf index.
-//
-// This re-derives structural data that CheckInputScripts' interpreter call
-// already parsed -- it is not an independent verification. That is safe
-// because every call site below only *reads* this after Solver() has
-// confirmed the output is P2XMSS/P2XMSSHASH, and any caller that later
-// *writes* a mark based on it only does so once the whole block has passed
-// every other consensus check (see ConnectBlock tail).
-static bool ExtractXMSSLeafUse(const CScript& scriptPubKey, const CScript& scriptSig,
-                                std::vector<uint8_t>& pubkey_out, uint32_t& leaf_idx_out)
-{
-    std::vector<std::vector<unsigned char>> solutions;
-    TxoutType type = Solver(scriptPubKey, solutions);
-    if (type != TxoutType::P2XMSS && type != TxoutType::P2XMSSHASH) return false;
-
-    std::vector<std::vector<unsigned char>> pushes;
-    {
-        CScript::const_iterator pc = scriptSig.begin();
-        opcodetype opcode;
-        std::vector<unsigned char> data;
-        while (pc != scriptSig.end()) {
-            if (!scriptSig.GetOp(pc, opcode, data)) return false;
-            if (opcode > OP_PUSHDATA4) return false; // not a plain-push scriptSig -- not our pattern
-            pushes.push_back(std::move(data));
-        }
-    }
-    if (pushes.empty()) return false;
-
-    const std::vector<unsigned char>& pk = pushes.back();
-    if (pk.size() != 64) return false;
-
-    static const size_t XMSS_MAX_SIG_BYTES = 4096; // mirrors interpreter.cpp OP_XMSS_CHECKSIG
-    std::vector<uint8_t> sig;
-    sig.reserve(std::min<size_t>(XMSS_MAX_SIG_BYTES, 4096));
-    for (size_t i = 0; i + 1 < pushes.size(); i++) {
-        const auto& chunk = pushes[i];
-        if (chunk.empty() || chunk.size() > 520) return false; // malformed -- can't be the sig CheckInputScripts verified
-        sig.insert(sig.end(), chunk.begin(), chunk.end());
-        if (sig.size() >= XMSS_MAX_SIG_BYTES) break;
-    }
-    if (sig.size() < 4) return false;
-
-    pubkey_out = pk;
-    leaf_idx_out = ((uint32_t)sig[0] << 24) | ((uint32_t)sig[1] << 16) |
-                   ((uint32_t)sig[2] << 8)  |  (uint32_t)sig[3];
-    return true;
-}
+// MakePoUWLeafKey() and ExtractXMSSLeafUse() now live in xmss_leaf_key.h/.cpp
+// (moved out so unit tests can exercise ExtractXMSSLeafUse() directly
+// without a full ConnectBlock()/chainstate fixture). MakePoUWLeafKey() is
+// still shared verbatim with the pre-existing PoUW mining-leaf check below --
+// deliberately one keyspace, not two, since a tree leaf's secret is the same
+// regardless of whether it was claimed by mining or by a wallet spend.
 
 
 

@@ -124,6 +124,7 @@ BITCOIN_TESTS =\
   test/pool_tests.cpp \
   test/pow_tests.cpp \
   test/xmss_tests.cpp \
+  test/xmss_leaf_key_tests.cpp \
   test/prevector_tests.cpp \
   test/raii_event_tests.cpp \
   test/random_tests.cpp \
