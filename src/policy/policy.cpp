@@ -74,14 +74,17 @@ bool IsStandard(const CScript& scriptPubKey, const std::optional<unsigned>& max_
 
     if (whichType == TxoutType::NONSTANDARD) {
         return false;
-    } else if (whichType == TxoutType::MULTISIG) {
-        unsigned char m = vSolutions.front()[0];
-        unsigned char n = vSolutions.back()[0];
-        // Support up to x-of-3 multisig txns as standard
-        if (n < 1 || n > 3)
-            return false;
-        if (m < 1 || m > n)
-            return false;
+    } else if (whichType == TxoutType::PUBKEY || whichType == TxoutType::PUBKEYHASH ||
+               whichType == TxoutType::MULTISIG || whichType == TxoutType::WITNESS_V0_KEYHASH ||
+               whichType == TxoutType::WITNESS_V0_SCRIPTHASH) {
+        // SNTI: classical ECDSA (secp256k1) output types are not standard.
+        // Consensus still accepts them for legacy safety margin (no reject
+        // rule was added there -- see WHITEPAPER.md 13.1), but no SNTI
+        // wallet has ever produced one, so refusing to relay/mine them as
+        // standard closes the gap without a hard fork. P2SH and Taproot
+        // are left standard: they are generic wrappers/signature schemes,
+        // not ECDSA-specific.
+        return false;
     } else if (whichType == TxoutType::NULL_DATA) {
         if (!max_datacarrier_bytes || scriptPubKey.size() > *max_datacarrier_bytes) {
             return false;

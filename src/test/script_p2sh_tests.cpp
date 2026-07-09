@@ -95,7 +95,20 @@ BOOST_AUTO_TEST_CASE(sign)
         txFrom.vout[i+4].scriptPubKey = standardScripts[i];
         txFrom.vout[i+4].nValue = COIN;
     }
-    BOOST_CHECK(IsStandardTx(CTransaction(txFrom), reason));
+    // SNTI: standardScripts[] are bare P2PK/P2PKH (classical ECDSA), no
+    // longer standard on their own (see IsStandard() in policy.cpp) -- the
+    // full txFrom is therefore non-standard, even though the P2SH-wrapped
+    // evalScripts[] outputs alone would still be. This test only cares
+    // about SignSignature()/VerifyScript() correctness below, not relay
+    // policy, so signing/verification still runs against all 8 outputs.
+    BOOST_CHECK(!IsStandardTx(CTransaction(txFrom), reason));
+    CMutableTransaction txFromP2SHOnly;
+    txFromP2SHOnly.vout.resize(4);
+    for (int i = 0; i < 4; i++) {
+        txFromP2SHOnly.vout[i].scriptPubKey = evalScripts[i];
+        txFromP2SHOnly.vout[i].nValue = COIN;
+    }
+    BOOST_CHECK(IsStandardTx(CTransaction(txFromP2SHOnly), reason));
 
     CMutableTransaction txTo[8]; // Spending transactions
     for (int i = 0; i < 8; i++)
@@ -207,9 +220,11 @@ BOOST_AUTO_TEST_CASE(set)
     {
         SignatureData empty;
         BOOST_CHECK_MESSAGE(SignSignature(keystore, CTransaction(txFrom), txTo[i], 0, SIGHASH_ALL, empty), strprintf("SignSignature %d", i));
-        BOOST_CHECK_MESSAGE(IsStandardTx(CTransaction(txTo[i]), /*permit_bare_multisig=*/true, reason), strprintf("txTo[%d].IsStandard", i));
-        bool no_pbms_is_std = IsStandardTx(CTransaction(txTo[i]), /*permit_bare_multisig=*/false, reason);
-        BOOST_CHECK_MESSAGE((i == 0 ? no_pbms_is_std : !no_pbms_is_std), strprintf("txTo[%d].IsStandard(permbaremulti=false)", i));
+        // SNTI: inner[] are bare ECDSA P2PKH/multisig scriptPubKeys, now
+        // non-standard outright (IsStandard() rejects classical ECDSA
+        // output types), independent of permit_bare_multisig.
+        BOOST_CHECK_MESSAGE(!IsStandardTx(CTransaction(txTo[i]), /*permit_bare_multisig=*/true, reason), strprintf("txTo[%d].IsStandard", i));
+        BOOST_CHECK_MESSAGE(!IsStandardTx(CTransaction(txTo[i]), /*permit_bare_multisig=*/false, reason), strprintf("txTo[%d].IsStandard(permbaremulti=false)", i));
     }
 }
 
