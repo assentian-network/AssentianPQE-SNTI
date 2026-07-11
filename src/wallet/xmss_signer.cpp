@@ -666,14 +666,27 @@ CScript GetXMSSHashScriptForPubkey(const std::vector<uint8_t>& pubkey)
 }
 
 // SNTI: Get pubkey by address hash (RIPEMD160(SHA256(pubkey)))
+//
+// SNTI FIX (11 Jul 2026): this used to linear-scan xmss_keys and recompute
+// XMSSAddr::Hash() (a full HASH160) for every stored key until one matched
+// -- O(total keys) per call, with an expensive hash per candidate. Called
+// once per UTXO from CWallet::IsMine() during listunspent/AvailableCoins,
+// that made wallet balance/tx endpoints O(UTXOs * total_keys): with ~2k
+// UTXOs and ~2k keys in the shared custodial wallet this measured ~11s per
+// call (profiled live with perf -- see job_queue memory), and grows worse
+// as address rotation (5 Jul fix) keeps adding keys every block.
+// key_id_map is already maintained in lockstep with xmss_keys everywhere
+// it's mutated (AddXMSSKey, GenerateKey, LoadState, clear) and its key
+// (CKeyID, via GetXMSSKeyID()) is computed with the exact same CHash160
+// over the pubkey that XMSSAddr::Hash() uses -- so it's already the right
+// index for this lookup, just unused here. Swap the scan for a direct
+// O(log n) map lookup against it.
 std::vector<uint8_t> CXMSSSigner::GetPubKeyForHash(const uint160& addr_hash) const
 {
     LOCK(cs_xmss_signer);
-    for (const auto& [pubkey, entry] : xmss_keys) {
-        uint160 hash = XMSSAddr::Hash(pubkey);
-        if (hash == addr_hash) {
-            return pubkey;
-        }
+    auto it = key_id_map.find(CKeyID(addr_hash));
+    if (it != key_id_map.end()) {
+        return it->second;
     }
     return {};
 }
