@@ -28,6 +28,7 @@
 #include <wallet/spend.h>
 #include <wallet/test/util.h>
 #include <wallet/test/wallet_test_fixture.h>
+#include <wallet/xmss_signer.h>
 
 #include <boost/test/unit_test.hpp>
 #include <univalue.h>
@@ -791,6 +792,16 @@ BOOST_FIXTURE_TEST_CASE(CreateWallet, TestChain100Setup)
     auto wallet = TestLoadWallet(context);
     CKey key = GenerateRandomKey();
     AddKey(*wallet, key);
+    // SNTI FIX (11 Jul 2026): mempool_tx below must pay to a standard
+    // output type -- P2PK (the original `key` destination) is no longer
+    // standard (see IsStandard() in policy.cpp), so broadcastTransaction()
+    // now correctly rejects it. Generate a real XMSS key on this wallet
+    // instance (persisted before unload, same as getnewxmssaddress does)
+    // so mempool_tx can pay to a P2XMSS output instead -- standard, and
+    // still recognized as this wallet's own by IsMine() after reload.
+    std::vector<uint8_t> xmss_pubkey = wallet->GetXMSSSigner()->GenerateKey("test");
+    BOOST_CHECK(!xmss_pubkey.empty());
+    wallet->PersistXMSSState();
     TestUnloadWallet(std::move(wallet));
 
 
@@ -821,7 +832,7 @@ BOOST_FIXTURE_TEST_CASE(CreateWallet, TestChain100Setup)
     m_coinbase_txns.push_back(CreateAndProcessBlock({}, GetScriptForRawPubKey(coinbaseKey.GetPubKey())).vtx[0]);
     auto block_tx = TestSimpleSpend(*m_coinbase_txns[0], 0, coinbaseKey, GetScriptForRawPubKey(key.GetPubKey()));
     m_coinbase_txns.push_back(CreateAndProcessBlock({block_tx}, GetScriptForRawPubKey(coinbaseKey.GetPubKey())).vtx[0]);
-    auto mempool_tx = TestSimpleSpend(*m_coinbase_txns[1], 0, coinbaseKey, GetScriptForRawPubKey(key.GetPubKey()));
+    auto mempool_tx = TestSimpleSpend(*m_coinbase_txns[1], 0, coinbaseKey, GetXMSSScriptForPubkey(xmss_pubkey));
     BOOST_CHECK(m_node.chain->broadcastTransaction(MakeTransactionRef(mempool_tx), DEFAULT_TRANSACTION_MAXFEE, false, error));
 
 
@@ -863,7 +874,7 @@ BOOST_FIXTURE_TEST_CASE(CreateWallet, TestChain100Setup)
             m_coinbase_txns.push_back(CreateAndProcessBlock({}, GetScriptForRawPubKey(coinbaseKey.GetPubKey())).vtx[0]);
             block_tx = TestSimpleSpend(*m_coinbase_txns[2], 0, coinbaseKey, GetScriptForRawPubKey(key.GetPubKey()));
             m_coinbase_txns.push_back(CreateAndProcessBlock({block_tx}, GetScriptForRawPubKey(coinbaseKey.GetPubKey())).vtx[0]);
-            mempool_tx = TestSimpleSpend(*m_coinbase_txns[3], 0, coinbaseKey, GetScriptForRawPubKey(key.GetPubKey()));
+            mempool_tx = TestSimpleSpend(*m_coinbase_txns[3], 0, coinbaseKey, GetXMSSScriptForPubkey(xmss_pubkey));
             BOOST_CHECK(m_node.chain->broadcastTransaction(MakeTransactionRef(mempool_tx), DEFAULT_TRANSACTION_MAXFEE, false, error));
             SyncWithValidationInterfaceQueue();
         });

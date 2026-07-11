@@ -501,7 +501,28 @@ public:
         // SNTI PoUW v2: genesis
         // nNonce=0 (unused in PoUW v2), nBits=0x207fffff
         // xmssRoot will be computed by first miner — genesis is special case
-        genesis = CreateGenesisBlock(1782275807, 0, 0x207fffff, 1, 50 * COIN);
+        //
+        // SNTI FIX (11 Jul 2026): this was copy-pasted from signet's genesis
+        // time (1782275807, 2026-06-24) since the initial commit -- harmless
+        // for regtest's own consensus (ephemeral, recreated per run, nobody
+        // relies on a persistent regtest chain), but it broke every stock
+        // Bitcoin Core test built on TestChain100Setup. That fixture calls
+        // SetMockTime(1598887952) (2020-08-31, unmodified upstream constant)
+        // and relies on genesis predating it; CreateNewBlock()'s UpdateTime()
+        // takes max(pindexPrev->GetMedianTimePast()+1, NodeClock::now()), so
+        // with a 2026 genesis that max always picked the (real, un-mocked)
+        // genesis-derived time instead of the mocked 2020 "now" -- producing
+        // block timestamps years ahead of what NodeClock::now() (still
+        // mocked to 2020) considers "now", tripping the ordinary
+        // MAX_FUTURE_BLOCK_TIME check as "time-too-new" on literally every
+        // test built on this fixture (wallet_tests and anything else using
+        // TestChain100Setup). Confirmed via instrumented debug build: the
+        // rejected block's time was exactly genesis_time+1 = 1782275808.
+        // Restoring the stock upstream regtest genesis time (2011-02-02)
+        // fixes this for any current or future TestChain100Setup-based test
+        // without touching mainnet/testnet/signet, which each set their own
+        // real launch-era genesis time independently and were never affected.
+        genesis = CreateGenesisBlock(1296688602, 0, 0x207fffff, 1, 50 * COIN);
         // hashGenesisBlock will be updated after first mine
         consensus.hashGenesisBlock = genesis.GetHash();
 

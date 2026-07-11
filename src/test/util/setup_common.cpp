@@ -40,6 +40,7 @@
 #include <pow.h>
 #include <random.h>
 #include <rpc/blockchain.h>
+#include <rpc/mining.h>
 #include <rpc/register.h>
 #include <rpc/server.h>
 #include <scheduler.h>
@@ -296,9 +297,25 @@ TestChain100Setup::TestChain100Setup(
 
     {
         LOCK(::cs_main);
-        assert(
-            m_node.chainman->ActiveChain().Tip()->GetBlockHash().ToString() ==
-            "571d80a9967ae599cec0448b0b0ba1cfb606f584d8069bd7166b86854ba7a191");
+        // SNTI FIX (11 Jul 2026): upstream asserts the tip matches one
+        // specific hardcoded hash, valid only for stock Bitcoin Core's
+        // deterministic PoW block construction. Every SNTI block embeds a
+        // PoUW proof built from a freshly generated XMSS keypair
+        // (BuildNewTree(), see rpc/mining.cpp), which is not seeded
+        // deterministically for tests -- confirmed by running this fixture
+        // three times and observing three different tip hashes, all at the
+        // correct height. A fixed expected hash can therefore never be
+        // correct here; check chain integrity (height and connectivity)
+        // instead of one specific hash.
+        const CBlockIndex* tip = m_node.chainman->ActiveChain().Tip();
+        assert(tip->nHeight == COINBASE_MATURITY);
+        assert(m_node.chainman->ActiveChain().Genesis() != nullptr);
+        const CBlockIndex* walk = tip;
+        for (int i = 0; i < COINBASE_MATURITY; i++) {
+            assert(walk != nullptr);
+            walk = walk->pprev;
+        }
+        assert(walk == m_node.chainman->ActiveChain().Genesis());
     }
 }
 
@@ -326,7 +343,27 @@ CBlock TestChain100Setup::CreateBlock(
     }
     RegenerateCommitments(block, *Assert(m_node.chainman));
 
-    while (!CheckProofOfWork(block.GetHash(), block.nBits, m_node.chainman->GetConsensus())) ++block.nNonce;
+    // SNTI FIX (11 Jul 2026): the stock CheckProofOfWork nonce-grinding loop
+    // this replaced never produces a PoUW proof (XMSS pubkey/tree embedded
+    // in the coinbase OP_RETURN), which every SNTI network -- including
+    // regtest, from height 1 -- requires ("pouw-no-pk" in ContextualCheck-
+    // Block). Every block built the old way was silently rejected by
+    // ProcessNewBlock (its return value was never checked here), so the
+    // chain never advanced past genesis for any test built on this fixture
+    // -- confirmed via instrumented debug build showing tip height=0 after
+    // "successfully" mining 100 blocks. GenerateBlock() is the same PoUW
+    // mining loop the real miner and generatetoaddress RPC use (exposed
+    // from rpc/mining.cpp for this purpose, see mining.h); it mutates
+    // `block` in place (XMSS root/leaf index, embedded proof, recomputed
+    // merkle root) and needs no further nonce search of its own -- SNTI's
+    // consensus checks PoUW instead of classical PoW (ProcessNewBlock is
+    // always called with min_pow_checked=true). process_new_block is left
+    // false so CreateAndProcessBlock() keeps doing the actual submission,
+    // matching this function's existing "build only" contract.
+    uint64_t max_tries{DEFAULT_MAX_TRIES};
+    std::shared_ptr<const CBlock> block_out;
+    bool mined = GenerateBlock(*Assert(m_node.chainman), block, max_tries, block_out, /*process_new_block=*/false);
+    Assert(mined);
 
     return block;
 }
