@@ -239,6 +239,16 @@ nav a:hover{color:var(--text)}
     <div class="mine-panel">
       <h3>⛏ Start Mining SNTI</h3>
       <p>Download installer script untuk Ubuntu/Debian. Jalankan 1 perintah — semua otomatis: install node, sync, generate address, dan mulai mining. Address Anda langsung muncul di bawah.</p>
+
+      <!-- Non-Linux OS warning (dynamic, from navigator.userAgent) -->
+      <div class="xmss-warn-banner" id="osWarnBanner" style="display:none">
+        <span>💻</span>
+        <div>
+          <b>Installer ini cuma jalan di Linux (Ubuntu/Debian).</b> <span id="osWarnDetected"></span> Beberapa opsi: <b>Windows</b> → pakai WSL (Windows Subsystem for Linux), lalu jalankan perintah di terminal Ubuntu-nya. <b>macOS</b> → jalankan di VM/Docker Linux. <b>Android/iOS</b> → belum bisa mining langsung dari HP, perlu komputer/server Linux terpisah. Kalau kamu punya VPS atau komputer Linux lain, download tetap bisa dipakai di sana.
+        </div>
+        <button class="xwb-close" onclick="dismissOsWarn()" title="Tutup">✕</button>
+      </div>
+
       <div class="mine-steps">
         <div class="mine-step"><div class="snum">1</div><div class="stxt">Download installer script</div></div>
         <div class="mine-step"><div class="snum">2</div><div class="stxt">Jalankan di terminal Ubuntu</div></div>
@@ -714,6 +724,7 @@ async function showDashboard() {
   if (localStorage.getItem('snti_xmss_warn_dismissed') !== '1') {
     document.getElementById('xmssWarnBanner').style.display = 'flex';
   }
+  checkOsWarn();
   // loadBalance/loadUTXOs/loadWatches are all backed by bitcoind's
   // scantxoutset, which only allows one scan in flight at a time -- run
   // them one after another instead of in parallel so they don't race.
@@ -727,6 +738,29 @@ async function showDashboard() {
 function dismissXmssWarn() {
   localStorage.setItem('snti_xmss_warn_dismissed', '1');
   document.getElementById('xmssWarnBanner').style.display = 'none';
+}
+
+function detectOS() {
+  const ua = navigator.userAgent || '';
+  if (/Android/i.test(ua)) return 'Android';
+  if (/iPhone|iPad|iPod/i.test(ua)) return 'iOS';
+  if (/Windows/i.test(ua)) return 'Windows';
+  if (/Macintosh|Mac OS X/i.test(ua)) return 'macOS';
+  if (/Linux/i.test(ua)) return 'Linux'; // Android is checked first, so this is real Linux
+  return null;
+}
+
+function dismissOsWarn() {
+  localStorage.setItem('snti_os_warn_dismissed', '1');
+  document.getElementById('osWarnBanner').style.display = 'none';
+}
+
+function checkOsWarn() {
+  if (localStorage.getItem('snti_os_warn_dismissed') === '1') return;
+  const os = detectOS();
+  if (!os || os === 'Linux') return;
+  document.getElementById('osWarnDetected').textContent = `Kami mendeteksi kamu pakai ${os}.`;
+  document.getElementById('osWarnBanner').style.display = 'flex';
 }
 
 let _minerStatusInterval = null;
