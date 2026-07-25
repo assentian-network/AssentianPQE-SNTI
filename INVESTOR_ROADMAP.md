@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Assentian-PQE (SNTI) is the world's first blockchain where **quantum resistance is enforced at the consensus layer**, not just at the signature level. While Bitcoin and Ethereum can be broken by a sufficiently powerful quantum computer — compromising trillions in value — SNTI is designed to survive the quantum era.
+Assentian-PQE (SNTI) is one of very few blockchains where **quantum resistance is enforced at the consensus layer**, not just at the signature level. While Bitcoin and Ethereum can be broken by a sufficiently powerful quantum computer — compromising trillions in value — SNTI is designed to survive the quantum era.
 
 We are not adding quantum-resistance as an afterthought. It is the foundation.
 
@@ -178,7 +178,7 @@ This means every mining operation **produces a real cryptographic artifact** —
 > Every day that Bitcoin and Ethereum remain on ECDSA is one day closer to a catastrophic
 > global cryptographic failure. SNTI is not a hedge — it is the solution.
 >
-> As the world's first blockchain with quantum resistance enforced at both the signature
+> As one of very few blockchains with quantum resistance enforced at both the signature
 > layer AND the consensus layer, SNTI occupies a unique and defensible position.
 > Early investors in SNTI are not just buying a coin — they are buying the infrastructure
 > for post-quantum finance.
@@ -189,7 +189,7 @@ This means every mining operation **produces a real cryptographic artifact** —
 
 - Website: https://assentian.network
 - Explorer: https://assentian.network/explorer/
-- GitHub: https://github.com/assentian-network/snti
+- GitHub: https://github.com/assentian-network/AssentianPQE-SNTI
 - Email: assentianpqe@gmail.com
 
 ---

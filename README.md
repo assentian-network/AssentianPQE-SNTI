@@ -1,8 +1,10 @@
 # SNTI — Assentian-PQE Quantum-Resistant Blockchain
 
-The world's first mineable post-quantum cryptocurrency. A Bitcoin Core v27 fork using **XMSS-SHA2_10_256** post-quantum signatures and **PoUW v2** (Proof-of-Useful-Work) mining.
+One of the first mineable post-quantum cryptocurrencies. A Bitcoin Core v27 fork using **XMSS-SHA2_10_256** post-quantum signatures and **PoUW v2** (Proof-of-Useful-Work) mining.
 
 > **Mainnet is live** — Genesis block mined 26 Jun 2026. Block explorer at [assentian.network/explorer](https://assentian.network/explorer/)
+>
+> ⚠️ **Experimental · small network (3 nodes) · under active development.** Not yet externally audited — see [Status](#status-25-jul-2026) below and [WHITEPAPER.md](WHITEPAPER.md) §13 for the risk analysis, including XMSS statefulness.
 
 ---
 
@@ -185,11 +187,11 @@ explorer/
 
 ---
 
-## Status (30 Jun 2026)
+## Status (25 Jul 2026)
 
 | Item | Status |
 |---|---|
-| Mainnet | ✅ Live — block 1170+ |
+| Mainnet | ✅ Live — block 75,900+ |
 | PoUW v2 mining | ✅ Operational |
 | P2XMSS + P2XMSSHASH spending | ✅ Operational |
 | XMSS key retirement | ✅ Operational |

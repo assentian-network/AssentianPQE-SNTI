@@ -1,5 +1,5 @@
 # Assentian-PQE (SNTI)
-## The First Mineable Post-Quantum Cryptocurrency
+## One of the First Mineable Post-Quantum Cryptocurrencies
 ### Whitepaper v1.2 | Updated July 2026
 
 ---
@@ -31,7 +31,7 @@
 
 ## 1. Executive Summary
 
-Assentian-PQE (SNTI) is the **world's first mineable post-quantum cryptocurrency** — a fully operational blockchain that replaces classical ECDSA signatures with XMSS (eXtended Merkle Signature Scheme), the signature standard mandated by NIST SP 800-208.
+Assentian-PQE (SNTI) is **one of the first mineable post-quantum cryptocurrencies**, and an early production example of proof-of-work mining built directly around NIST-standardized signatures — a fully operational blockchain that replaces classical ECDSA signatures with XMSS (eXtended Merkle Signature Scheme), the signature standard mandated by NIST SP 800-208.
 
 Unlike theoretical proposals or migration promises, Assentian-PQE is **already running**:
 
@@ -75,7 +75,7 @@ NIST has finalized post-quantum cryptography standards (FIPS 203, 204, 205, SP 8
 Bitcoin, Ethereum, Solana — every major blockchain uses ECDSA or Ed25519. Both are broken by Shor's algorithm on a sufficiently powerful quantum computer. Migration is technically complex, politically contentious, and economically disruptive.
 
 **Force 3: First-Mover Advantage is Claimed**
-Assentian-PQE is the world's first working, mineable, NIST-compliant post-quantum blockchain — live since June 26, 2026.
+Assentian-PQE is one of the first working, mineable, NIST-compliant post-quantum blockchains — live since June 26, 2026.
 
 ### 2.2 Why Now
 2024: NIST finalizes PQC standards
