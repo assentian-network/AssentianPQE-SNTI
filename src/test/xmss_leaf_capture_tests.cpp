@@ -58,6 +58,26 @@ private:
     bool m_result;
 };
 
+// Like MockXMSSChecker, but returns a different canned result on each
+// successive call -- for scripts with more than one OP_XMSS_CHECKSIG where
+// the checks need to have different outcomes (e.g. first succeeds, second
+// fails).
+class SequencedXMSSChecker : public BaseSignatureChecker
+{
+public:
+    explicit SequencedXMSSChecker(std::vector<bool> results) : m_results(std::move(results)) {}
+    bool CheckXMSSSignature(const std::vector<unsigned char>& /*sig*/, const std::vector<unsigned char>& /*pubkey*/,
+                             const CScript& /*scriptCode*/, SigVersion /*sigversion*/) const override
+    {
+        BOOST_REQUIRE(m_next < m_results.size());
+        return m_results[m_next++];
+    }
+
+private:
+    std::vector<bool> m_results;
+    mutable size_t m_next = 0;
+};
+
 std::vector<uint8_t> FakePubkey(uint8_t fill)
 {
     return std::vector<uint8_t>(64, fill);
@@ -183,6 +203,117 @@ BOOST_AUTO_TEST_CASE(plain_verifyscript_unaffected_by_capture_refactor)
 
     MockXMSSChecker failChecker(/*result=*/false);
     BOOST_CHECK(!VerifyScript(scriptSig, scriptPubKey, nullptr, /*flags=*/0, failChecker, &err));
+}
+
+// ── Additional edge cases (requested in self-review, 25 Jul 2026) ─────────
+
+BOOST_AUTO_TEST_CASE(capture_stays_empty_for_untaken_op_if_branch)
+{
+    // OP_XMSS_CHECKSIG sitting in the not-taken branch of an OP_IF must
+    // never execute at all -- the interpreter's vfExec branch tracking
+    // skips it structurally, so this is true "by construction" rather than
+    // by any special-casing in the capture logic itself. This test proves
+    // it rather than just asserting it in a comment.
+    std::vector<uint8_t> pubkey = FakePubkey(0x77);
+    CScript scriptPubKey = CScript() << OP_0 << OP_IF
+                                          << pubkey << OP_XMSS_CHECKSIG
+                                      << OP_ELSE
+                                          << OP_TRUE
+                                      << OP_ENDIF;
+    CScript scriptSig; // nothing needed -- the IF branch (which would want
+                        // chunk data below the pubkey) never runs.
+
+    MockXMSSChecker checker(/*result=*/true); // must not even be consulted
+    XMSSLeafUses captured;
+    ScriptError err;
+    bool ok = VerifyScriptXMSSCapture(scriptSig, scriptPubKey, nullptr, /*flags=*/0, checker, &captured, &err);
+    BOOST_CHECK(ok); // OP_ELSE branch (OP_TRUE) is what determines success
+    BOOST_CHECK(captured.empty());
+}
+
+BOOST_AUTO_TEST_CASE(capture_only_the_succeeding_check_when_one_of_two_fails)
+{
+    // Same two-independent-checks script shape as
+    // capture_accumulates_across_multiple_checks_in_one_script, but the
+    // second check fails this time. Must capture exactly the first
+    // (successful) leaf use, and the script must fail overall -- both
+    // things have to be true simultaneously, since a failed second check
+    // must not erase what the first, genuinely successful, check already
+    // proved.
+    std::vector<uint8_t> pubkey1 = FakePubkey(0x88);
+    std::vector<uint8_t> pubkey2 = FakePubkey(0x99);
+    CScript scriptPubKey = CScript() << pubkey1 << OP_XMSS_CHECKSIG << OP_VERIFY
+                                      << FakeChunk(44) << pubkey2 << OP_XMSS_CHECKSIG;
+    CScript scriptSig = CScript() << FakeChunk(33);
+
+    SequencedXMSSChecker checker({/*check1=*/true, /*check2=*/false});
+    XMSSLeafUses captured;
+    ScriptError err;
+    bool ok = VerifyScriptXMSSCapture(scriptSig, scriptPubKey, nullptr, /*flags=*/0, checker, &captured, &err);
+    BOOST_CHECK(!ok); // second check's false ends up as the final stack value
+    BOOST_REQUIRE_EQUAL(captured.size(), 1u);
+    BOOST_CHECK(captured[0].first == pubkey1);
+    BOOST_CHECK_EQUAL(captured[0].second, 33u);
+}
+
+BOOST_AUTO_TEST_CASE(capture_fires_through_extra_opcodes_around_non_template_script)
+{
+    // Another non-template shape, this time with an opcode wrapped AROUND
+    // the check rather than replacing OP_XMSS_CHECKSIG with the VERIFY
+    // variant (see capture_fires_for_non_template_script_that_bypasses_
+    // static_extraction for that one). The wrapper opcode goes BEFORE the
+    // pubkey push, not after: OP_XMSS_CHECKSIG's dynamic chunk-count scan
+    // greedily consumes every eligible (1-520 byte) item below the pubkey,
+    // so anything pushed AFTER the pubkey but still below it on the stack
+    // (e.g. a naive OP_DUP of the pubkey) gets slurped up as if it were
+    // part of the signature -- a real interaction worth knowing about, not
+    // something this test needs to fight.
+    std::vector<uint8_t> pubkey = FakePubkey(0xAA);
+    CScript scriptPubKey = CScript() << OP_NOP << pubkey << OP_XMSS_CHECKSIGVERIFY << OP_TRUE;
+    CScript scriptSig = CScript() << FakeChunk(66);
+
+    std::vector<uint8_t> pk_out;
+    uint32_t leaf_out;
+    BOOST_CHECK(!ExtractXMSSLeafUse(scriptPubKey, scriptSig, pk_out, leaf_out));
+
+    MockXMSSChecker checker(/*result=*/true);
+    XMSSLeafUses captured;
+    ScriptError err;
+    bool ok = VerifyScriptXMSSCapture(scriptSig, scriptPubKey, nullptr, /*flags=*/0, checker, &captured, &err);
+    BOOST_REQUIRE(ok);
+    BOOST_REQUIRE_EQUAL(captured.size(), 1u);
+    BOOST_CHECK(captured[0].first == pubkey);
+    BOOST_CHECK_EQUAL(captured[0].second, 66u);
+}
+
+BOOST_AUTO_TEST_CASE(capture_stays_empty_for_malformed_stack_and_empty_script)
+{
+    // OP_XMSS_CHECKSIG with nothing on the stack to check -- must fail
+    // before ever reaching CheckXMSSSignature, let alone capturing.
+    {
+        CScript scriptPubKey = CScript() << OP_XMSS_CHECKSIG;
+        CScript scriptSig; // empty -- stack.size() < 2 when the opcode runs
+
+        MockXMSSChecker checker(/*result=*/true);
+        XMSSLeafUses captured;
+        ScriptError err;
+        bool ok = VerifyScriptXMSSCapture(scriptSig, scriptPubKey, nullptr, /*flags=*/0, checker, &captured, &err);
+        BOOST_CHECK(!ok);
+        BOOST_CHECK(captured.empty());
+    }
+
+    // Completely empty scriptPubKey -- nothing XMSS-related can possibly
+    // run, capture must stay empty regardless of scriptSig/overall result.
+    {
+        CScript scriptPubKey;
+        CScript scriptSig = CScript() << std::vector<uint8_t>{0x01};
+
+        MockXMSSChecker checker(/*result=*/true);
+        XMSSLeafUses captured;
+        ScriptError err;
+        VerifyScriptXMSSCapture(scriptSig, scriptPubKey, nullptr, /*flags=*/0, checker, &captured, &err);
+        BOOST_CHECK(captured.empty());
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()
