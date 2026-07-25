@@ -33,6 +33,8 @@ std::string DeploymentName(Consensus::BuriedDeployment dep)
         return "csv";
     case Consensus::DEPLOYMENT_SEGWIT:
         return "segwit";
+    case Consensus::DEPLOYMENT_XMSSSPENDLEAFREUSE:
+        return "xmssspendleafreuse";
     } // no default case, so the compiler can warn about missing cases
     return "";
 }
@@ -49,6 +51,8 @@ std::optional<Consensus::BuriedDeployment> GetBuriedDeployment(const std::string
         return Consensus::BuriedDeployment::DEPLOYMENT_CLTV;
     } else if (name == "csv") {
         return Consensus::BuriedDeployment::DEPLOYMENT_CSV;
+    } else if (name == "xmssspendleafreuse") {
+        return Consensus::BuriedDeployment::DEPLOYMENT_XMSSSPENDLEAFREUSE;
     }
     return std::nullopt;
 }

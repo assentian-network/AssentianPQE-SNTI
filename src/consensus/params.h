@@ -26,8 +26,15 @@ enum BuriedDeployment : int16_t {
     DEPLOYMENT_DERSIG,
     DEPLOYMENT_CSV,
     DEPLOYMENT_SEGWIT,
+    // SNTI DRAFT: regtest-only -testactivationheight hook for
+    // nXMSSSpendLeafReuseActivation (see below) -- not a real BIP9/BIP90
+    // buried deployment, just reusing this enum's existing plumbing
+    // (GetBuriedDeployment/-testactivationheight=name@height) for a
+    // consensus rule that is also a plain height int, same shape as the
+    // ones above.
+    DEPLOYMENT_XMSSSPENDLEAFREUSE,
 };
-constexpr bool ValidDeployment(BuriedDeployment dep) { return dep <= DEPLOYMENT_SEGWIT; }
+constexpr bool ValidDeployment(BuriedDeployment dep) { return dep <= DEPLOYMENT_XMSSSPENDLEAFREUSE; }
 
 enum DeploymentPos : uint16_t {
     DEPLOYMENT_TESTDUMMY,
@@ -244,6 +251,8 @@ struct Params {
             return CSVHeight;
         case DEPLOYMENT_SEGWIT:
             return SegwitHeight;
+        case DEPLOYMENT_XMSSSPENDLEAFREUSE:
+            return nXMSSSpendLeafReuseActivation;
         } // no default case, so the compiler can warn about missing cases
         return std::numeric_limits<int>::max();
     }

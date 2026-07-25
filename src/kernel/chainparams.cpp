@@ -505,6 +505,9 @@ public:
             case Consensus::BuriedDeployment::DEPLOYMENT_CSV:
                 consensus.CSVHeight = int{height};
                 break;
+            case Consensus::BuriedDeployment::DEPLOYMENT_XMSSSPENDLEAFREUSE:
+                consensus.nXMSSSpendLeafReuseActivation = int{height};
+                break;
             }
         }
 
