@@ -2793,32 +2793,13 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
     // SNTI Fix2: mark PoUW leaf index as used
     if (!fJustCheck && m_chainman.GetParams().GetConsensus().fPoUW) {
         const CTransaction& cbTx = *block.vtx[0];
+        // SNTI: was a third copy of this parsing logic (mark here, unmark in
+        // DisconnectBlock, seed-for-same-block-check above) -- unified into
+        // ParseCoinbasePoUWLeaf() (25 Jul 2026 self-review) so there's one
+        // place to keep the v1/v2 proof parsing in sync, not three.
         std::vector<uint8_t> cb_pk;
-        uint32_t cb_leaf = 0;
-        bool cb_found = false;
-        for (const auto& out : cbTx.vout) {
-            const CScript& s = out.scriptPubKey;
-            CScript::const_iterator pc = s.begin();
-            opcodetype opc; std::vector<uint8_t> d;
-            while (s.GetOp(pc, opc, d)) {
-                if (opc == OP_RETURN) continue;
-                // M7: v2 proof — magic PW2\x02 followed by 64-byte xmss_pk
-                if (d.size() >= 68 && d[0]=='P' && d[1]=='W' && d[2]=='2' && d[3]==0x02) {
-                    cb_pk.assign(d.begin()+4, d.begin()+68);
-                    cb_leaf = block.nLeafIndex;
-                    cb_found = true;
-                }
-                // v1 proof — separate 64-byte pubkey push, then sig with leaf_idx in first 4 bytes
-                else if (d.size() == 64 && cb_pk.empty()) cb_pk = d;
-                else if (d.size() > 64 && !cb_found && cb_pk.size() == 64) {
-                    cb_leaf = ((uint32_t)d[0]<<24)|((uint32_t)d[1]<<16)|
-                              ((uint32_t)d[2]<<8)|(uint32_t)d[3];
-                    cb_found = true;
-                }
-            }
-            if (cb_found) break;
-        }
-        if (cb_pk.size() == 64 && cb_found) {
+        uint32_t cb_leaf;
+        if (ParseCoinbasePoUWLeaf(cbTx, block.nLeafIndex, cb_pk, cb_leaf)) {
             uint256 cb_key = MakePoUWLeafKey(cb_pk, cb_leaf);
             uint256 bh = block.GetHash();
             m_chainman.m_blockman.m_block_tree_db->Write(std::make_pair(DB_POUW_LEAF, cb_key), bh);
