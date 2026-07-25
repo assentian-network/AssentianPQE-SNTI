@@ -1169,6 +1169,25 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                         fSuccess = checker.CheckXMSSSignature(vchSig, vchPubKey, scriptCode, sigversion);
                     }
 
+                    // SNTI DRAFT: structural leaf-use capture, replaces the old
+                    // Solver()-template-based ExtractXMSSLeafUse() harvest done
+                    // in ConnectBlock. Fires here -- at the point the signature
+                    // is actually verified -- for ANY script shape that reaches
+                    // this opcode, not just the two blessed P2XMSS/P2XMSSHASH
+                    // templates. Only recorded on success: a failed check must
+                    // never mark a leaf as used, or a bad/malleated scriptSig
+                    // could get a legitimate leaf wrongly burned (see job_queue
+                    // memory -- false-positive DoS concern raised in review).
+                    // vchSig is already reassembled above; sig[0..3] is the
+                    // XMSS idx_sig field, always 4 bytes big-endian for
+                    // single-tree XMSS (RFC 8391 -- confirmed against
+                    // xmss-reference/params.c, "always use fixed 4 bytes").
+                    if (fSuccess && vchSig.size() >= 4) {
+                        uint32_t leaf_idx = ((uint32_t)vchSig[0] << 24) | ((uint32_t)vchSig[1] << 16) |
+                                            ((uint32_t)vchSig[2] << 8)  |  (uint32_t)vchSig[3];
+                        execdata.m_xmss_leaf_uses.emplace_back(vchPubKey, leaf_idx);
+                    }
+
                     for (size_t i = 0; i < nchunks + 1; i++) popstack(stack);
                     stack.push_back(fSuccess ? vchTrue : vchFalse);
                     if (opcode == OP_XMSS_CHECKSIGVERIFY)
@@ -2016,11 +2035,25 @@ static bool VerifyTaprootCommitment(const std::vector<unsigned char>& control, c
     return q.CheckTapTweak(p, merkle_root, control[0] & 1);
 }
 
-static bool VerifyWitnessProgram(const CScriptWitness& witness, int witversion, const std::vector<unsigned char>& program, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror, bool is_p2sh)
+static bool VerifyWitnessProgram(const CScriptWitness& witness, int witversion, const std::vector<unsigned char>& program, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror, bool is_p2sh, XMSSLeafUses* pxmss_leaf_uses)
 {
     CScript exec_script; //!< Actually executed script (last stack item in P2WSH; implied P2PKH script in P2WPKH; leaf script in P2TR)
     Span stack{witness.stack};
     ScriptExecutionData execdata;
+
+    // SNTI DRAFT: propagate any XMSS leaf uses captured in execdata (by
+    // ExecuteWitnessScript -> EvalScript, which shares this same execdata)
+    // back to the caller on every exit path below -- runs via destructor so
+    // it can't be missed by one of this function's many return statements.
+    // Safe to propagate even on a path that ultimately fails: see
+    // VerifyScript's XMSSLeafUses comment in interpreter.h.
+    struct XMSSPropagator {
+        ScriptExecutionData& execdata;
+        XMSSLeafUses* out;
+        ~XMSSPropagator() {
+            if (out) out->insert(out->end(), execdata.m_xmss_leaf_uses.begin(), execdata.m_xmss_leaf_uses.end());
+        }
+    } xmss_propagator{execdata, pxmss_leaf_uses};
 
     if (witversion == 0) {
         if (program.size() == WITNESS_V0_SCRIPTHASH_SIZE) {
@@ -2099,7 +2132,7 @@ static bool VerifyWitnessProgram(const CScriptWitness& witness, int witversion, 
     // There is intentionally no return statement here, to be able to use "control reaches end of non-void function" warnings to detect gaps in the logic above.
 }
 
-bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror)
+bool VerifyScriptXMSSCapture(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags, const BaseSignatureChecker& checker, XMSSLeafUses* xmss_leaf_uses_out, ScriptError* serror)
 {
     static const CScriptWitness emptyWitness;
     if (witness == nullptr) {
@@ -2113,17 +2146,34 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
         return set_error(serror, SCRIPT_ERR_SIG_PUSHONLY);
     }
 
+    // SNTI DRAFT: each of the (up to three) BASE-sigversion evaluations below
+    // gets its own fresh ScriptExecutionData, exactly as before this change
+    // -- only now we keep a handle to it so any captured XMSS leaf uses can
+    // be appended to the caller's accumulator. This is deliberately NOT one
+    // shared execdata across scriptSig/scriptPubKey/redeemscript: sharing
+    // would leak fields like m_codeseparator_pos_init across script
+    // boundaries that today are always evaluated with independent state,
+    // which would be a real (if obscure) consensus behavior change for
+    // unrelated legacy/P2SH script types. m_xmss_leaf_uses is the only
+    // field pulled out here, individually, per call site.
+
     // scriptSig and scriptPubKey must be evaluated sequentially on the same stack
     // rather than being simply concatenated (see CVE-2010-5141)
     std::vector<std::vector<unsigned char> > stack, stackCopy;
-    if (!EvalScript(stack, scriptSig, flags, checker, SigVersion::BASE, serror))
-        // serror is set
-        return false;
+    {
+        ScriptExecutionData execdata_sig;
+        bool ok = EvalScript(stack, scriptSig, flags, checker, SigVersion::BASE, execdata_sig, serror);
+        if (xmss_leaf_uses_out) xmss_leaf_uses_out->insert(xmss_leaf_uses_out->end(), execdata_sig.m_xmss_leaf_uses.begin(), execdata_sig.m_xmss_leaf_uses.end());
+        if (!ok) return false; // serror is set
+    }
     if (flags & SCRIPT_VERIFY_P2SH)
         stackCopy = stack;
-    if (!EvalScript(stack, scriptPubKey, flags, checker, SigVersion::BASE, serror))
-        // serror is set
-        return false;
+    {
+        ScriptExecutionData execdata_pubkey;
+        bool ok = EvalScript(stack, scriptPubKey, flags, checker, SigVersion::BASE, execdata_pubkey, serror);
+        if (xmss_leaf_uses_out) xmss_leaf_uses_out->insert(xmss_leaf_uses_out->end(), execdata_pubkey.m_xmss_leaf_uses.begin(), execdata_pubkey.m_xmss_leaf_uses.end());
+        if (!ok) return false; // serror is set
+    }
     if (stack.empty())
         return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
     if (CastToBool(stack.back()) == false)
@@ -2139,7 +2189,7 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
                 // The scriptSig must be _exactly_ CScript(), otherwise we reintroduce malleability.
                 return set_error(serror, SCRIPT_ERR_WITNESS_MALLEATED);
             }
-            if (!VerifyWitnessProgram(*witness, witnessversion, witnessprogram, flags, checker, serror, /*is_p2sh=*/false)) {
+            if (!VerifyWitnessProgram(*witness, witnessversion, witnessprogram, flags, checker, serror, /*is_p2sh=*/false, xmss_leaf_uses_out)) {
                 return false;
             }
             // Bypass the cleanstack check at the end. The actual stack is obviously not clean
@@ -2167,9 +2217,12 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
         CScript pubKey2(pubKeySerialized.begin(), pubKeySerialized.end());
         popstack(stack);
 
-        if (!EvalScript(stack, pubKey2, flags, checker, SigVersion::BASE, serror))
-            // serror is set
-            return false;
+        {
+            ScriptExecutionData execdata_redeem;
+            bool ok = EvalScript(stack, pubKey2, flags, checker, SigVersion::BASE, execdata_redeem, serror);
+            if (xmss_leaf_uses_out) xmss_leaf_uses_out->insert(xmss_leaf_uses_out->end(), execdata_redeem.m_xmss_leaf_uses.begin(), execdata_redeem.m_xmss_leaf_uses.end());
+            if (!ok) return false; // serror is set
+        }
         if (stack.empty())
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
         if (!CastToBool(stack.back()))
@@ -2184,7 +2237,7 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
                     // reintroduce malleability.
                     return set_error(serror, SCRIPT_ERR_WITNESS_MALLEATED_P2SH);
                 }
-                if (!VerifyWitnessProgram(*witness, witnessversion, witnessprogram, flags, checker, serror, /*is_p2sh=*/true)) {
+                if (!VerifyWitnessProgram(*witness, witnessversion, witnessprogram, flags, checker, serror, /*is_p2sh=*/true, xmss_leaf_uses_out)) {
                     return false;
                 }
                 // Bypass the cleanstack check at the end. The actual stack is obviously not clean
@@ -2218,6 +2271,11 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
     }
 
     return set_success(serror);
+}
+
+bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror)
+{
+    return VerifyScriptXMSSCapture(scriptSig, scriptPubKey, witness, flags, checker, /*xmss_leaf_uses_out=*/nullptr, serror);
 }
 
 size_t static WitnessSigOps(int witversion, const std::vector<unsigned char>& witprogram, const CScriptWitness& witness)
