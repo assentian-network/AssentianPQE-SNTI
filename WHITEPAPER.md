@@ -896,7 +896,7 @@ Assentian-PQE is built on the shoulders of giants:
 - **Copyright**: Asep Mulya, 2026
 - **License**: Business Source License 1.1 (BSL-1.1)
 - **License conversion**: Automatically converts to GPL-2.0 on January 1, 2030
-- **GitHub**: https://github.com/assentian-network/snti
+- **GitHub**: https://github.com/assentian-network/AssentianPQE-SNTI
 
 ---
 
@@ -937,4 +937,4 @@ The answer is Assentian-PQE.
 *Assentian-PQE Whitepaper v1.2 | Updated 7 July 2026*
 *Genesis: "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia"*
 *Contact: assentianpqe@gmail.com*
-*GitHub: https://github.com/assentian-network/snti*
+*GitHub: https://github.com/assentian-network/AssentianPQE-SNTI*

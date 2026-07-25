@@ -78,8 +78,8 @@ sudo apt install -y build-essential libtool autotools-dev automake pkg-config \
 ### Build
 
 ```bash
-git clone https://github.com/assentian-network/snti.git
-cd snti
+git clone https://github.com/assentian-network/AssentianPQE-SNTI.git
+cd AssentianPQE-SNTI
 ./autogen.sh
 ./configure --without-gui --disable-tests --disable-bench
 make -j$(nproc)

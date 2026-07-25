@@ -32,8 +32,8 @@ the prebuilt binary:
 
 ```bash
 # Build from source (recommended if you want to verify the code yourself)
-git clone https://github.com/assentian-network/snti.git
-cd snti
+git clone https://github.com/assentian-network/AssentianPQE-SNTI.git
+cd AssentianPQE-SNTI
 ./autogen.sh
 ./configure --disable-bench --disable-gui --without-miniupnpc --disable-zmq --without-natpmp
 make -j$(nproc)

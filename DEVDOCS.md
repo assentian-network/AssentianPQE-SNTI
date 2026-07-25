@@ -1,6 +1,6 @@
 # Assentian-PQE (SNTI) Developer Documentation
 
-> **Ticker**: SNTI · **Copyright**: Asep Mulya · **GitHub**: https://github.com/assentian-network/snti
+> **Ticker**: SNTI · **Copyright**: Asep Mulya · **GitHub**: https://github.com/assentian-network/AssentianPQE-SNTI
 
 ## Table of Contents
 
@@ -38,8 +38,8 @@ sudo apt-get install -y \
 
 ```bash
 # Clone repository
-git clone https://github.com/assentian-network/snti.git
-cd snti
+git clone https://github.com/assentian-network/AssentianPQE-SNTI.git
+cd AssentianPQE-SNTI
 
 # Generate configure script
 ./autogen.sh
@@ -312,7 +312,7 @@ $CLI -rpcclienttimeout=300 generatetoaddress 1 "$ADDR"
 >
 > The planned approach is a hybrid stratum server that accepts standard SHA-256 share submissions from cpuminer-compatible clients and internally triggers `generatetoaddress` on the node after a qualifying share. Miners do not need to understand XMSS directly.
 >
-> Track progress: [GitHub Issues — pool mining](https://github.com/assentian-network/snti/issues)
+> Track progress: [GitHub Issues — pool mining](https://github.com/assentian-network/AssentianPQE-SNTI/issues)
 
 ### Key Design Decision: One-Shot Mining Keys
 

@@ -46,8 +46,8 @@ sudo apt install -y build-essential libtool autotools-dev automake pkg-config \
 ### Build
 
 ```bash
-git clone https://github.com/assentian-network/snti.git
-cd snti
+git clone https://github.com/assentian-network/AssentianPQE-SNTI.git
+cd AssentianPQE-SNTI
 ./autogen.sh
 ./configure --without-gui --disable-tests --disable-bench
 make -j$(nproc)
@@ -97,7 +97,7 @@ ADDR=$(./src/bitcoin-cli -regtest -rpcport=18443 -rpcuser=test -rpcpassword=test
 
 ## Finding Something to Work On
 
-- Check [open issues](https://github.com/assentian-network/snti/issues) for bugs and feature requests
+- Check [open issues](https://github.com/assentian-network/AssentianPQE-SNTI/issues) for bugs and feature requests
 - Issues labeled `good first issue` are suitable for new contributors
 - Issues labeled `consensus-critical` require extra care (see [Critical Areas](#critical-areas))
 
@@ -114,7 +114,7 @@ If you plan to work on an issue, leave a comment so others know it is being addr
    ```
 3. Make your changes (keep commits focused — one logical change per commit)
 4. Test locally in regtest mode
-5. Push your branch and open a Pull Request against `assentian-network/snti:main`
+5. Push your branch and open a Pull Request against `assentian-network/AssentianPQE-SNTI:main`
 
 ---
 
@@ -196,9 +196,9 @@ SNTI follows the Bitcoin Core C++ style as described in [`doc/developer-notes.md
 
 ## Communication
 
-- **Bug reports and feature requests:** [GitHub Issues](https://github.com/assentian-network/snti/issues)
+- **Bug reports and feature requests:** [GitHub Issues](https://github.com/assentian-network/AssentianPQE-SNTI/issues)
 - **Pull request discussion:** comments on the PR itself
-- **General discussion:** [GitHub Discussions](https://github.com/assentian-network/snti/discussions)
+- **General discussion:** [GitHub Discussions](https://github.com/assentian-network/AssentianPQE-SNTI/discussions)
 
 Please be respectful and constructive. This is a small project — every contributor matters.
 

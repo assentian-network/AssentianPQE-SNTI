@@ -54,8 +54,8 @@ sudo apt install -y build-essential libtool autotools-dev automake \
 
 **Clone & build:**
 ```bash
-git clone https://github.com/assentian-network/snti.git
-cd snti
+git clone https://github.com/assentian-network/AssentianPQE-SNTI.git
+cd AssentianPQE-SNTI
 ./autogen.sh
 ./configure --without-gui --disable-tests --disable-bench
 make -j$(nproc)
@@ -222,4 +222,4 @@ ps aux | grep bitcoind
 
 ### Lainnya
 
-Buka GitHub Issues: https://github.com/assentian-network/snti/issues
+Buka GitHub Issues: https://github.com/assentian-network/AssentianPQE-SNTI/issues
