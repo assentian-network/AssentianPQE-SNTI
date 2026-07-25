@@ -31,6 +31,17 @@ header{display:flex;justify-content:space-between;align-items:center;padding:16p
 .badge.xmss{background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.3);color:var(--purple)}
 .badge.pouw{background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);color:var(--blue)}
 .badge.mainnet{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+.badge.exp{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--orange)}
+
+/* Prominent links row (GitHub / Whitepaper) */
+.link-row{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:40px}
+.link-row a{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:10px;border:1px solid var(--border);background:var(--card);font-size:13px;font-weight:700;color:var(--text);transition:.2s}
+.link-row a:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Risk notice */
+.risk-box{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:12px;padding:20px 24px;margin-bottom:32px;font-size:13px;line-height:1.8;color:var(--dim)}
+.risk-box strong{color:var(--text)}
+.risk-box a{color:var(--orange)}
 
 /* Stats row */
 .stats-row{display:flex;justify-content:center;gap:32px;flex-wrap:wrap;margin-bottom:48px}
@@ -91,6 +102,11 @@ footer a:hover{color:var(--accent)}
       <span class="badge xmss">XMSS Signatures</span>
       <span class="badge pouw">PoUW v2 Mining</span>
       <span class="badge mainnet">Mainnet Live</span>
+      <span class="badge exp">Experimental · Small Network · Under Active Development</span>
+    </div>
+    <div class="link-row">
+      <a href="https://github.com/assentian-network/AssentianPQE-SNTI" target="_blank" rel="noopener">💻 GitHub</a>
+      <a href="/whitepaper.html">📄 Whitepaper</a>
     </div>
     <div class="stats-row">
       <div class="stat"><div class="val" id="sBlocks">—</div><div class="lbl">Blocks</div></div>
@@ -127,6 +143,10 @@ footer a:hover{color:var(--accent)}
     </a>
   </div>
 
+  <div class="risk-box">
+    ⚠️ <strong>Know the risk before you mine or hold SNTI:</strong> XMSS is a <em>stateful</em> signature scheme — every address has a fixed number of one-time signing leaves, and re-signing with the same leaf (e.g. from restoring an old wallet backup and using it alongside a newer one) can leak your private key. Always keep exactly one up-to-date wallet backup and never run the same wallet file on two machines at once. This is an experimental, actively-developed network with a small validator set — treat funds accordingly. Details in the whitepaper's <a href="/whitepaper.html#13-risk-analysis">Risk Analysis</a> section.
+  </div>
+
   <div class="info-row">
     <div class="info-card">
       <h4>Chain Parameters</h4>
@@ -153,7 +173,7 @@ footer a:hover{color:var(--accent)}
   </div>
 
   <footer>
-    Assentian-PQE Mainnet · <a href="/dashboard">Dashboard</a> · <a href="/explorer/">Explorer</a> · <a href="/wallet/">Wallet</a> · <a href="/mining/">Mining</a>
+    Assentian-PQE Mainnet · <a href="/dashboard">Dashboard</a> · <a href="/explorer/">Explorer</a> · <a href="/wallet/">Wallet</a> · <a href="/mining/">Mining</a> · <a href="/whitepaper.html">Whitepaper</a> · <a href="https://github.com/assentian-network/AssentianPQE-SNTI" target="_blank" rel="noopener">GitHub</a>
   </footer>
 </div>
 
