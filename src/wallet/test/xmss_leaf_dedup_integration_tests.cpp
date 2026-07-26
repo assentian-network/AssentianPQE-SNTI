@@ -464,6 +464,151 @@ BOOST_AUTO_TEST_CASE(spend_leaf_survives_repeated_reorg_cycles)
     }
 }
 
+// SNTI DRAFT: single deep InvalidateBlock() call spanning multiple blocks,
+// as opposed to the repeated-round test above which issues N separate
+// InvalidateBlock() calls, each unwinding exactly one block. The two are
+// expected to be equivalent -- InvalidateBlock() (validation.cpp) is a
+// `while (true)` loop that calls DisconnectTip() once per iteration, and
+// DisconnectTip() only ever calls DisconnectBlock() for the single current
+// tip -- there is no separate "batch" code path a multi-block invalidate
+// could take that this test's three individually-marked leaves, spread
+// across three consecutive blocks, wouldn't already be covered by. This
+// test exists to make that equivalence explicit rather than just argued
+// from reading the loop, in case a future change ever adds a shortcut/batch
+// path to InvalidateBlock() that skips per-block bookkeeping.
+BOOST_AUTO_TEST_CASE(single_invalidate_call_unwinds_leaves_across_multiple_blocks)
+{
+    ChainstateManager& chainman = *Assert(m_node.chainman);
+
+    // 1) Three independent spend keys, each fully controlled by this test,
+    // all funded from the SAME single mature coinbase (m_coinbase_txns[0])
+    // in one funding transaction with three outputs. Deliberately NOT using
+    // m_coinbase_txns[1]/[2] as separate inputs here: at the fixture's tip
+    // (height 100), only the height-1 coinbase has the full COINBASE_MATURITY
+    // confirmations needed to be spendable in the very next block (height
+    // 101) -- height-2/3 coinbases are still one/two confirmations short and
+    // would make the whole funding tx premature-spend-invalid.
+    struct Leaf {
+        std::vector<uint8_t> pubkey;
+        CScript p2xmss;
+        uint256 leaf_key;
+    };
+    std::vector<Leaf> leaves;
+    CXMSSSigner signer;
+    std::vector<CTxOut> fund_outputs;
+
+    for (int i = 0; i < 3; ++i) {
+        PoUWv2::XMSSMinerState mstate;
+        BOOST_REQUIRE(PoUWv2::BuildNewTree(mstate));
+        BOOST_REQUIRE(PoUWv2::XMSSTreeLedgerInit(gArgs.GetDataDirNet(), mstate));
+        XMSS::CXMSSKey xkey;
+        BOOST_REQUIRE(xkey.Load(mstate.sk));
+        std::vector<uint8_t> pubkey = xkey.GetPubKey();
+        BOOST_REQUIRE_EQUAL(pubkey.size(), 64U);
+        BOOST_REQUIRE(signer.AddXMSSKey(pubkey, mstate.sk));
+        CScript p2xmss = GetXMSSScriptForPubkey(pubkey);
+        BOOST_REQUIRE(!p2xmss.empty());
+
+        leaves.push_back({pubkey, p2xmss, MakePoUWLeafKey(pubkey, 0)});
+        fund_outputs.emplace_back(16 * COIN, p2xmss);
+    }
+
+    auto [funding_tx, fee] = CreateValidTransaction(
+        {m_coinbase_txns[0]}, {COutPoint(m_coinbase_txns[0]->GetHash(), 0)}, /*input_height=*/1,
+        {coinbaseKey}, fund_outputs, std::nullopt, std::nullopt);
+    CBlock fund_block = CreateAndProcessBlock({funding_tx}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+    {
+        LOCK(::cs_main);
+        BOOST_REQUIRE_EQUAL(chainman.ActiveChain().Tip()->nHeight, 101);
+        BOOST_REQUIRE(chainman.ActiveChain().Tip()->GetBlockHash() == fund_block.GetHash());
+    }
+
+    // 2) One spend per leaf, each mined into its own consecutive block --
+    // heights ACTIVATION_HEIGHT, ACTIVATION_HEIGHT+1, ACTIVATION_HEIGHT+2 --
+    // so the eventual InvalidateBlock() call has to walk back through all
+    // three, each with a distinct DB_POUW_LEAF_LIST entry keyed by its own
+    // block hash. Each signed spend_tx is kept around (not just its hash) so
+    // step 6 can re-mine the *exact same* leaf-0 signature after the
+    // rollback -- re-signing through `signer` a second time would advance
+    // each key past leaf 0, silently testing a different leaf than the one
+    // that just got unmarked.
+    std::vector<uint256> spend_block_hashes;
+    std::vector<CMutableTransaction> spend_txs;
+    for (int i = 0; i < 3; ++i) {
+        CMutableTransaction spend_tx;
+        spend_tx.vin.emplace_back(COutPoint(funding_tx.GetHash(), i), CScript(), MAX_BIP125_RBF_SEQUENCE);
+        spend_tx.vout.emplace_back(15 * COIN, CScript() << OP_TRUE);
+
+        std::map<COutPoint, Coin> input_coins;
+        input_coins.emplace(COutPoint(funding_tx.GetHash(), i),
+                            Coin(CTxOut(16 * COIN, leaves[i].p2xmss), /*nHeightIn=*/101, /*fCoinBaseIn=*/false));
+        std::map<int, bilingual_str> input_errors;
+        BOOST_REQUIRE(SignTransaction(spend_tx, &signer, input_coins, SIGHASH_ALL, input_errors));
+        spend_txs.push_back(spend_tx);
+
+        CBlock spend_block = CreateAndProcessBlock({spend_tx}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+        spend_block_hashes.push_back(spend_block.GetHash());
+        {
+            LOCK(::cs_main);
+            BOOST_REQUIRE_EQUAL(chainman.ActiveChain().Tip()->nHeight, ACTIVATION_HEIGHT + i);
+            BOOST_REQUIRE(chainman.ActiveChain().Tip()->GetBlockHash() == spend_block.GetHash());
+        }
+    }
+
+    // 3) All three marks present before touching anything.
+    {
+        LOCK(::cs_main);
+        for (int i = 0; i < 3; ++i) {
+            uint256 marked_by;
+            BOOST_REQUIRE(chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaves[i].leaf_key), marked_by));
+            BOOST_CHECK(marked_by == spend_block_hashes[i]);
+        }
+    }
+
+    // 4) ONE InvalidateBlock() call, targeting the FIRST (deepest) spend
+    // block -- not a manual loop like the repeated-round test above. This
+    // forces the chain back past all three blocks in a single invocation,
+    // exactly the "reorg 98-100 at once" scenario.
+    {
+        BlockValidationState invalidate_state;
+        chainman.ActiveChainstate().InvalidateBlock(invalidate_state, chainman.m_blockman.LookupBlockIndex(spend_block_hashes[0]));
+    }
+
+    // 5) All three leaves must be unmarked, and all three DB_POUW_LEAF_LIST
+    // entries erased -- not just the ones closest to the original tip.
+    {
+        LOCK(::cs_main);
+        BOOST_REQUIRE_EQUAL(chainman.ActiveChain().Tip()->nHeight, 101);
+        BOOST_REQUIRE(chainman.ActiveChain().Tip()->GetBlockHash() == fund_block.GetHash());
+
+        for (int i = 0; i < 3; ++i) {
+            uint256 marked_by;
+            BOOST_CHECK_MESSAGE(!chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaves[i].leaf_key), marked_by),
+                                 "leaf " << i << ": still marked after single multi-block InvalidateBlock() call");
+            std::vector<uint256> leaf_list;
+            BOOST_CHECK_MESSAGE(!chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF_LIST, spend_block_hashes[i]), leaf_list),
+                                 "leaf " << i << ": DB_POUW_LEAF_LIST entry (block " << spend_block_hashes[i].ToString() << ") survived");
+        }
+    }
+
+    // 6) Round-trip proof, same spirit as the single-round-trip test: all
+    // three leaves must be reusable again, not just "the DB rows are gone".
+    // Re-mines each *original* signed spend_tx from step 2 -- same leaf-0
+    // signature, not a fresh one (see step 2's comment).
+    for (int i = 0; i < 3; ++i) {
+        CBlock reconnect_block = CreateAndProcessBlock({spend_txs[i]}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+        {
+            LOCK(::cs_main);
+            BOOST_REQUIRE_EQUAL(chainman.ActiveChain().Tip()->nHeight, ACTIVATION_HEIGHT + i);
+            BOOST_CHECK(chainman.ActiveChain().Tip()->GetBlockHash() == reconnect_block.GetHash());
+
+            uint256 marked_by;
+            BOOST_REQUIRE(chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaves[i].leaf_key), marked_by));
+            BOOST_CHECK(marked_by == reconnect_block.GetHash());
+        }
+    }
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 
 } // namespace wallet
