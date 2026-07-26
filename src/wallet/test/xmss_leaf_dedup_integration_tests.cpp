@@ -30,6 +30,8 @@
 // exposure hook on GenerateBlock/BuildNewTree, analogous to how
 // GenerateBlock itself was exposed non-static in commit 69b7a84).
 
+#include <algorithm>
+
 #include <arith_uint256.h>
 #include <chainparams.h>
 #include <consensus/validation.h>
@@ -326,6 +328,139 @@ BOOST_AUTO_TEST_CASE(coinbase_and_spend_leaf_collision_in_same_block_is_rejected
 
         uint256 marked_by;
         BOOST_CHECK(!chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaf_key), marked_by));
+    }
+}
+
+// SNTI DRAFT: reorg *stress* test, requested as a follow-up to the single
+// connect/disconnect/reconnect round trip above -- that test proves the
+// mark/unmark path works once; this one proves it doesn't accumulate stale
+// state across repeated cycles. Each round mines a brand-new block (distinct
+// hash, since CreateAndProcessBlock() re-derives a fresh PoUW proof/coinbase
+// each call even for byte-identical spend_tx content) claiming the exact
+// same (pubkey, leaf 0) pair, then immediately disconnects it via
+// InvalidateBlock(), repeated several times. Two things a single round trip
+// can't catch but repetition can: (1) a DB_POUW_LEAF_LIST entry keyed by a
+// *previous* round's block hash silently surviving disconnect and leaking
+// into a later round's collision check; (2) any accumulation in the current
+// round's own list (e.g. an off-by-one that appends instead of overwriting)
+// that would only show up as leaf_list.size() > 1 after enough rounds.
+BOOST_AUTO_TEST_CASE(spend_leaf_survives_repeated_reorg_cycles)
+{
+    ChainstateManager& chainman = *Assert(m_node.chainman);
+
+    // 1) Same setup shape as the single-round-trip test above: one spend key
+    // this test fully controls, multi-use ("imported"-style) so signing more
+    // than once across rounds is allowed.
+    PoUWv2::XMSSMinerState mstate;
+    BOOST_REQUIRE(PoUWv2::BuildNewTree(mstate));
+    BOOST_REQUIRE(PoUWv2::XMSSTreeLedgerInit(gArgs.GetDataDirNet(), mstate));
+    XMSS::CXMSSKey xkey;
+    BOOST_REQUIRE(xkey.Load(mstate.sk));
+    std::vector<uint8_t> pubkey = xkey.GetPubKey();
+    BOOST_REQUIRE_EQUAL(pubkey.size(), 64U);
+
+    CXMSSSigner signer;
+    BOOST_REQUIRE(signer.AddXMSSKey(pubkey, mstate.sk));
+    CScript p2xmss = GetXMSSScriptForPubkey(pubkey);
+    BOOST_REQUIRE(!p2xmss.empty());
+
+    // 2) Fund the P2XMSS output at height 101, below ACTIVATION_HEIGHT.
+    auto [funding_tx, fee] = CreateValidTransaction(
+        {m_coinbase_txns[0]},
+        {COutPoint(m_coinbase_txns[0]->GetHash(), 0)},
+        /*input_height=*/1,
+        {coinbaseKey},
+        {CTxOut(49 * COIN, p2xmss)},
+        std::nullopt, std::nullopt);
+    CBlock fund_block = CreateAndProcessBlock({funding_tx}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+    {
+        LOCK(::cs_main);
+        BOOST_REQUIRE_EQUAL(chainman.ActiveChain().Tip()->nHeight, 101);
+        BOOST_REQUIRE(chainman.ActiveChain().Tip()->GetBlockHash() == fund_block.GetHash());
+    }
+
+    // 3) Sign leaf 0 once -- the same signed spend_tx is re-mined into a
+    // fresh block every round below. Signing again per round is deliberately
+    // avoided: this test targets DisconnectBlock/ConnectBlock's DB
+    // bookkeeping, not CXMSSSigner's leaf-advancement bookkeeping (already
+    // covered by xmss_signer_tests.cpp).
+    CMutableTransaction spend_tx;
+    spend_tx.vin.emplace_back(COutPoint(funding_tx.GetHash(), 0), CScript(), MAX_BIP125_RBF_SEQUENCE);
+    spend_tx.vout.emplace_back(48 * COIN, CScript() << OP_TRUE);
+
+    std::map<COutPoint, Coin> input_coins;
+    input_coins.emplace(COutPoint(funding_tx.GetHash(), 0),
+                        Coin(CTxOut(49 * COIN, p2xmss), /*nHeightIn=*/101, /*fCoinBaseIn=*/false));
+    std::map<int, bilingual_str> input_errors;
+    BOOST_REQUIRE(SignTransaction(spend_tx, &signer, input_coins, SIGHASH_ALL, input_errors));
+
+    uint256 leaf_key = MakePoUWLeafKey(pubkey, 0);
+    constexpr int NUM_ROUNDS = 4;
+    std::vector<uint256> prior_block_hashes;
+
+    for (int round = 0; round < NUM_ROUNDS; ++round) {
+        // Connect at height 102: fresh block, same spend_tx/leaf every round.
+        CBlock spend_block = CreateAndProcessBlock({spend_tx}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+        uint256 spend_block_hash = spend_block.GetHash();
+        {
+            LOCK(::cs_main);
+            BOOST_REQUIRE_EQUAL(chainman.ActiveChain().Tip()->nHeight, ACTIVATION_HEIGHT);
+            BOOST_REQUIRE(chainman.ActiveChain().Tip()->GetBlockHash() == spend_block_hash);
+        }
+        // Each round must mine a genuinely distinct block -- if a round ever
+        // collided with a previous round's hash, the checks below would be
+        // vacuously trivially true rather than actually re-exercising the
+        // mark/unmark path.
+        BOOST_REQUIRE(std::find(prior_block_hashes.begin(), prior_block_hashes.end(), spend_block_hash) == prior_block_hashes.end());
+        prior_block_hashes.push_back(spend_block_hash);
+
+        // DB_POUW_LEAF must point at *this* round's block hash, and this
+        // round's own DB_POUW_LEAF_LIST entry must contain exactly one leaf
+        // -- not accumulated leftovers from any earlier round.
+        {
+            LOCK(::cs_main);
+            uint256 marked_by;
+            BOOST_REQUIRE(chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaf_key), marked_by));
+            BOOST_CHECK_MESSAGE(marked_by == spend_block_hash, "round " << round << ": DB_POUW_LEAF points at a stale block hash");
+
+            std::vector<uint256> leaf_list;
+            BOOST_REQUIRE(chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF_LIST, spend_block_hash), leaf_list));
+            BOOST_REQUIRE_MESSAGE(leaf_list.size() == 1U, "round " << round << ": DB_POUW_LEAF_LIST accumulated " << leaf_list.size() << " entries instead of 1");
+            BOOST_CHECK(leaf_list[0] == leaf_key);
+        }
+
+        // Disconnect (reorg simulation) back to the funding-only tip.
+        {
+            BlockValidationState invalidate_state;
+            chainman.ActiveChainstate().InvalidateBlock(invalidate_state, chainman.m_blockman.LookupBlockIndex(spend_block_hash));
+        }
+        {
+            LOCK(::cs_main);
+            BOOST_REQUIRE_EQUAL(chainman.ActiveChain().Tip()->nHeight, 101);
+
+            // The leaf itself must be fully unmarked -- reusable again next
+            // round, exactly like the single-round-trip test's step 6/7.
+            uint256 marked_by;
+            BOOST_CHECK_MESSAGE(!chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaf_key), marked_by),
+                                 "round " << round << ": leaf still marked after disconnect");
+
+            // This round's own list entry must be gone too...
+            std::vector<uint256> leaf_list;
+            BOOST_CHECK_MESSAGE(!chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF_LIST, spend_block_hash), leaf_list),
+                                 "round " << round << ": DB_POUW_LEAF_LIST entry for this round's block hash survived disconnect");
+
+            // ...and so must every *previous* round's, keyed by their own
+            // (necessarily different) block hashes -- the leak this whole
+            // test exists to catch: an old round's list entry silently
+            // surviving because unmark only ever looked at the current tip's
+            // block hash instead of the specific hash passed to
+            // DisconnectBlock.
+            for (const uint256& old_hash : prior_block_hashes) {
+                std::vector<uint256> old_leaf_list;
+                BOOST_CHECK_MESSAGE(!chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF_LIST, old_hash), old_leaf_list),
+                                     "round " << round << ": a prior round's DB_POUW_LEAF_LIST entry (block " << old_hash.ToString() << ") is still present");
+            }
+        }
     }
 }
 
