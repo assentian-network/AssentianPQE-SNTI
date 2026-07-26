@@ -140,6 +140,7 @@ public:
         consensus.nPoUWv2StartHeight = 1;   // v1 proofs never valid on mainnet
         consensus.nPoUWv3StartHeight = 200; // hashMerkleRoot included in preimage from block 200
         consensus.nPoUWLeafReuseActivation = 1000; // M7: leaf-reuse prevention active from block 1000
+        consensus.nXMSSSpendLeafReuseActivation = 80904; // draft/xmss-spend-leaf-dedup (26 Jul 2026): consensus-level XMSS spend-leaf reuse dedup, chain height was 75904 (3-node synced) when written -- 5000-block buffer for coordinated Main->KC->SG binary deploy before this activates
         consensus.nPoUWFSLSeedVerifyHeight = 3000; // audit T-1: FSL sk_seed must match claimed root from block 3000
         consensus.nPoUWStuckRecoveryHardenHeight = 4400; // audit KRITIS #5 (2 Jul 2026): require corroborated stuck-chain evidence, chain height was 3907 when written
         consensus.nPoUWTieredStuckRecoveryHeight = 49500; // SNTI M6 (6 Jul 2026): tiered 1-gap/2-gap stuck recovery, chain height was 49306 (stalled since block 49306, ~14h) when written -- buffer left for coordinated 3-node deploy
