@@ -2067,7 +2067,9 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
 // SNTI Fix2: PoUW leaf index tracking helpers
-static const uint8_t DB_POUW_LEAF = 'L';
+// (declared extern in xmss_leaf_key.h so integration tests can read these
+// tables directly without duplicating the magic byte values)
+const uint8_t DB_POUW_LEAF = 'L';
 
 // SNTI DRAFT: block_hash -> list of DB_POUW_LEAF keys that block's SPEND
 // inputs (not its coinbase mining leaf -- see below) marked when connected.
@@ -2081,7 +2083,7 @@ static const uint8_t DB_POUW_LEAF = 'L';
 // proof's format is fixed/self-describing (ParseCoinbasePoUWLeaf() below),
 // not an attacker-shaped script, so re-parsing it on disconnect (as before)
 // is already reliable and doesn't need this side table.
-static const uint8_t DB_POUW_LEAF_LIST = 'M';
+const uint8_t DB_POUW_LEAF_LIST = 'M';
 
 // SNTI SECURITY HARDENING (4 Jul 2026 internal audit): every "failed" XMSS
 // seed a miner publishes in a block's FSL (see pouw_v2_keyder.h) is a real

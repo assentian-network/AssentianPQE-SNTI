@@ -22,6 +22,14 @@
 #include <cstdint>
 #include <vector>
 
+// block_tree_db prefix bytes for the PoUW-leaf tables (definitions in
+// validation.cpp). Declared here rather than kept file-local so integration
+// tests can read these tables directly (via
+// chainman.m_blockman.m_block_tree_db->Read(...)) without duplicating the
+// magic byte values.
+extern const uint8_t DB_POUW_LEAF;      //!< pubkey+leaf_idx -> block_hash that marked it
+extern const uint8_t DB_POUW_LEAF_LIST; //!< block_hash -> list of DB_POUW_LEAF keys that block's spends marked
+
 // DB key for a given (pubkey, leaf_idx) pair. Written/read under a single
 // shared DB prefix ('L', DB_POUW_LEAF in validation.cpp) for both PoUW
 // mining leaves and XMSS spend-tx leaves -- a tree leaf's secret is the same
