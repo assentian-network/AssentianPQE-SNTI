@@ -30,6 +30,8 @@
 // exposure hook on GenerateBlock/BuildNewTree, analogous to how
 // GenerateBlock itself was exposed non-static in commit 69b7a84).
 
+#include <arith_uint256.h>
+#include <chainparams.h>
 #include <consensus/validation.h>
 #include <node/blockstorage.h>
 #include <primitives/transaction.h>
@@ -47,6 +49,36 @@
 #include <boost/test/unit_test.hpp>
 
 namespace wallet {
+
+// SNTI DRAFT: test-only SigningProvider that signs directly off a raw XMSS
+// SK copy via CXMSSKey::Sign(), completely bypassing xmss_tree_ledger.h's
+// XMSSTreeLedgerClaimAndSign() -- i.e. every production signing path
+// (CXMSSSigner::SignXMSS, mining.cpp's GenerateBlock()) is deliberately not
+// used here. This stands in for the threat model the consensus-level dedup
+// exists for (see xmss_spend_leaf_dedup_bypass_gap memory): an attacker who
+// already holds raw WOTS+/XMSS seed material for a leaf signs a second,
+// different message at that same leaf without going through -- and without
+// being stopped by -- the local unified ledger that every honest caller in
+// this codebase is routed through. Always signs at leaf 0 with the fixed
+// regtest chain ID, matching the one-shot fresh tree this test builds.
+class BypassLedgerXMSSProvider : public SigningProvider
+{
+public:
+    explicit BypassLedgerXMSSProvider(std::vector<uint8_t> sk) : m_sk(std::move(sk)) {}
+
+    bool SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubkey, std::vector<uint8_t>& sig) const override
+    {
+        XMSS::CXMSSKey key;
+        if (!key.Load(m_sk)) return false;
+        std::vector<uint8_t> hash_vec(hash.begin(), hash.end());
+        return key.Sign(hash_vec, sig);
+    }
+    uint32_t GetXMSSLeafIndex(const std::vector<uint8_t>& pubkey) const override { return 0; }
+    uint32_t GetXMSSChainId() const override { return Params().GetConsensus().nXMSSChainId; }
+
+private:
+    std::vector<uint8_t> m_sk;
+};
 
 // Activation height chosen relative to TestChain100Setup's fixed 100-block
 // setup chain (tip height 100 after construction): height 101 is used to
@@ -184,6 +216,116 @@ BOOST_AUTO_TEST_CASE(spend_leaf_marks_on_connect_unmarks_on_disconnect_and_is_re
         uint256 marked_by;
         BOOST_REQUIRE(chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaf_key), marked_by));
         BOOST_CHECK(marked_by == spend_block2.GetHash());
+    }
+}
+
+// SNTI DRAFT: the same-block coinbase-mining-leaf-vs-spend-leaf collision
+// case explicitly left as a follow-up by the skeleton test above (see the
+// file-level comment) and by xmss_spend_leaf_dedup_bypass_gap memory's "NEXT"
+// entry. Proves the seen_this_block seeding in ConnectBlock (a50707e, see
+// validation.cpp around ParseCoinbasePoUWLeaf/MakePoUWLeafKey) actually
+// rejects a block whose own coinbase PoUW proof and a spend transaction in
+// the SAME block claim the same (pubkey, leaf) pair -- not just reuse
+// detected across separate blocks (already covered above).
+BOOST_AUTO_TEST_CASE(coinbase_and_spend_leaf_collision_in_same_block_is_rejected)
+{
+    ChainstateManager& chainman = *Assert(m_node.chainman);
+    const fs::path datadir = gArgs.GetDataDirNet();
+
+    // 1) Build a tree this test fully controls, retrying until its root
+    // clears the mining target -- regtest sets fPowNoRetargeting with
+    // powLimit ~= half of the max 256-bit value (see kernel/chainparams.cpp),
+    // so nBits is constant for the whole chain and roughly half of freshly
+    // built trees pass on the first attempt.
+    PoUWv2::XMSSMinerState coinbase_tree;
+    const arith_uint256 target = UintToArith256(chainman.GetParams().GetConsensus().powLimit);
+    for (int attempt = 0;; ++attempt) {
+        BOOST_REQUIRE_MESSAGE(attempt < 50, "50 freshly built trees in a row all failed the (constant, ~50%-pass) regtest PoUW target -- something is wrong beyond bad luck");
+        BOOST_REQUIRE(PoUWv2::BuildNewTree(coinbase_tree));
+        if (UintToArith256(coinbase_tree.xmssRoot) <= target) break;
+    }
+
+    // Independent copy of the fresh (leaf-0) SK material, taken before this
+    // tree is ever registered with the unified ledger below -- see
+    // BypassLedgerXMSSProvider's comment for why this stands in for an
+    // attacker with raw key material rather than a ledger-mediated signer.
+    const std::vector<uint8_t> attacker_sk = coinbase_tree.sk;
+
+    XMSS::CXMSSKey pk_reader;
+    BOOST_REQUIRE(pk_reader.Load(attacker_sk));
+    std::vector<uint8_t> pubkey = pk_reader.GetPubKey();
+    BOOST_REQUIRE_EQUAL(pubkey.size(), 64U);
+    CScript p2xmss = GetXMSSScriptForPubkey(pubkey);
+    BOOST_REQUIRE(!p2xmss.empty());
+
+    // 2) Fund a P2XMSS output for this pubkey at height 101, below
+    // ACTIVATION_HEIGHT and using whichever tree TestChain100Setup's own
+    // 100-block chain is already mining with -- coinbase_tree is not
+    // registered with the datadir yet, so this block cannot touch it.
+    auto [funding_tx, fee] = CreateValidTransaction(
+        {m_coinbase_txns[0]},
+        {COutPoint(m_coinbase_txns[0]->GetHash(), 0)},
+        /*input_height=*/1,
+        {coinbaseKey},
+        {CTxOut(49 * COIN, p2xmss)},
+        std::nullopt, std::nullopt);
+    CBlock fund_block = CreateAndProcessBlock({funding_tx}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+    {
+        LOCK(::cs_main);
+        BOOST_REQUIRE_EQUAL(chainman.ActiveChain().Tip()->nHeight, 101);
+        BOOST_REQUIRE(chainman.ActiveChain().Tip()->GetBlockHash() == fund_block.GetHash());
+    }
+
+    // 3) NOW register coinbase_tree as the datadir's active mining tree --
+    // GenerateBlock() (rpc/mining.cpp) will Load() this exact state on the
+    // very next block it mines and claim its leaf 0 for the coinbase PoUW
+    // proof, since nothing has claimed from it yet.
+    {
+        PoUWv2::XMSSMinerStateManager state_mgr(datadir);
+        BOOST_REQUIRE(state_mgr.Save(coinbase_tree));
+        BOOST_REQUIRE(PoUWv2::XMSSTreeLedgerInit(datadir, coinbase_tree));
+    }
+
+    // 4) Independently sign a spend of the funding UTXO at leaf 0 of the
+    // SAME tree/pubkey the coinbase above is about to claim -- via the raw,
+    // ledger-bypassing provider, exactly the signature an attacker holding
+    // this leaf's raw key material could produce without the coinbase
+    // mining side ever knowing. Real sighash_v2 (leaf_index + chain_id) and
+    // real chunking through the production SignStep/CreateXMSSSig path.
+    CMutableTransaction spend_tx;
+    spend_tx.vin.emplace_back(COutPoint(funding_tx.GetHash(), 0), CScript(), MAX_BIP125_RBF_SEQUENCE);
+    spend_tx.vout.emplace_back(48 * COIN, CScript() << OP_TRUE);
+
+    std::map<COutPoint, Coin> input_coins;
+    input_coins.emplace(COutPoint(funding_tx.GetHash(), 0),
+                        Coin(CTxOut(49 * COIN, p2xmss), /*nHeightIn=*/101, /*fCoinBaseIn=*/false));
+    std::map<int, bilingual_str> input_errors;
+    BypassLedgerXMSSProvider attacker_provider(attacker_sk);
+    BOOST_REQUIRE(SignTransaction(spend_tx, &attacker_provider, input_coins, SIGHASH_ALL, input_errors));
+
+    uint256 leaf_key = MakePoUWLeafKey(pubkey, 0);
+
+    // 5) Mine height 102 (ACTIVATION_HEIGHT) with this spend included.
+    // GenerateBlock() claims coinbase_tree's leaf 0 for the block's own
+    // coinbase PoUW proof -- the exact same (pubkey, leaf) pair spend_tx's
+    // signature already commits to. CreateAndProcessBlock() does not assert
+    // ProcessNewBlock()'s result (see CreateBlock()'s comment on the
+    // pre-69b7a84 bug this differs from), so an invalid block here is
+    // silently not connected rather than crashing the test -- checked below.
+    CBlock collide_block = CreateAndProcessBlock({spend_tx}, GetScriptForRawPubKey(coinbaseKey.GetPubKey()));
+
+    // 6) Must be rejected: tip stays at the funding block (height 101), and
+    // DB_POUW_LEAF has no entry for the colliding key -- ConnectBlock's
+    // writes are gated behind the whole function succeeding, so a rejected
+    // block must leave nothing behind, not even the coinbase's own claim.
+    {
+        LOCK(::cs_main);
+        BOOST_CHECK_EQUAL(chainman.ActiveChain().Tip()->nHeight, 101);
+        BOOST_CHECK(chainman.ActiveChain().Tip()->GetBlockHash() == fund_block.GetHash());
+        BOOST_CHECK(chainman.ActiveChain().Tip()->GetBlockHash() != collide_block.GetHash());
+
+        uint256 marked_by;
+        BOOST_CHECK(!chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, leaf_key), marked_by));
     }
 }
 
