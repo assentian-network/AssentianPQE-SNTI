@@ -264,12 +264,24 @@ bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& max_tri
         while (max_tries > 0 && !chainman.m_interrupt) {
             // Cek apakah root tree aktif < target
             if (UintToArith256(state.xmssRoot) <= target) {
+                // SNTI fix (26 Jul 2026): archive this tree's ledger only now
+                // that it has actually passed the target check, not on every
+                // BuildNewTree() call. Previously XMSSTreeLedgerInit() ran
+                // unconditionally for every candidate tree, including the
+                // vast majority that fail the target check below and get
+                // discarded next iteration -- across the fleet this left
+                // millions of orphaned ledger files (~19.5GB) that are never
+                // read again. Init() is idempotent (no-op if the file already
+                // exists), so calling it exactly once here, right before a
+                // tree may be used to sign, is equivalent from a safety
+                // standpoint and leaves no orphaned files for rejected trees.
+                if (!PoUWv2::XMSSTreeLedgerInit(datadir, state)) break;
+
                 // Root valid! Sign block dengan leaf berikutnya
                 if (state.IsExhausted()) {
                     LogPrintf("PoUW v2: tree exhausted, building new tree\n");
                     if (!PoUWv2::BuildNewTree(state)) break;
                     if (!state_mgr.Save(state)) break;
-                    if (!PoUWv2::XMSSTreeLedgerInit(datadir, state)) break;
                     continue;
                 }
 
@@ -288,7 +300,6 @@ bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& max_tri
                               state.xmssRoot.GetHex().substr(0, 16));
                     if (!PoUWv2::BuildNewTree(state)) break;
                     if (!state_mgr.Save(state)) break;
-                    if (!PoUWv2::XMSSTreeLedgerInit(datadir, state)) break;
                     continue;
                 }
 
@@ -376,7 +387,6 @@ bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& max_tri
                     break;
                 }
                 if (!state_mgr.Save(state)) break;
-                if (!PoUWv2::XMSSTreeLedgerInit(datadir, state)) break;
                 --max_tries;
                 ++trees_this_call;
             }
