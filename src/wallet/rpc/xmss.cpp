@@ -463,6 +463,181 @@ RPCHelpMan sendtoxmssaddress()
         // Use SendMoney which handles CreateTransaction + Sign + Commit
         EnsureWalletIsUnlocked(*pwallet);
 
+        // SNTI FIX (26 Jul 2026, Taproot change-address bug): CWallet::
+        // TransactionChangeType() only recognizes WitnessV1Taproot/
+        // WitnessV0KeyHash/ScriptHash/PKHash recipients (see wallet.cpp).
+        // An XMSSHash destination never matches any of those, so the
+        // function always falls through to whichever legacy OutputType
+        // spkman is active by default priority -- on this wallet that is
+        // the bech32m/taproot spkman, silently sending "post-quantum"
+        // change to a classical Schnorr key. Force change onto a fresh
+        // XMSS address explicitly so CreateTransaction() never has to
+        // guess via the legacy OutputType machinery, which has no concept
+        // of XMSS at all.
+        {
+            if (!signer) {
+                throw JSONRPCError(RPC_WALLET_ERROR,
+                    "No XMSS key loaded in wallet. Import an XMSS key first.");
+            }
+            std::vector<uint8_t> change_pubkey = signer->GenerateKey("change");
+            if (change_pubkey.size() != 64) {
+                throw JSONRPCError(RPC_WALLET_ERROR, "Error: failed to generate XMSS change address");
+            }
+            uint160 change_hash = XMSSAddr::Hash(change_pubkey);
+            pwallet->AddXMSSKeyToKeystore(change_hash, change_pubkey);
+            pwallet->PersistXMSSState();
+            std::array<uint8_t, 64> change_pubkey_arr;
+            std::copy(change_pubkey.begin(), change_pubkey.end(), change_pubkey_arr.begin());
+            coin_control.destChange = XMSSHash(change_pubkey_arr);
+        }
+
+        // SNTI FIX (26 Jul 2026, sendtoxmssaddress P2XMSS coin-selection
+        // gap): CreateTransaction()'s default AvailableCoins() path filters
+        // through IsMine(), which does not recognize P2XMSS/P2XMSSHASH
+        // outputs as spendable for descriptor wallets (same blind spot
+        // documented in sendfromxmssaddress() above) -- so this RPC used to
+        // report "Insufficient funds" for a wallet whose balance was held
+        // entirely in XMSS UTXOs, even though GetBalance() correctly counts
+        // them. Manually scan the wallet and hand CreateTransaction() an
+        // explicit coin selection covering both P2XMSS/P2XMSSHASH and any
+        // normally-recognized output type.
+        //
+        // XMSS one-time-use constraint: signing two inputs from the SAME
+        // XMSS address within one transaction means signing two different
+        // messages (different outpoints) with the same one-time key in one
+        // shot -- a key leak, not made safe by the spend being atomic (see
+        // [[feedback_crypto_key_reuse]]). At most one UTXO per unique XMSS
+        // address is selected below, no matter how many that address holds.
+        //
+        // Also skip any address whose key is ALREADY retired (signed once
+        // in a past, separate transaction) -- this happens for addresses
+        // that accumulated multiple UTXOs before the per-block address
+        // rotation fix (5 Jul 2026, see [[job_queue]]): the address may
+        // still show unspent UTXOs on-chain, but the wallet can no longer
+        // sign with that key, so treating it as spendable here would pick
+        // it, pass amount checks, and only then fail at the signing step
+        // deep inside CreateTransaction() -- confirmed by reproducing this
+        // exact failure live in regtest before adding this check.
+        {
+            struct SpendCandidate {
+                COutPoint outpoint;
+                CAmount value;
+                bool is_xmss;
+            };
+            std::vector<SpendCandidate> other_candidates;
+            std::map<uint160, SpendCandidate> best_xmss_per_addr;
+
+            for (const auto& [txid, wtx] : pwallet->mapWallet) {
+                if (pwallet->GetTxDepthInMainChain(wtx) < 1) continue;
+                const CTransactionRef& wtx_tx = wtx.tx;
+                for (unsigned int n = 0; n < wtx_tx->vout.size(); n++) {
+                    COutPoint outpoint(wtx.GetHash(), n);
+                    if (pwallet->IsSpent(outpoint)) continue;
+                    const CTxOut& txout = wtx_tx->vout[n];
+
+                    std::vector<std::vector<unsigned char>> solutions;
+                    TxoutType type = Solver(txout.scriptPubKey, solutions);
+                    uint160 addr_hash;
+                    std::vector<uint8_t> full_pubkey;
+                    bool is_xmss = false;
+                    if (type == TxoutType::P2XMSS && solutions.size() == 1 && solutions[0].size() == 64) {
+                        full_pubkey = solutions[0];
+                        addr_hash = XMSSAddr::Hash(full_pubkey);
+                        is_xmss = true;
+                    } else if (type == TxoutType::P2XMSSHASH && solutions.size() == 1 && solutions[0].size() == 20) {
+                        addr_hash = uint160(solutions[0]);
+                        full_pubkey = signer->GetPubKeyForHash(addr_hash);
+                        is_xmss = true;
+                    }
+
+                    if (is_xmss) {
+                        // Can't resolve the pubkey, or key already used
+                        // elsewhere: this address is not safely spendable
+                        // by automatic selection, skip it.
+                        if (full_pubkey.size() != 64 || signer->IsXMSSKeyRetired(full_pubkey)) continue;
+                        auto it = best_xmss_per_addr.find(addr_hash);
+                        if (it == best_xmss_per_addr.end() || txout.nValue > it->second.value) {
+                            best_xmss_per_addr[addr_hash] = {outpoint, txout.nValue, true};
+                        }
+                    } else if (pwallet->IsMine(txout) & ISMINE_SPENDABLE) {
+                        other_candidates.push_back({outpoint, txout.nValue, false});
+                    }
+                }
+            }
+
+            std::vector<SpendCandidate> candidates = other_candidates;
+            for (const auto& [addr_hash, c] : best_xmss_per_addr) candidates.push_back(c);
+
+            if (candidates.empty()) {
+                throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "No spendable funds found in wallet");
+            }
+
+            // Rough per-input size: XMSS scriptSig dominates (~2.5 kB, same
+            // estimate as sendfromxmssaddress); everything else this wallet
+            // produces (legacy/segwit/taproot) is under ~200 bytes.
+            auto input_size = [](const SpendCandidate& c) { return c.is_xmss ? 2541 : 191; };
+            auto estimate_size = [&](const std::vector<SpendCandidate>& sel) {
+                size_t size = 10 + 34 * 2; // header + 2 outputs (destination + change)
+                for (const auto& c : sel) size += input_size(c);
+                return size;
+            };
+
+            FeeCalculation fee_calc;
+            CFeeRate fee_rate = GetMinimumFeeRate(*pwallet, coin_control, &fee_calc);
+
+            // Prefer a single UTXO that covers the amount alone (cheapest,
+            // and never risks combining two XMSS addresses unnecessarily).
+            std::vector<SpendCandidate> chosen;
+            {
+                std::vector<SpendCandidate> asc = candidates;
+                std::sort(asc.begin(), asc.end(), [](const auto& a, const auto& b){ return a.value < b.value; });
+                for (const auto& c : asc) {
+                    CAmount fee_est = fee_rate.GetFee(estimate_size({c}));
+                    if (c.value >= nAmount + fee_est) { chosen = {c}; break; }
+                }
+            }
+
+            // Otherwise accumulate largest-first (minimizes input count,
+            // i.e. minimizes fee/size growth) until the total covers it.
+            if (chosen.empty()) {
+                std::vector<SpendCandidate> desc = candidates;
+                std::sort(desc.begin(), desc.end(), [](const auto& a, const auto& b){ return a.value > b.value; });
+                CAmount total = 0;
+                for (const auto& c : desc) {
+                    chosen.push_back(c);
+                    total += c.value;
+                    CAmount fee_est = fee_rate.GetFee(estimate_size(chosen));
+                    if (total >= nAmount + fee_est) break;
+                }
+                CAmount fee_est_final = fee_rate.GetFee(estimate_size(chosen));
+                if (total < nAmount + fee_est_final) {
+                    throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS,
+                        strprintf("Insufficient funds (have %s spendable across %d UTXO(s), need ~%s)",
+                            FormatMoney(total), chosen.size(), FormatMoney(nAmount + fee_est_final)));
+                }
+            }
+
+            for (const auto& c : chosen) coin_control.Select(c.outpoint);
+            coin_control.m_allow_other_inputs = false;
+            // SNTI FIX (26 Jul 2026, AvoidPartialSpends real-resign hazard):
+            // CreateTransaction() (spend.cpp) unconditionally retries with
+            // m_avoid_partial_spends=true to compare fees, running a SECOND
+            // full CreateTransactionInternal() -- including a second REAL
+            // sign -- whenever the first attempt's fee > 0. For ECDSA/Schnorr
+            // this is idempotent and harmless; for XMSS it is a second real
+            // claim against the one-time-use ledger. With m_allow_other_inputs
+            // already pinned above, both attempts happen to select the exact
+            // same input(s), so today the retry just fails harmlessly on
+            // "key is retired" and the good first result is used -- but
+            // nothing stops a future change from letting that retry select
+            // different inputs, which would burn a fresh XMSS key for a
+            // transaction attempt that never gets broadcast. Disabling the
+            // retry outright removes the hazard (and the confusing paired
+            // "signed"/"refused -- retired" log lines) since grouping never
+            // helps a wallet that spends at most one UTXO per address anyway.
+            coin_control.m_avoid_partial_spends = true;
+        }
+
         // Shuffle recipients
         std::shuffle(recipients.begin(), recipients.end(), FastRandomContext());
 
@@ -662,6 +837,31 @@ RPCHelpMan sendfromxmssaddress()
             }
             coin_control.Select(chosen);
             coin_control.m_allow_other_inputs = false; // only spend the chosen XMSS UTXO
+            // SNTI FIX (26 Jul 2026, AvoidPartialSpends real-resign hazard):
+            // see matching comment in sendtoxmssaddress() -- disable
+            // CreateTransaction()'s automatic second real-sign attempt used
+            // for fee comparison, which is a needless real claim against the
+            // one-time-use XMSS ledger.
+            coin_control.m_avoid_partial_spends = true;
+        }
+
+        // SNTI FIX (26 Jul 2026, Taproot change-address bug): see matching
+        // comment in sendtoxmssaddress() -- CWallet::TransactionChangeType()
+        // has no concept of XMSS destinations, so it always falls through
+        // to whichever legacy OutputType spkman is active (bech32m/taproot
+        // on this wallet), silently sending "post-quantum" change to a
+        // classical Schnorr key. Force change onto a fresh XMSS address.
+        {
+            std::vector<uint8_t> change_pubkey = signer->GenerateKey("change");
+            if (change_pubkey.size() != 64) {
+                throw JSONRPCError(RPC_WALLET_ERROR, "Error: failed to generate XMSS change address");
+            }
+            uint160 change_hash = XMSSAddr::Hash(change_pubkey);
+            pwallet->AddXMSSKeyToKeystore(change_hash, change_pubkey);
+            pwallet->PersistXMSSState();
+            std::array<uint8_t, 64> change_pubkey_arr;
+            std::copy(change_pubkey.begin(), change_pubkey.end(), change_pubkey_arr.begin());
+            coin_control.destChange = XMSSHash(change_pubkey_arr);
         }
 
         // Create and sign transaction with XMSS
