@@ -669,14 +669,31 @@ def api_mining_status():
     netinfo = rpc_call("getnetworkinfo")
 
     recent_logs = []
-    log_path = os.path.expanduser("~/.bitcoin/regtest/debug.log")
+    # SNTI fix (27 Jul 2026): this explorer only ever serves mainnet, but the
+    # path check preferred ~/.bitcoin/regtest/debug.log FIRST -- a stale file
+    # (13.9MB, last written 28 Jun 2026) left over from old ad-hoc regtest
+    # testing, months before this endpoint's filter bug was found. Since that
+    # file happens to still exist, it silently won every single time,
+    # ~/.bitcoin/debug.log (the real, actively-growing mainnet log) was NEVER
+    # read at all. regtest kept as a fallback only for the case where the
+    # mainnet log is somehow missing, not preferred over it.
+    log_path = os.path.expanduser("~/.bitcoin/debug.log")
     if not os.path.exists(log_path):
-        log_path = os.path.expanduser("~/.bitcoin/debug.log")
+        log_path = os.path.expanduser("~/.bitcoin/regtest/debug.log")
     if os.path.exists(log_path):
         try:
             with open(log_path, "r") as _f:
                 _lines = _f.readlines()
-            _pouw = [l.strip() for l in _lines if "PoUW" in l and ("signed successfully" in l or "key generated" in l or "Generating" in l)]
+            # SNTI fix (27 Jul 2026): old filter looked for "signed successfully"/
+            # "key generated"/"Generating" -- none of which the mining code has
+            # ever actually logged (real messages are "found valid block!",
+            # "building new XMSS tree...", "root > target, building new tree
+            # (attempt N)", etc., all under a "PoUW v2:" prefix). The old filter
+            # matched zero lines regardless of how much real mining activity was
+            # happening, so this table was always empty. Match on the actual
+            # common prefix instead of guessing at exact wording, so this keeps
+            # working if the messages are reworded again later.
+            _pouw = [l.strip() for l in _lines if "PoUW v2:" in l]
             for _l in _pouw[-20:]:
                 _m = _re.match(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\s+(.*)", _l)
                 if _m:
