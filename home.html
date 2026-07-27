@@ -178,6 +178,7 @@ footer a:hover{color:var(--accent)}
 </div>
 
 <script>
+function fmtHashps(h) { if (!h) return '—'; if (h >= 1e18) return (h / 1e18).toFixed(2) + ' EH/s'; if (h >= 1e15) return (h / 1e15).toFixed(2) + ' PH/s'; if (h >= 1e12) return (h / 1e12).toFixed(2) + ' TH/s'; if (h >= 1e9) return (h / 1e9).toFixed(2) + ' GH/s'; if (h >= 1e6) return (h / 1e6).toFixed(2) + ' MH/s'; if (h >= 1e3) return (h / 1e3).toFixed(2) + ' KH/s'; return h.toFixed(2) + ' H/s'; }
 (async () => {
   try {
     const s = await fetch('/api/status').then(r => r.json());
@@ -189,7 +190,7 @@ footer a:hover{color:var(--accent)}
     document.getElementById('iVer').textContent = s.subversion ?? '—';
     document.getElementById('iProto').textContent = s.protocolversion ?? '—';
     document.getElementById('iNet').textContent = s.networkactive ? 'Yes' : 'No';
-    document.getElementById('iHash').textContent = s.networkhashps ? s.networkhashps.toFixed(4) + ' H/s' : '—';
+    document.getElementById('iHash').textContent = fmtHashps(s.networkhashps);
     document.getElementById('iBest').textContent = s.blocks ?? '—';
     const dot = document.getElementById('netDot');
     const lbl = document.getElementById('netLabel');

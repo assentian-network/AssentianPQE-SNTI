@@ -66,7 +66,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="card"><div class="label">Difficulty</div><div class="value" id="sDiff">—</div><div class="bar"></div></div>
     <div class="card"><div class="label">Connections</div><div class="value" id="sConn">—</div><div class="bar"></div></div>
     <div class="card"><div class="label">Mempool</div><div class="value" id="sPool">—</div><div class="bar"></div></div>
-    <div class="card"><div class="label">Network Hash/s</div><div class="value" id="sHash">—</div><div class="bar"></div></div>
+    <div class="card"><div class="label">Network Hash/s (est.)</div><div class="value" id="sHash">—</div><div class="bar"></div></div>
   </div>
 
   <div class="card" style="margin-bottom:20px">
@@ -119,7 +119,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 const API = '/api';
 
 function fmtHash(h) { if (!h) return '—'; return h.slice(0, 10) + '…' + h.slice(-8); }
-function fmtDiff(d) { if (!d) return '—'; if (d >= 1e12) return (d / 1e12).toFixed(2) + ' T'; if (d >= 1e9) return (d / 1e9).toFixed(2) + ' G'; if (d >= 1e6) return (d / 1e6).toFixed(2) + ' M'; return d.toFixed(4); }
+function fmtDiff(d) { if (!d) return '—'; if (d >= 1e12) return (d / 1e12).toFixed(2) + ' T'; if (d >= 1e9) return (d / 1e9).toFixed(2) + ' G'; if (d >= 1e6) return (d / 1e6).toFixed(2) + ' M'; if (d < 0.0001) return d.toExponential(4); return d.toFixed(4); }
 function fmtSize(b) { if (!b) return '—'; if (b >= 1048576) return (b / 1048576).toFixed(2) + ' MB'; if (b >= 1024) return (b / 1024).toFixed(2) + ' KB'; return b + ' B'; }
 function tsToDate(ts) { if (!ts) return '—'; return new Date(ts * 1000).toLocaleString(); }
 function fmtHashps(h) { if (!h) return '—'; if (h >= 1e18) return (h / 1e18).toFixed(2) + ' EH/s'; if (h >= 1e15) return (h / 1e15).toFixed(2) + ' PH/s'; if (h >= 1e12) return (h / 1e12).toFixed(2) + ' TH/s'; if (h >= 1e9) return (h / 1e9).toFixed(2) + ' GH/s'; return h.toFixed(0) + ' H/s'; }

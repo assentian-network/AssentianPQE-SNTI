@@ -577,6 +577,9 @@ function fmtDifficulty(d) {
   if (d >= 1e12) return (d / 1e12).toFixed(2) + ' T';
   if (d >= 1e9) return (d / 1e9).toFixed(2) + ' G';
   if (d >= 1e6) return (d / 1e6).toFixed(2) + ' M';
+  // SNTI PoUW v2 difficulty runs far below 1 (unlike classic Bitcoin, which
+  // starts at 1) -- toFixed(4) alone rounds anything under 0.00005 to "0.0000".
+  if (d > 0 && d < 0.0001) return d.toExponential(4);
   return d.toFixed(4);
 }
 
@@ -674,9 +677,9 @@ async function loadStatus() {
     const pouwBadge = m.pouw_enabled
       ? `<span style="color:var(--green);font-size:11px;font-weight:700">✅ ACTIVE</span>`
       : `<span style="color:var(--accent3);font-size:11px">INACTIVE</span>`;
-    const workerCount = s.connected_workers ?? '—';
+    const workerCount = s.workers ?? '—';
     const acceptedShares = s.accepted != null ? s.accepted.toLocaleString() : '—';
-    const blocksFound = s.blocks_found ?? m.blocks_mined ?? '—';
+    const blocksFound = m.blocks_mined ?? s.blocks_found ?? '—';
     const avgBlockTime = m.avg_block_time != null ? m.avg_block_time.toFixed(1) + 's' : '—';
     document.getElementById('statsGrid').innerHTML = `
       <div class="stat-item"><div class="stat-label">Chain</div><div class="stat-value">${escHtml(d.chain||'—')}</div></div>
