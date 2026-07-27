@@ -45,16 +45,16 @@ code{background:rgba(0,212,170,.1);color:var(--accent);padding:1px 6px;border-ra
   </header>
 
   <div class="intro">
-    <strong>Update terakhir: 30 Juni 2026.</strong> <strong>Mainnet launched 26 Jun 2026</strong> (block 1170+). Deep code audit 29 Jun menemukan dan memfix 12 bug (5 kritis, 5 tinggi, 2 medium). 3-node network aktif (Indonesia + USA + Singapore) dengan DNS seed live. Lihat juga <a href="/changelog">changelog</a> dan <a href="/mainnet-checklist.html">mainnet checklist</a>.
+    <strong>Last updated: June 30, 2026.</strong> <strong>Mainnet launched 26 Jun 2026</strong> (block 1170+). Deep code audit on 29 Jun found and fixed 12 bugs (5 critical, 5 high, 2 medium). 3-node network active (Indonesia + USA + Singapore) with DNS seed live. See also the <a href="/changelog">changelog</a> and <a href="/mainnet-checklist.html">mainnet checklist</a>.
   </div>
 
   <div class="section">
     <div class="section-header"><div class="section-title">✅ Mainnet Live — 26 Jun 2026 (1170+ blocks)</div></div>
     <div class="list">
       <div class="item">✅ Mainnet genesis block — hash <code>b4a26aef...</code>, nBits <code>0x2001a41a</code>, timestamp 26 Jun 2026 (Unix: 1782474812)</div>
-      <div class="item">✅ 3-node network — Indonesia (main VPS) + USA (KC) + Singapore (SG), semua mining 24/7 via systemd</div>
+      <div class="item">✅ 3-node network — Indonesia (main VPS) + USA (KC) + Singapore (SG), all mining 24/7 via systemd</div>
       <div class="item">✅ DNS seed live — seed.assentian.network, seed2.assentian.network, seed3.assentian.network (round-robin 3 IP)</div>
-      <div class="item">✅ Send/receive SNTI — transaksi antar wallet verified end-to-end di mainnet</div>
+      <div class="item">✅ Send/receive SNTI — wallet-to-wallet transactions verified end-to-end on mainnet</div>
       <div class="item">✅ Web wallet live — assentian.network/wallet/ (custodial, Flask + SQLite)</div>
       <div class="item">✅ Block explorer — assentian.network/explorer/, API /api/ proxied via nginx</div>
       <div class="item">✅ SSL + domain — assentian.network (Certbot, Let's Encrypt)</div>
@@ -62,51 +62,51 @@ code{background:rgba(0,212,170,.1);color:var(--accent);padding:1px 6px;border-ra
   </div>
 
   <div class="section">
-    <div class="section-header"><div class="section-title">✅ Deep Code Audit — 29 Jun 2026 (12 bug ditemukan &amp; fixed)</div></div>
+    <div class="section-header"><div class="section-title">✅ Deep Code Audit — 29 Jun 2026 (12 bugs found &amp; fixed)</div></div>
     <div class="list">
-      <div class="item">✅ <strong>[Kritis] HKDF 32-byte</strong> — output sekarang 96 bytes (SEED_BYTES) bukan 32. Fix: pouw_v2_keyder.h</div>
-      <div class="item">✅ <strong>[Kritis] Underflow GetRemainingSignatures</strong> — guard <code>leaf_index >= 1024</code> return 0. Fix: xmss_keystore.h</div>
-      <div class="item">✅ <strong>[Kritis] Preimage v3 block 200</strong> — verifikasi kode: nPoUWv3StartHeight=200 identik di mining.cpp dan validation.cpp. Tidak ada bug aktual.</div>
-      <div class="item">✅ <strong>[Kritis] WOTS+ reuse wallet locked</strong> — wallet.cpp menolak signing saat wallet locked. Fix: wallet.cpp:2193-2194</div>
-      <div class="item">✅ <strong>[Kritis] sm_buf_size hardcoded</strong> — dihitung dinamis dari params.sig_bytes. Fix: xmss_state.h, xmss_bridge.cpp</div>
-      <div class="item">✅ <strong>[Tinggi] FSL offset salah</strong> — seed extraction baca SK_SEED+SK_PRF+PUB_SEED terpisah. Fix: mining.cpp:307-312</div>
-      <div class="item">✅ <strong>[Tinggi] nPoUWMaxSigSize tidak enforce</strong> — size check ditambah sebelum Deserialize. Fix: validation.cpp</div>
-      <div class="item">✅ <strong>[Tinggi] IsXMSSScript off-by-one</strong> — <code>script.size() == 66</code> (bukan 65). Fix: xmss_signer.cpp:417</div>
-      <div class="item">✅ <strong>[Tinggi] Sig check lemah</strong> — tambah verify recovered message == original hash. Fix: xmss_bridge.cpp</div>
-      <div class="item">✅ <strong>[Tinggi] chain_id duplikat</strong> — regtest nXMSSChainId=4 (sebelumnya 3, sama signet). Fix: chainparams.cpp</div>
-      <div class="item">✅ <strong>[Medium] min_target underflow</strong> — clamp ke 1 jika hasil div 0. Fix: pow.cpp:101</div>
-      <div class="item">✅ <strong>[Medium] Komentar salah GetBlockSubsidy</strong> — "2,100,000 blocks (~4 years at 60s/block)". Fix: validation.cpp:1707</div>
+      <div class="item">✅ <strong>[Critical] HKDF 32-byte</strong> — output is now 96 bytes (SEED_BYTES) instead of 32. Fix: pouw_v2_keyder.h</div>
+      <div class="item">✅ <strong>[Critical] GetRemainingSignatures underflow</strong> — guard <code>leaf_index >= 1024</code> returns 0. Fix: xmss_keystore.h</div>
+      <div class="item">✅ <strong>[Critical] Preimage v3 block 200</strong> — code verified: nPoUWv3StartHeight=200 identical in mining.cpp and validation.cpp. No actual bug.</div>
+      <div class="item">✅ <strong>[Critical] WOTS+ reuse wallet locked</strong> — wallet.cpp now rejects signing while the wallet is locked. Fix: wallet.cpp:2193-2194</div>
+      <div class="item">✅ <strong>[Critical] sm_buf_size hardcoded</strong> — now computed dynamically from params.sig_bytes. Fix: xmss_state.h, xmss_bridge.cpp</div>
+      <div class="item">✅ <strong>[High] Wrong FSL offset</strong> — seed extraction now reads SK_SEED+SK_PRF+PUB_SEED separately. Fix: mining.cpp:307-312</div>
+      <div class="item">✅ <strong>[High] nPoUWMaxSigSize not enforced</strong> — size check added before Deserialize. Fix: validation.cpp</div>
+      <div class="item">✅ <strong>[High] IsXMSSScript off-by-one</strong> — <code>script.size() == 66</code> (not 65). Fix: xmss_signer.cpp:417</div>
+      <div class="item">✅ <strong>[High] Weak signature check</strong> — added verification that the recovered message == original hash. Fix: xmss_bridge.cpp</div>
+      <div class="item">✅ <strong>[High] Duplicate chain_id</strong> — regtest nXMSSChainId=4 (was 3, same as signet). Fix: chainparams.cpp</div>
+      <div class="item">✅ <strong>[Medium] min_target underflow</strong> — clamped to 1 if the division result is 0. Fix: pow.cpp:101</div>
+      <div class="item">✅ <strong>[Medium] Wrong comment in GetBlockSubsidy</strong> — "2,100,000 blocks (~4 years at 60s/block)". Fix: validation.cpp:1707</div>
     </div>
   </div>
 
   <div class="section">
     <div class="section-header"><div class="section-title">✅ PoUW V2 Difficulty + RPC Fix — 29 Jun 2026</div></div>
     <div class="list">
-      <div class="item">✅ <strong>Root cause:</strong> burst mining blok 286–296 (satu XMSS tree reused 11 blok ~2 detik) → EMA naik 2× → target terlalu ketat (~14.000 tree/blok)</div>
+      <div class="item">✅ <strong>Root cause:</strong> burst mining at blocks 286–296 (one XMSS tree reused for 11 blocks in ~2 seconds) → EMA jumped 2× → target became too tight (~14,000 trees/block)</div>
       <div class="item">✅ EMA upper clamp 4× → 20× — recovery ratio 1.3× → 2.9× per slow block. Fix: pouw_v2.h</div>
       <div class="item">✅ Stuck-chain detection — elapsed &gt; 10×target → force 20× EMA recovery. Fix: pow.cpp</div>
       <div class="item">✅ PermittedDifficultyTransition max swing 4× → 20×. Fix: pow.cpp</div>
-      <div class="item">✅ POUW_MAX_TREES_PER_CALL=20 — miner yield tiap ~50s, RPC tetap responsif. Fix: rpc/mining.cpp</div>
-      <div class="item">✅ Chain recovered: block 296 → 786+ tanpa intervensi manual</div>
+      <div class="item">✅ POUW_MAX_TREES_PER_CALL=20 — miner yields every ~50s, RPC stays responsive. Fix: rpc/mining.cpp</div>
+      <div class="item">✅ Chain recovered: block 296 → 786+ with no manual intervention</div>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-header"><div class="section-title">Terverifikasi (20 Jun) — baseline pre-mainnet</div></div>
+    <div class="section-header"><div class="section-title">Verified (20 Jun) — pre-mainnet baseline</div></div>
     <div class="list">
-      <div class="item">✅ <code>OP_XMSS_CHECKSIG</code> — verifikasi matematis nyata di consensus layer, bukan stub</div>
-      <div class="item">✅ State save/load XMSS — tahan restart bersih dan <code>kill -9</code> mendadak</div>
-      <div class="item">✅ Key retirement (one-time address) — sign kedua ke key sama berhasil ditolak</div>
-      <div class="item">✅ <code>CheckPoUW()</code> direview penuh — verifikasi XMSS real di consensus layer</div>
-      <div class="item">✅ Minimum sig length — exact-match 2500 byte, lebih ketat dari rekomendasi audit</div>
-      <div class="item">✅ Sighash-v2 — cross-index recombination attack gap DITUTUP. SHA256(sighash_v1 || leaf_index_BE)</div>
-      <div class="item">✅ XMSS state encryption at rest — terverifikasi end-to-end (locked→ismine:false, unlock→decrypt otomatis)</div>
-      <div class="item">✅ Multi-node sync — 110/110 blok, tip hash identik. P2P relay verified (Phase 6.9)</div>
-      <div class="item">✅ External mining proven — VM terpisah, build dari nol, internet publik, blok diterima dan propagasi</div>
+      <div class="item">✅ <code>OP_XMSS_CHECKSIG</code> — real mathematical verification at the consensus layer, not a stub</div>
+      <div class="item">✅ XMSS state save/load — survives a clean restart and a sudden <code>kill -9</code></div>
+      <div class="item">✅ Key retirement (one-time address) — a second sign attempt with the same key is correctly rejected</div>
+      <div class="item">✅ <code>CheckPoUW()</code> fully reviewed — real XMSS verification at the consensus layer</div>
+      <div class="item">✅ Minimum sig length — exact-match 2500 bytes, stricter than the audit's recommendation</div>
+      <div class="item">✅ Sighash-v2 — cross-index recombination attack gap CLOSED. SHA256(sighash_v1 || leaf_index_BE)</div>
+      <div class="item">✅ XMSS state encryption at rest — verified end-to-end (locked→ismine:false, unlock→automatic decrypt)</div>
+      <div class="item">✅ Multi-node sync — 110/110 blocks, identical tip hash. P2P relay verified (Phase 6.9)</div>
+      <div class="item">✅ External mining proven — separate VM, built from scratch, public internet, block accepted and propagated</div>
     </div>
   </div>
 
-  <div class="footer-note">Update terakhir: 30 Juni 2026. Commit referensi: lihat <a href="/changelog">changelog</a>.</div>
+  <div class="footer-note">Last updated: June 30, 2026. Reference commits: see the <a href="/changelog">changelog</a>.</div>
 </div>
 </body>
 </html>
