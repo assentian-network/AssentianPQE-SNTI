@@ -140,7 +140,18 @@ public:
         consensus.nPoUWv2StartHeight = 1;   // v1 proofs never valid on mainnet
         consensus.nPoUWv3StartHeight = 200; // hashMerkleRoot included in preimage from block 200
         consensus.nPoUWLeafReuseActivation = 1000; // M7: leaf-reuse prevention active from block 1000
-        consensus.nXMSSSpendLeafReuseActivation = 80904; // draft/xmss-spend-leaf-dedup (26 Jul 2026): consensus-level XMSS spend-leaf reuse dedup, chain height was 75904 (3-node synced) when written -- 5000-block buffer for coordinated Main->KC->SG binary deploy before this activates
+        // DRAFT (recomputed 27 Jul 2026 ~12:36 UTC): old value (80904, buffer
+        // +5000 from tip 75904 when first written 26 Jul) went stale within a
+        // day -- chain height is now 87230 and climbing at ~1973 blocks/hour
+        // (an unidentified peer saturating the pow_limit>>10 difficulty-ceiling
+        // bug, see draft/pouw-difficulty-ceiling-fix), far faster than the
+        // ~100/hour this project's buffers were originally sized for. Reset to
+        // tip + 100,000 blocks for real margin (~51h/~2.1 days even if this
+        // abnormal rate persists the whole time; ~41 days at the network's
+        // normal ~100 blocks/hour) instead of a small buffer that goes stale
+        // again immediately. Still NOT for activation/merge -- recompute again
+        // before any real coordinated Main->KC->SG deploy if time has passed.
+        consensus.nXMSSSpendLeafReuseActivation = 187000;
         consensus.nPoUWFSLSeedVerifyHeight = 3000; // audit T-1: FSL sk_seed must match claimed root from block 3000
         consensus.nPoUWStuckRecoveryHardenHeight = 4400; // audit KRITIS #5 (2 Jul 2026): require corroborated stuck-chain evidence, chain height was 3907 when written
         consensus.nPoUWTieredStuckRecoveryHeight = 49500; // SNTI M6 (6 Jul 2026): tiered 1-gap/2-gap stuck recovery, chain height was 49306 (stalled since block 49306, ~14h) when written -- buffer left for coordinated 3-node deploy
