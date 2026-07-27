@@ -145,13 +145,18 @@ public:
         consensus.nPoUWTieredStuckRecoveryHeight = 49500; // SNTI M6 (6 Jul 2026): tiered 1-gap/2-gap stuck recovery, chain height was 49306 (stalled since block 49306, ~14h) when written -- buffer left for coordinated 3-node deploy
         consensus.nPoUWDiffbitsGrandfatherHeight = 300; // 2 Jul 2026: exhaustive scan of all 3907 blocks found nBits mismatches only at height 7-273 (pre-"Sesi 4" difficulty algorithm churn); grandfathers those in so fresh IBD sync from genesis is possible again
         // DRAFT (27 Jul 2026, branch draft/pouw-difficulty-ceiling-fix) -- NOT for
-        // activation/merge yet. Chain height was 83473 when written and currently
-        // moving far faster than usual (~1300+ blocks/hour, an unidentified peer
-        // saturating the existing pow_limit>>10 ceiling) because of the very bug
-        // this height-gate fixes -- recompute this buffer immediately before any
-        // real 3-node coordinated deploy, do not trust this number if time has
-        // passed. See Consensus::Params::nPoUWDifficultyCeilingRaiseHeight.
-        consensus.nPoUWDifficultyCeilingRaiseHeight = 150000;
+        // activation/merge yet. Recomputed 27 Jul 2026 ~11:56 UTC: chain height
+        // was 85946, sustained rate over the last 1000 blocks was ~1697
+        // blocks/hour (still climbing from the ~1381/hour measured when this
+        // height was first set an hour earlier at tip 83473) -- an unidentified
+        // peer still saturating the existing pow_limit>>10 ceiling, because of
+        // the very bug this height-gate fixes. Buffer sized at +100,000 blocks
+        // from that tip (~59h/~2.5 days even if this abnormal rate somehow
+        // persists the whole time; ~41 days at the network's normal ~100
+        // blocks/hour) to give real margin for review + coordinated 3-node
+        // deploy. Recompute again before any real deploy if substantial time
+        // has passed -- do not trust this number blindly.
+        consensus.nPoUWDifficultyCeilingRaiseHeight = 186000;
         consensus.nPoUWDifficultyCeilingShift = 40; // raises max difficulty ceiling from ~1024x to ~2^30x genesis floor
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 1; // mainnet
