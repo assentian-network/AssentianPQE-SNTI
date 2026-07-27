@@ -3,6 +3,8 @@
 # SNTI Seed Node Setup — assentian.network
 # Jalankan sebagai root di VPS baru (Ubuntu 22.04 x86_64)
 # Usage: bash setup_seed_node.sh
+#   Full node (default):       bash setup_seed_node.sh
+#   Pruned node (hemat disk):  PRUNE_MB=550 bash setup_seed_node.sh
 # ============================================================
 set -e
 
@@ -17,6 +19,11 @@ DATADIR="/root/.bitcoin"
 RPC_USER="snti"
 RPC_PASS=$(tr -dc 'a-f0-9' </dev/urandom | head -c 48)
 SERVICE="assentian-seed-node"
+PRUNE_MB="${PRUNE_MB:-0}"   # 0 = full node (default). Opt-in: PRUNE_MB=550 (bitcoind minimum)
+
+if [ "$PRUNE_MB" != "0" ] && [ "$PRUNE_MB" -lt 550 ] 2>/dev/null; then
+    err "PRUNE_MB=$PRUNE_MB terlalu kecil — minimum bitcoind adalah 550 MiB"
+fi
 
 echo ""
 echo "  ╔══════════════════════════════════════════╗"
@@ -56,12 +63,23 @@ listen=1
 maxconnections=125
 dbcache=256
 txindex=0
+EOF
+
+if [ "$PRUNE_MB" != "0" ]; then
+    echo "prune=$PRUNE_MB" >> "$DATADIR/bitcoin.conf"
+fi
+
+cat >> "$DATADIR/bitcoin.conf" <<EOF
 
 # Seed node: connect to main node on startup
 addnode=$MAIN_NODE:9333
 EOF
 chmod 600 "$DATADIR/bitcoin.conf"
-ok "Config created at $DATADIR/bitcoin.conf"
+if [ "$PRUNE_MB" != "0" ]; then
+    ok "Config created at $DATADIR/bitcoin.conf (pruned mode: ${PRUNE_MB}MiB)"
+else
+    ok "Config created at $DATADIR/bitcoin.conf (full node)"
+fi
 
 # ── 4. Systemd service ────────────────────────────────────────
 inf "Creating systemd service..."
@@ -130,6 +148,11 @@ echo "  Public IP  : $PUBLIC_IP"
 echo "  P2P Port   : 9333"
 echo "  Datadir    : $DATADIR"
 echo "  Service    : $SERVICE"
+if [ "$PRUNE_MB" != "0" ]; then
+echo "  Mode       : Pruned (${PRUNE_MB}MiB — txindex/rescan lama tidak tersedia)"
+else
+echo "  Mode       : Full node"
+fi
 echo "  RPC Pass   : $RPC_PASS  (simpan ini!)"
 echo ""
 echo "  Status check:"
