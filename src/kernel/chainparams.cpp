@@ -144,6 +144,15 @@ public:
         consensus.nPoUWStuckRecoveryHardenHeight = 4400; // audit KRITIS #5 (2 Jul 2026): require corroborated stuck-chain evidence, chain height was 3907 when written
         consensus.nPoUWTieredStuckRecoveryHeight = 49500; // SNTI M6 (6 Jul 2026): tiered 1-gap/2-gap stuck recovery, chain height was 49306 (stalled since block 49306, ~14h) when written -- buffer left for coordinated 3-node deploy
         consensus.nPoUWDiffbitsGrandfatherHeight = 300; // 2 Jul 2026: exhaustive scan of all 3907 blocks found nBits mismatches only at height 7-273 (pre-"Sesi 4" difficulty algorithm churn); grandfathers those in so fresh IBD sync from genesis is possible again
+        // DRAFT (27 Jul 2026, branch draft/pouw-difficulty-ceiling-fix) -- NOT for
+        // activation/merge yet. Chain height was 83473 when written and currently
+        // moving far faster than usual (~1300+ blocks/hour, an unidentified peer
+        // saturating the existing pow_limit>>10 ceiling) because of the very bug
+        // this height-gate fixes -- recompute this buffer immediately before any
+        // real 3-node coordinated deploy, do not trust this number if time has
+        // passed. See Consensus::Params::nPoUWDifficultyCeilingRaiseHeight.
+        consensus.nPoUWDifficultyCeilingRaiseHeight = 150000;
+        consensus.nPoUWDifficultyCeilingShift = 40; // raises max difficulty ceiling from ~1024x to ~2^30x genesis floor
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 1; // mainnet
 
@@ -262,6 +271,8 @@ public:
         consensus.nPoUWFSLSeedVerifyHeight = 200; // audit T-1: enforce from block 200 on testnet
         consensus.nPoUWStuckRecoveryHardenHeight = 200; // audit KRITIS #5: enforce from block 200 on testnet
         consensus.nPoUWTieredStuckRecoveryHeight = 210; // SNTI M6: tiered stuck recovery from block 210 on testnet
+        consensus.nPoUWDifficultyCeilingRaiseHeight = 220; // DRAFT: enable early on testnet for exercise/soak testing
+        consensus.nPoUWDifficultyCeilingShift = 40;
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 2; // testnet
 
@@ -534,6 +545,8 @@ public:
         consensus.nPoUWFSLSeedVerifyHeight = 1; // audit T-1: enforce from genesis on regtest
         consensus.nPoUWStuckRecoveryHardenHeight = 1; // audit KRITIS #5: enforce from genesis on regtest
         consensus.nPoUWTieredStuckRecoveryHeight = 1; // SNTI M6: tiered stuck recovery from genesis on regtest
+        consensus.nPoUWDifficultyCeilingRaiseHeight = 1; // DRAFT: enable from genesis on regtest for testing
+        consensus.nPoUWDifficultyCeilingShift = 40;
         consensus.nPoUWMaxSigSize = 4096;
         consensus.nXMSSChainId = 4; // regtest (3=signet, avoid chain_id collision)
 

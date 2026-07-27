@@ -178,6 +178,33 @@ struct Params {
      *  nonzero value on mainnet, whose specific historical mismatches (height
      *  7-273, scanned exhaustively 2 Jul 2026) this exists to grandfather in. */
     int nPoUWDiffbitsGrandfatherHeight{0};
+    /** Height at which the EMA difficulty ceiling (PoUWv2::CalcNextTargetEMA's
+     *  min_target floor, pow.cpp/pouw_v2.h) is raised from pow_limit>>10 (max
+     *  ~1024x genesis floor difficulty) to pow_limit>>nPoUWDifficultyCeilingShift
+     *  (see that field). Discovered 27 Jul 2026: mainnet nBits has been pinned
+     *  to exactly pow_limit>>10 since around height 2000-10000 (essentially the
+     *  entire chain history) because real mining power exceeds the 1024x cap
+     *  by a wide margin -- the EMA wants to push difficulty higher but the
+     *  hardcoded floor forbids it. This means network difficulty can NEVER
+     *  track hashrate above that point: whoever shows up with enough power to
+     *  saturate the cap mines nearly every block indefinitely (observed 27 Jul
+     *  2026: one previously-unseen peer produced 99.4% of blocks over a 3.5h
+     *  window at ~1381 blocks/hour vs a 60s-target design rate of 60/hour),
+     *  with no consensus-level counterpressure. Below this height the OLD
+     *  pow_limit>>10 floor is reproduced byte-for-byte so already-mined
+     *  history (and any future fresh IBD resync re-checking it) keeps
+     *  recomputing to the same nBits -- this is a hard fork, exactly like
+     *  nPoUWTieredStuckRecoveryHeight above, and must be set comfortably above
+     *  the current tip and identically on every node before it takes effect. */
+    int nPoUWDifficultyCeilingRaiseHeight{std::numeric_limits<int>::max()}; //!< disabled unless set
+    /** Right-shift amount applied to pow_limit to compute the EMA's min_target
+     *  floor once nPoUWDifficultyCeilingRaiseHeight is reached. Higher shift =
+     *  deeper floor = higher max difficulty ceiling. Default 10 matches the
+     *  original (too-tight) pow_limit>>10 behavior; a raise height with this
+     *  left at 10 would be a no-op. Kept as a separate tunable (rather than
+     *  hardcoding the new shift) so the exact headroom can be adjusted based
+     *  on further discussion before any activation height is actually chosen. */
+    int nPoUWDifficultyCeilingShift{10};
     size_t nPoUWMaxSigSize{4096};        //!< Maximum XMSS signature size in coinbase scriptSig
 
     /** SNTI: XMSS sighash chain ID — prevents cross-chain tx replay.

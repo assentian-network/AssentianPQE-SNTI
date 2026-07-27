@@ -160,10 +160,24 @@ unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nF
     arith_uint256 old_target;
     old_target.SetCompact(pindexLast->nBits);
 
+    // SNTI difficulty-ceiling fix (draft, 27 Jul 2026): the EMA's min_target
+    // floor was hardcoded to pow_limit>>10 (max ~1024x genesis-floor
+    // difficulty), which mainnet has been pinned against since around height
+    // 2000-10000 -- real mining power has exceeded that ceiling for
+    // essentially the entire chain history, so difficulty has been unable to
+    // track hashrate at all. Below nPoUWDifficultyCeilingRaiseHeight the old
+    // shift (10) is reproduced byte-for-byte so already-mined history keeps
+    // recomputing to the same nBits; at and above it, nPoUWDifficultyCeilingShift
+    // (a deeper floor, i.e. a higher difficulty ceiling) takes effect.
+    int min_target_shift = 10;
+    if (pindexLast->nHeight + 1 >= params.nPoUWDifficultyCeilingRaiseHeight) {
+        min_target_shift = params.nPoUWDifficultyCeilingShift;
+    }
+
     // EMA adjustment via pouw_v2
     const arith_uint256 pow_limit = UintToArith256(params.powLimit);
     arith_uint256 new_target = PoUWv2::CalcNextTargetEMA(
-        old_target, actual_spacing, params.nPowTargetSpacing, pow_limit);
+        old_target, actual_spacing, params.nPowTargetSpacing, pow_limit, min_target_shift);
 
     return new_target.GetCompact();
 }

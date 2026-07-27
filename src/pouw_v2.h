@@ -151,10 +151,19 @@ inline bool CheckPoUWv2(const PoUWv2Proof& proof,
 // Per-block EMA with alpha=0.1
 // new = old*(1-alpha) + old*(actual/target)*alpha
 //     = old * (900*target + 100*actual) / (1000*target)
+//
+// min_target_shift controls the difficulty ceiling: the result is never
+// allowed below pow_limit >> min_target_shift (i.e. max difficulty is capped
+// at 2^min_target_shift times the genesis floor). Defaulted to 10 to
+// reproduce the original behavior byte-for-byte for every existing caller
+// (production pre-activation path, and all unit tests, none of which pass
+// this argument). See Consensus::Params::nPoUWDifficultyCeilingRaiseHeight
+// for why a larger shift is needed post-activation.
 inline arith_uint256 CalcNextTargetEMA(const arith_uint256& old_target,
                                        int64_t actual_spacing,
                                        int64_t target_spacing,
-                                       const arith_uint256& pow_limit)
+                                       const arith_uint256& pow_limit,
+                                       int min_target_shift = 10)
 {
     // Clamp actual to [target/4, target*20]
     // Lower clamp (target/4 = 15s) limits difficulty from spiking too fast on bursts.
@@ -176,9 +185,9 @@ inline arith_uint256 CalcNextTargetEMA(const arith_uint256& old_target,
     new_target /= (uint64_t)denominator;
     new_target *= (uint64_t)numerator;
 
-    // Clamp to [pow_limit >> 10, pow_limit]
+    // Clamp to [pow_limit >> min_target_shift, pow_limit]
     if (new_target > pow_limit) new_target = pow_limit;
-    arith_uint256 min_target = pow_limit >> 10;
+    arith_uint256 min_target = pow_limit >> min_target_shift;
     if (new_target < min_target) new_target = min_target;
 
     return new_target;

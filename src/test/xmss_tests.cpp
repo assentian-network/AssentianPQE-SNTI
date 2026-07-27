@@ -111,6 +111,73 @@ BOOST_AUTO_TEST_CASE(ema_never_exceeds_pow_limit)
     BOOST_CHECK(new_target <= pow_limit);
 }
 
+// ── Difficulty ceiling fix (draft, 27 Jul 2026) ───────────────────────────────
+// Covers PoUWv2::CalcNextTargetEMA's new min_target_shift parameter, added to
+// fix mainnet's difficulty being permanently pinned to pow_limit>>10 (see
+// Consensus::Params::nPoUWDifficultyCeilingRaiseHeight for the full story).
+
+BOOST_AUTO_TEST_CASE(ema_default_shift_matches_old_behavior)
+{
+    // Omitting min_target_shift must reproduce the exact old pow_limit>>10
+    // floor -- every pre-activation call site (and every other test in this
+    // file) relies on this for byte-for-byte compatibility with already-mined
+    // history.
+    arith_uint256 pow_limit;
+    pow_limit.SetCompact(0x1d00ffff);
+    // Start from an old_target already at/near the floor so a huge speedup
+    // actually tries to push below it.
+    arith_uint256 old_target = pow_limit >> 10;
+    int64_t T = 60;
+    int64_t A = T / 4; // fastest allowed spacing -> strongest push toward the floor
+
+    arith_uint256 explicit_default = PoUWv2::CalcNextTargetEMA(old_target, A, T, pow_limit, 10);
+    arith_uint256 implicit_default = PoUWv2::CalcNextTargetEMA(old_target, A, T, pow_limit);
+    BOOST_CHECK_EQUAL(explicit_default.GetCompact(), implicit_default.GetCompact());
+    BOOST_CHECK_EQUAL(implicit_default.GetCompact(), arith_uint256(pow_limit >> 10).GetCompact());
+}
+
+BOOST_AUTO_TEST_CASE(ema_raised_shift_allows_deeper_difficulty)
+{
+    // Sustained fast blocks starting from a target already pinned at the old
+    // pow_limit>>10 floor must be able to push below it once a deeper shift
+    // (the post-activation ceiling) is supplied -- this is precisely the
+    // capability mainnet has been missing since ~height 2000-10000.
+    arith_uint256 pow_limit;
+    pow_limit.SetCompact(0x1d00ffff);
+    arith_uint256 old_floor10 = pow_limit >> 10;
+    int64_t T = 60;
+    int64_t A = T / 4; // fastest allowed spacing
+
+    arith_uint256 target = old_floor10;
+    // Iterate several blocks the same way GetNextWorkRequired would, each one
+    // consistently "too fast" -- with shift=10 this must stay pinned exactly
+    // at the floor; with shift=40 it must eventually drop below it.
+    for (int i = 0; i < 20; i++) {
+        target = PoUWv2::CalcNextTargetEMA(target, A, T, pow_limit, 40);
+    }
+    BOOST_CHECK(target < old_floor10);
+
+    // Control: same loop with the old shift=10 stays exactly pinned.
+    arith_uint256 pinned = old_floor10;
+    for (int i = 0; i < 20; i++) {
+        pinned = PoUWv2::CalcNextTargetEMA(pinned, A, T, pow_limit, 10);
+    }
+    BOOST_CHECK_EQUAL(pinned.GetCompact(), old_floor10.GetCompact());
+}
+
+BOOST_AUTO_TEST_CASE(ema_shift_never_exceeds_pow_limit)
+{
+    // A raised shift must not break the existing "never exceed pow_limit"
+    // guarantee on the slow-block (difficulty-drop) side.
+    arith_uint256 pow_limit;
+    pow_limit.SetCompact(0x1d00ffff);
+    arith_uint256 old_target = pow_limit - 1;
+    int64_t T = 60;
+
+    arith_uint256 new_target = PoUWv2::CalcNextTargetEMA(old_target, T*4, T, pow_limit, 40);
+    BOOST_CHECK(new_target <= pow_limit);
+}
+
 // ── XMSS key sign/verify tests (slow — require tree generation) ───────────────
 
 BOOST_AUTO_TEST_CASE(xmss_generate_and_verify)

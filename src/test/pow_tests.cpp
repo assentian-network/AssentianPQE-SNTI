@@ -164,6 +164,68 @@ BOOST_AUTO_TEST_CASE(stuck_recovery_pre_activation_unchanged_behavior)
     BOOST_CHECK_EQUAL(result, forced_20x);
 }
 
+// SNTI difficulty-ceiling fix (draft, 27 Jul 2026): CalculateNextWorkRequired's
+// min_target floor was hardcoded to pow_limit>>10 (max ~1024x genesis-floor
+// difficulty). Mainnet has been pinned to exactly that floor since around
+// height 2000-10000 (real mining power exceeds the 1024x cap), so difficulty
+// has been unable to track hashrate for essentially the entire chain history.
+// See Consensus::Params::nPoUWDifficultyCeilingRaiseHeight.
+
+BOOST_AUTO_TEST_CASE(difficulty_ceiling_pre_activation_unchanged_behavior)
+{
+    // Below nPoUWDifficultyCeilingRaiseHeight, sustained fast blocks starting
+    // at the old pow_limit>>10 floor must stay pinned exactly there --
+    // byte-for-byte identical to the pre-fix code, so already-mined history
+    // stays valid.
+    const auto chainParams = CreateChainParams(*m_node.args, ChainType::MAIN);
+    Consensus::Params params = chainParams->GetConsensus();
+    BOOST_REQUIRE(params.nPoUWDifficultyCeilingRaiseHeight > 1000); // sanity: draft height is set and far above this test's height
+
+    const arith_uint256 pow_limit = UintToArith256(params.powLimit);
+    const arith_uint256 old_floor = pow_limit >> 10;
+
+    CBlockIndex pindexLast;
+    pindexLast.nHeight = 500; // well below the activation height
+    pindexLast.nTime = 1700000000;
+    pindexLast.nBits = old_floor.GetCompact();
+
+    // nFirstBlockTime chosen so actual_spacing is far faster than target
+    // (clamped to target/4 internally either way).
+    int64_t nFirstBlockTime = pindexLast.nTime - 5;
+
+    for (int i = 0; i < 5; i++) {
+        unsigned int next_bits = CalculateNextWorkRequired(&pindexLast, nFirstBlockTime, params);
+        BOOST_CHECK_EQUAL(next_bits, old_floor.GetCompact());
+        nFirstBlockTime = pindexLast.nTime - 5;
+        pindexLast.nBits = next_bits;
+        pindexLast.nTime += 5;
+    }
+}
+
+BOOST_AUTO_TEST_CASE(difficulty_ceiling_raised_after_activation)
+{
+    // At/above nPoUWDifficultyCeilingRaiseHeight, the same sustained-fast-block
+    // scenario must be able to push below the old pow_limit>>10 floor --
+    // exactly the capability mainnet has been missing.
+    const auto chainParams = CreateChainParams(*m_node.args, ChainType::MAIN);
+    Consensus::Params params = chainParams->GetConsensus();
+    BOOST_REQUIRE(params.nPoUWDifficultyCeilingRaiseHeight < std::numeric_limits<int>::max()); // sanity: draft activation height is actually set
+
+    const arith_uint256 pow_limit = UintToArith256(params.powLimit);
+    const arith_uint256 old_floor = pow_limit >> 10;
+
+    CBlockIndex pindexLast;
+    pindexLast.nHeight = params.nPoUWDifficultyCeilingRaiseHeight; // exactly at activation
+    pindexLast.nTime = 1700000000;
+    pindexLast.nBits = old_floor.GetCompact();
+
+    int64_t nFirstBlockTime = pindexLast.nTime - 5;
+    unsigned int next_bits = CalculateNextWorkRequired(&pindexLast, nFirstBlockTime, params);
+    arith_uint256 next_target;
+    next_target.SetCompact(next_bits);
+    BOOST_CHECK(next_target < old_floor);
+}
+
 BOOST_AUTO_TEST_CASE(CheckProofOfWork_test_negative_target)
 {
     const auto consensus = CreateChainParams(*m_node.args, ChainType::MAIN)->GetConsensus();
