@@ -666,7 +666,7 @@ def api_mining_status():
         return jsonify(mining), 502
 
     info = rpc_call("getblockchaininfo")
-    netinfo = rpc_call("getnetworkinfo")
+    uptime_info = rpc_call("uptime")
 
     recent_logs = []
     # SNTI fix (27 Jul 2026): this explorer only ever serves mainnet, but the
@@ -719,7 +719,13 @@ def api_mining_status():
             diffs = [times[i] - times[i+1] for i in range(len(times)-1)]
             avg_block_time = sum(diffs) / len(diffs)
 
-    uptime_sec = int(netinfo.get("uptime", 0)) if isinstance(netinfo, dict) else 0
+    # SNTI fix (27 Jul 2026): getnetworkinfo has never had an "uptime" field --
+    # that's the separate `uptime` RPC. Reading netinfo.get("uptime") always
+    # returned 0, so this silently fell through to the "estimate from last 10
+    # blocks" branch below on every single call -- during a fast-mining burst
+    # (blocks every ~2s) that estimate is ~20 seconds, displayed as "Node
+    # Uptime" even though the node had actually been running for hours.
+    uptime_sec = int(uptime_info) if isinstance(uptime_info, (int, float)) else 0
     uptime_human = "\u2014"
     if uptime_sec > 0:
         _h, _m, _s = uptime_sec // 3600, (uptime_sec % 3600) // 60, uptime_sec % 60
