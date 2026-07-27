@@ -194,7 +194,7 @@ nav a:hover{color:var(--text)}
     <div class="d-header">
       <div class="greeting">Welcome back, <strong id="dUser"></strong> <span class="badge-chain">mainnet</span></div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn secondary" style="width:auto;padding:8px 16px;font-size:12px" onclick="toggleChPw()">Ganti Password</button>
+        <button class="btn secondary" style="width:auto;padding:8px 16px;font-size:12px" onclick="toggleChPw()">Change Password</button>
         <button class="btn danger" style="width:auto;padding:8px 16px;font-size:12px" onclick="doLogout()">Sign Out</button>
       </div>
     </div>
@@ -203,9 +203,9 @@ nav a:hover{color:var(--text)}
     <div class="xmss-warn-banner" id="xmssWarnBanner" style="display:none">
       <span>⚠️</span>
       <div>
-        <b>Penting soal private key XMSS:</b> tiap address cuma aman dipakai signing <b>satu kali</b>. Kalau kamu export key ini (lewat "Download Backup" atau "Lihat Private Key" di bawah) dan pakai di node/wallet lain, <b>jangan pernah jalankan lebih dari satu tempat sekaligus</b> untuk address yang sama — dua tanda tangan dari key yang sama bisa membongkar private key-nya dan koin bisa dicuri. Ini <b>tidak terdeteksi oleh blockchain</b> untuk transaksi kirim biasa (leaf-reuse cuma dicek untuk proof mining).
+        <b>Important about XMSS private keys:</b> each address is only safe to sign with <b>once</b>. If you export this key (via "Download Backup" or "View Private Key" below) and use it on another node/wallet, <b>never run it in more than one place at the same time</b> for the same address — two signatures from the same key can expose the private key and your coins can be stolen. This is <b>not detected by the blockchain</b> for regular send transactions (leaf-reuse is only checked for mining proofs).
       </div>
-      <button class="xwb-close" onclick="dismissXmssWarn()" title="Tutup">✕</button>
+      <button class="xwb-close" onclick="dismissXmssWarn()" title="Close">✕</button>
     </div>
 
     <!-- Retired/blacklisted address warning (dynamic, from backend) -->
@@ -216,17 +216,17 @@ nav a:hover{color:var(--text)}
 
     <!-- Change Password (collapsible) -->
     <div class="chpw-form" id="chpwForm">
-      <div style="font-size:13px;font-weight:700;margin-bottom:12px">Ganti Password</div>
-      <div class="field"><label>Password Lama</label>
-        <div class="chpw-row"><input type="password" id="cp_old" placeholder="Password saat ini" autocomplete="current-password"></div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:12px">Change Password</div>
+      <div class="field"><label>Current Password</label>
+        <div class="chpw-row"><input type="password" id="cp_old" placeholder="Current password" autocomplete="current-password"></div>
       </div>
-      <div class="field"><label>Password Baru</label>
+      <div class="field"><label>New Password</label>
         <div class="chpw-row">
-          <input type="password" id="cp_new" placeholder="Min 8 karakter" autocomplete="new-password">
-          <input type="password" id="cp_new2" placeholder="Ulangi password baru" autocomplete="new-password">
+          <input type="password" id="cp_new" placeholder="Min 8 characters" autocomplete="new-password">
+          <input type="password" id="cp_new2" placeholder="Repeat new password" autocomplete="new-password">
         </div>
       </div>
-      <button class="btn" style="width:auto;padding:9px 20px;font-size:13px" onclick="doChangePassword()">Simpan Password</button>
+      <button class="btn" style="width:auto;padding:9px 20px;font-size:13px" onclick="doChangePassword()">Save Password</button>
       <div class="chpw-msg" id="chpwMsg"></div>
     </div>
 
@@ -235,42 +235,42 @@ nav a:hover{color:var(--text)}
       <div><span class="amount" id="dBalance">—</span><span class="unit">SNTI</span></div>
       <div id="balanceDetail" style="margin-top:10px;font-size:12px;display:flex;justify-content:center;gap:20px;flex-wrap:wrap"></div>
       <div id="balanceNote" style="margin-top:12px;font-size:11px;color:rgba(136,153,187,.8);line-height:1.7;padding:8px 12px;background:rgba(0,0,0,.2);border-radius:6px;display:none"></div>
-      <div class="addr" id="dAddr" onclick="copyAddr()" title="Klik untuk copy address Anda">—</div>
-      <div class="copy-hint" id="copyHint">Klik address untuk copy</div>
+      <div class="addr" id="dAddr" onclick="copyAddr()" title="Click to copy your address">—</div>
+      <div class="copy-hint" id="copyHint">Click address to copy</div>
     </div>
 
     <!-- Mining Installer -->
     <div class="mine-panel">
       <h3>⛏ Start Mining SNTI</h3>
-      <p>Download installer script untuk Ubuntu/Debian. Jalankan 1 perintah — semua otomatis: install node, sync, generate address, dan mulai mining. Address Anda langsung muncul di bawah.</p>
+      <p>Download the installer script for Ubuntu/Debian. Run 1 command — everything is automatic: install node, sync, generate address, and start mining. Your address will appear below right away.</p>
 
       <!-- Non-Linux OS warning (dynamic, from navigator.userAgent) -->
       <div class="xmss-warn-banner" id="osWarnBanner" style="display:none">
         <span>💻</span>
         <div>
-          <b>Installer ini cuma jalan di Linux (Ubuntu/Debian).</b> <span id="osWarnDetected"></span> Beberapa opsi: <b>Windows</b> → pakai WSL (Windows Subsystem for Linux), lalu jalankan perintah di terminal Ubuntu-nya. <b>macOS</b> → jalankan di VM/Docker Linux. <b>Android/iOS</b> → belum bisa mining langsung dari HP, perlu komputer/server Linux terpisah. Kalau kamu punya VPS atau komputer Linux lain, download tetap bisa dipakai di sana.
+          <b>This installer only runs on Linux (Ubuntu/Debian).</b> <span id="osWarnDetected"></span> Some options: <b>Windows</b> → use WSL (Windows Subsystem for Linux), then run the command in its Ubuntu terminal. <b>macOS</b> → run it in a Linux VM/Docker. <b>Android/iOS</b> → can't mine directly from a phone yet, you'll need a separate Linux computer/server. If you have a VPS or another Linux machine, the download will still work there.
         </div>
-        <button class="xwb-close" onclick="dismissOsWarn()" title="Tutup">✕</button>
+        <button class="xwb-close" onclick="dismissOsWarn()" title="Close">✕</button>
       </div>
 
       <div class="mine-steps">
         <div class="mine-step"><div class="snum">1</div><div class="stxt">Download installer script</div></div>
-        <div class="mine-step"><div class="snum">2</div><div class="stxt">Jalankan di terminal Ubuntu</div></div>
-        <div class="mine-step"><div class="snum">3</div><div class="stxt">Node sync otomatis</div></div>
-        <div class="mine-step"><div class="snum">4</div><div class="stxt">Mining dimulai, address muncul di sini</div></div>
+        <div class="mine-step"><div class="snum">2</div><div class="stxt">Run it in an Ubuntu terminal</div></div>
+        <div class="mine-step"><div class="snum">3</div><div class="stxt">Node syncs automatically</div></div>
+        <div class="mine-step"><div class="snum">4</div><div class="stxt">Mining starts, address appears here</div></div>
       </div>
       <button class="btn-dl" id="dlBtn" onclick="downloadInstaller()">⬇ Download Installer</button>
       <div class="install-cmd" id="installCmd">
-        <div style="font-size:11px;color:var(--dim);margin-bottom:8px">Atau jalankan langsung di terminal:</div>
+        <div style="font-size:11px;color:var(--dim);margin-bottom:8px">Or run it directly in the terminal:</div>
         <div class="cmd" id="installCmdText"></div>
-        <div class="hint">Script sudah berisi kredensial akun Anda. Jangan dibagikan ke orang lain.</div>
+        <div class="hint">The script already contains your account credentials. Don't share it with anyone.</div>
       </div>
 
       <!-- Miner Status -->
       <div class="miner-status-bar" id="minerStatusBar">
         <div class="miner-dot" id="minerDot"></div>
         <div class="miner-label" id="minerLabel">Miner Status</div>
-        <div class="miner-info" id="minerInfo">Memuat...</div>
+        <div class="miner-info" id="minerInfo">Loading...</div>
       </div>
     </div>
 
@@ -293,25 +293,25 @@ nav a:hover{color:var(--text)}
 
     <!-- Backup & Security -->
     <div class="panel backup-section">
-      <h3>🔐 Backup &amp; Security <span style="font-size:10px;color:var(--red);font-weight:normal;margin-left:4px">simpan private key sebelum terlambat</span></h3>
+      <h3>🔐 Backup &amp; Security <span style="font-size:10px;color:var(--red);font-weight:normal;margin-left:4px">back up your private key before it's too late</span></h3>
       <div class="backup-grid">
         <div class="backup-card">
           <h4>⬇ Download Backup File</h4>
-          <p>Download file <code>.json</code> berisi private key XMSS Anda. Simpan di tempat aman — USB drive, password manager, atau cloud terenkripsi.</p>
-          <div class="warn">⚠ Siapapun yang punya file ini bisa spend koin Anda.</div>
+          <p>Download a <code>.json</code> file containing your XMSS private key. Keep it somewhere safe — a USB drive, password manager, or encrypted cloud storage.</p>
+          <div class="warn">⚠ Anyone who has this file can spend your coins.</div>
           <button class="btn-backup dl" onclick="downloadBackup()">Download Backup (.json)</button>
         </div>
         <div class="backup-card">
-          <h4>👁 Lihat Private Key</h4>
-          <p>Tampilkan XMSS secret key dan public key dalam format hex. Gunakan untuk import ke node lain dengan <code>importxmsskey</code>.</p>
-          <div class="warn">⚠ Jangan screenshot di tempat umum. Jangan kirim ke siapapun.</div>
-          <button class="btn-backup key" onclick="showKeyModal()">Tampilkan Private Key</button>
+          <h4>👁 View Private Key</h4>
+          <p>Show the XMSS secret key and public key in hex format. Use it to import into another node with <code>importxmsskey</code>.</p>
+          <div class="warn">⚠ Don't screenshot this in public. Don't send it to anyone.</div>
+          <button class="btn-backup key" onclick="showKeyModal()">View Private Key</button>
         </div>
       </div>
       <div style="margin-top:14px;font-size:11px;color:var(--dim);line-height:1.8;padding:12px;background:rgba(255,255,255,.02);border-radius:8px">
-        💡 <strong style="color:var(--text)">Watch address dari VirtualBox?</strong> Private key ada di mesin Anda sendiri.
-        Backup dengan: <code style="color:var(--accent)">cp -r ~/.snti_mainnet/wallets/ ~/backup_wallet/</code>
-        atau: <code style="color:var(--accent)">bitcoin-cli dumpwallet ~/snti_backup.txt</code>
+        💡 <strong style="color:var(--text)">Watch address from VirtualBox?</strong> The private key is on your own machine.
+        Back it up with: <code style="color:var(--accent)">cp -r ~/.snti_mainnet/wallets/ ~/backup_wallet/</code>
+        or: <code style="color:var(--accent)">bitcoin-cli dumpwallet ~/snti_backup.txt</code>
       </div>
     </div>
 
@@ -320,23 +320,23 @@ nav a:hover{color:var(--text)}
       <div class="modal">
         <h3>⚠ XMSS Private Key</h3>
         <div class="modal-warn">
-          Ini adalah private key XMSS Anda. Siapapun yang mendapatkan <strong>Secret Key</strong> ini dapat mengambil semua koin di address Anda.<br>
-          — Jangan bagikan ke siapapun<br>
-          — Jangan ketik ulang di tempat yang tidak aman<br>
-          — Simpan offline di tempat yang benar-benar aman
+          This is your XMSS private key. Anyone who gets this <strong>Secret Key</strong> can take all the coins at your address.<br>
+          — Don't share it with anyone<br>
+          — Don't type it out anywhere that isn't secure<br>
+          — Store it offline somewhere genuinely safe
         </div>
         <div id="keyContent"><div class="loading">Loading...</div></div>
         <div class="copy-flash" id="copyFlash"></div>
-        <button class="modal-close" onclick="closeKeyModal()">Tutup</button>
+        <button class="modal-close" onclick="closeKeyModal()">Close</button>
       </div>
     </div>
 
     <!-- Watch Addresses -->
     <div class="panel watch-section">
-      <h3>Watch Addresses <span style="font-size:10px;color:var(--blue);font-weight:normal;margin-left:8px">monitor address lain tanpa private key</span></h3>
+      <h3>Watch Addresses <span style="font-size:10px;color:var(--blue);font-weight:normal;margin-left:8px">monitor other addresses without a private key</span></h3>
       <div class="watch-add-row">
-        <input type="text" id="watchAddr" placeholder="snti1z... (address dari VirtualBox/node lain)">
-        <input type="text" id="watchLabel" placeholder="Label (opsional)" style="max-width:160px">
+        <input type="text" id="watchAddr" placeholder="snti1z... (address from VirtualBox/another node)">
+        <input type="text" id="watchLabel" placeholder="Label (optional)" style="max-width:160px">
         <button onclick="addWatch()">+ Watch</button>
       </div>
       <div class="watch-err" id="watchErr"></div>
@@ -435,10 +435,10 @@ async function loadBalance() {
   const sendBtn = document.getElementById('sendBtn');
   if (res.retired) {
     document.getElementById('retiredWarnText').innerHTML =
-      `<b>Address ini sudah tidak bisa mengirim (retired):</b> ${res.warning || 'key sudah terpakai atau di-blacklist demi keamanan'}. ` +
-      `Saldo yang sudah pernah dikirim tetap aman diterima, tapi untuk mengirim dana Anda perlu address baru — hubungi admin bila ada saldo yang tampak tersangkut.`;
+      `<b>This address can no longer send (retired):</b> ${res.warning || 'the key has already been used or has been blacklisted for safety'}. ` +
+      `Any balance already received stays safe, but sending funds requires a new address — contact an admin if any balance looks stuck.`;
     retiredBanner.style.display = 'flex';
-    if (sendBtn) { sendBtn.disabled = true; sendBtn.title = 'Address ini retired, tidak bisa mengirim'; }
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.title = 'This address is retired, cannot send'; }
   } else {
     retiredBanner.style.display = 'none';
     if (sendBtn) { sendBtn.disabled = false; sendBtn.title = ''; }
@@ -452,33 +452,33 @@ async function loadBalance() {
   if (total > 0) {
     det.innerHTML = `
       <span style="color:#22c55e">✓ Spendable: ${spendable.toFixed(6)} SNTI</span>
-      ${stuck > 0 ? `<span style="color:#ef4444">✗ Stuck (address retired, tidak bisa dikirim): ${stuck.toFixed(6)} SNTI</span>` : ''}
+      ${stuck > 0 ? `<span style="color:#ef4444">✗ Stuck (address retired, cannot be sent): ${stuck.toFixed(6)} SNTI</span>` : ''}
       ${immature > 0 ? `<span style="color:#f59e0b">⏳ Immature: ${immature.toFixed(6)} SNTI</span>` : ''}`;
   } else {
     det.innerHTML = '';
   }
 
-  // Keterangan note
+  // Status note
   const note = document.getElementById('balanceNote');
   note.style.display = 'block';
   if (total === 0) {
     note.innerHTML = `
-      ℹ Address ini belum menerima SNTI.<br>
-      • Mine ke address ini agar koin masuk ke sini<br>
-      • Atau tambahkan watch address di bawah untuk pantau koin dari VirtualBox`;
+      ℹ This address hasn't received any SNTI yet.<br>
+      • Mine to this address to get coins here<br>
+      • Or add a watch address below to track coins from VirtualBox`;
   } else if (stuck > 0 && spendable === 0 && immature === 0) {
     note.innerHTML = `
-      ✗ Seluruh saldo (${stuck.toFixed(6)} SNTI) tersangkut permanen di address yang sudah <strong>retired</strong> (key XMSS one-time-use sudah terpakai sign sekali, tidak bisa sign lagi). Dana ini tidak bisa dikirim ke mana pun lagi.<br>
-      Tunggu mining reward baru masuk ke address Anda saat ini untuk bisa mengirim lagi.`;
+      ✗ The entire balance (${stuck.toFixed(6)} SNTI) is permanently stuck at an address that's already <strong>retired</strong> (the one-time-use XMSS key has already been used to sign once and can't sign again). These funds can never be sent anywhere.<br>
+      Wait for new mining rewards to arrive at your current address so you can send again.`;
   } else if (immature > 0 && spendable === 0 && stuck === 0) {
     note.innerHTML = `
-      ⏳ Semua saldo masih <strong>immature</strong> — hasil mining butuh <strong>100 konfirmasi</strong> sebelum bisa digunakan.<br>
-      Saat ini: block ${res.tip_height}. Koin bisa dipakai setelah ~${immature / 50 * 100 | 0} blok lagi.`;
+      ⏳ The whole balance is still <strong>immature</strong> — mining rewards need <strong>100 confirmations</strong> before they can be used.<br>
+      Currently at block ${res.tip_height}. Coins should be usable in ~${immature / 50 * 100 | 0} more blocks.`;
   } else if (immature > 0 || stuck > 0) {
     const parts = [];
-    if (stuck > 0) parts.push(`${stuck.toFixed(6)} SNTI tersangkut permanen (address retired)`);
-    if (immature > 0) parts.push(`${immature.toFixed(6)} SNTI masih immature (menunggu 100 konfirmasi)`);
-    note.innerHTML = `⏳ ${parts.join(', ')}. Hanya ${spendable.toFixed(6)} SNTI yang bisa dipakai sekarang.`;
+    if (stuck > 0) parts.push(`${stuck.toFixed(6)} SNTI permanently stuck (address retired)`);
+    if (immature > 0) parts.push(`${immature.toFixed(6)} SNTI still immature (waiting for 100 confirmations)`);
+    note.innerHTML = `⏳ ${parts.join(', ')}. Only ${spendable.toFixed(6)} SNTI can be used right now.`;
   } else {
     note.style.display = 'none';
   }
@@ -540,16 +540,16 @@ async function doChangePassword() {
   const new_password2 = document.getElementById('cp_new2').value;
   const msg = document.getElementById('chpwMsg');
   msg.className = 'chpw-msg';
-  if (!old_password) { msg.className='chpw-msg err'; msg.textContent='Masukkan password lama'; return; }
-  if (new_password.length < 8) { msg.className='chpw-msg err'; msg.textContent='Password baru minimal 8 karakter'; return; }
-  if (new_password !== new_password2) { msg.className='chpw-msg err'; msg.textContent='Password baru tidak sama'; return; }
+  if (!old_password) { msg.className='chpw-msg err'; msg.textContent='Enter your current password'; return; }
+  if (new_password.length < 8) { msg.className='chpw-msg err'; msg.textContent='New password must be at least 8 characters'; return; }
+  if (new_password !== new_password2) { msg.className='chpw-msg err'; msg.textContent='New passwords do not match'; return; }
   const res = await apiCall('/api/wallet/change-password', {
     method:'POST', body:JSON.stringify({old_password, new_password})
   });
   if (res.error) {
     msg.className='chpw-msg err'; msg.textContent=res.error;
   } else {
-    msg.className='chpw-msg ok'; msg.textContent='✓ Password berhasil diubah';
+    msg.className='chpw-msg ok'; msg.textContent='✓ Password changed successfully';
     document.getElementById('cp_old').value='';
     document.getElementById('cp_new').value='';
     document.getElementById('cp_new2').value='';
@@ -600,19 +600,19 @@ async function showKeyModal() {
       <div class="key-field">
         <div class="key-label">Public Key (64 bytes)</div>
         <div class="key-val" onclick="copyField(this,'Public Key')">${res.pubkey}</div>
-        <div class="key-hint">Public — aman dibagikan untuk importxmsskey</div>
+        <div class="key-hint">Public — safe to share for importxmsskey</div>
       </div>
       <div class="key-field">
-        <div class="key-label" style="color:var(--red)">⚠ Secret Key — RAHASIA</div>
+        <div class="key-label" style="color:var(--red)">⚠ Secret Key — SECRET</div>
         <div class="key-val" onclick="copyField(this,'Secret Key')" style="color:var(--red);border-color:rgba(239,68,68,.3)">${res.seckey}</div>
-        <div class="key-hint" style="color:var(--red)">Klik untuk copy. Jangan bagikan.</div>
+        <div class="key-hint" style="color:var(--red)">Click to copy. Don't share it.</div>
       </div>
       <div class="key-field" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
         <div style="font-size:12px;color:var(--dim)">Leaf index used: <strong style="color:var(--text)">${res.leaf_index}</strong></div>
         <div style="font-size:12px;color:var(--dim)">Remaining: <strong style="color:var(--green)">${res.remaining}</strong></div>
       </div>
       <div style="margin-top:14px;font-size:11px;color:var(--dim);line-height:1.8;padding:10px;background:rgba(0,0,0,.2);border-radius:6px">
-        Untuk import di node lain:<br>
+        To import on another node:<br>
         <code style="color:var(--accent)">bitcoin-cli importxmsskey "${res.pubkey}" "${res.seckey}"</code>
       </div>`;
   } catch(e) {
@@ -673,7 +673,7 @@ async function addWatch() {
   const label = document.getElementById('watchLabel').value.trim();
   const errEl = document.getElementById('watchErr');
   errEl.textContent = '';
-  if (!address) { errEl.textContent = 'Masukkan address'; return; }
+  if (!address) { errEl.textContent = 'Enter an address'; return; }
   const res = await apiCall('/api/wallet/watch', {method:'POST', body:JSON.stringify({address, label})});
   if (res.error) { errEl.textContent = res.error; return; }
   document.getElementById('watchAddr').value = '';
@@ -692,7 +692,7 @@ async function loadWatches() {
   const res = await apiCall('/api/wallet/watches');
   const watches = res.watches || [];
   if (!watches.length) {
-    container.innerHTML = '<div class="empty" style="padding:16px 0">Belum ada watch address. Tambahkan address VirtualBox Anda di atas.</div>';
+    container.innerHTML = '<div class="empty" style="padding:16px 0">No watch addresses yet. Add your VirtualBox address above.</div>';
     return;
   }
   container.innerHTML = watches.map(w => `
@@ -763,7 +763,7 @@ function checkOsWarn() {
   if (localStorage.getItem('snti_os_warn_dismissed') === '1') return;
   const os = detectOS();
   if (!os || os === 'Linux') return;
-  document.getElementById('osWarnDetected').textContent = `Kami mendeteksi kamu pakai ${os}.`;
+  document.getElementById('osWarnDetected').textContent = `We detected you're using ${os}.`;
   document.getElementById('osWarnBanner').style.display = 'flex';
 }
 
@@ -779,23 +779,23 @@ async function loadMinerStatus() {
       lbl.textContent = 'Miner ONLINE';
       lbl.style.color = 'var(--green)';
       const host = res.hostname ? ` — ${res.hostname}` : '';
-      const ago  = res.seconds_ago < 60 ? `${res.seconds_ago}s lalu` : `${Math.floor(res.seconds_ago/60)}m lalu`;
-      info.textContent = `Heartbeat terakhir: ${ago}${host}`;
+      const ago  = res.seconds_ago < 60 ? `${res.seconds_ago}s ago` : `${Math.floor(res.seconds_ago/60)}m ago`;
+      info.textContent = `Last heartbeat: ${ago}${host}`;
     } else {
       dot.className  = 'miner-dot offline';
       lbl.textContent = 'Miner OFFLINE';
       lbl.style.color = 'var(--red)';
       if (res.last_seen) {
         const ago = Math.floor((Date.now()/1000 - res.last_seen) / 60);
-        info.textContent = `Terakhir aktif: ${ago} menit lalu${res.hostname ? ' — ' + res.hostname : ''}`;
+        info.textContent = `Last active: ${ago} minutes ago${res.hostname ? ' — ' + res.hostname : ''}`;
       } else {
-        info.textContent = 'Miner belum pernah terhubung. Download installer untuk mulai mining.';
+        info.textContent = 'Miner has never connected. Download the installer to start mining.';
       }
     }
   } catch(e) {
     dot.className  = 'miner-dot';
     lbl.textContent = 'Miner Status';
-    info.textContent = 'Tidak dapat memuat status.';
+    info.textContent = 'Unable to load status.';
   }
 }
 
