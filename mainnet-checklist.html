@@ -75,7 +75,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <tr><td>End-to-end PoUW mining</td><td><span class="status done">✅ Verified</span></td><td class="item-note">1170+ mainnet blocks mined continuously. 3 nodes mining 24/7 via systemd (Indonesia + USA + Singapore). PoUW v2 with XMSS tree generation verified at scale.</td></tr>
         <tr><td>Mainnet genesis at production difficulty</td><td><span class="status done">✅ Done</span></td><td class="item-note">Mainnet launched 26 Jun 2026 at nBits <code>0x2001a41a</code> (real production difficulty, not near-zero testnet). 1170+ blocks mined.</td></tr>
         <tr><td>Key lifecycle reviewed</td><td><span class="status done">✅ Done</span></td><td class="item-note">One-shot key model live on mainnet. Deep audit (29 Jun 2026) confirmed WOTS+ reuse protection, wallet-locked guard, and leaf index tracking all functioning correctly.</td></tr>
-        <tr><td>Difficulty retarget under load</td><td><span class="status done">✅ Verified</span></td><td class="item-note">Burst mining (blok 286–296, 11 blok ~2 detik) caused EMA spike. Chain recovered autonomously via stuck-chain detection + EMA clamp fix (29 Jun). Block 1170+ confirms healthy retarget.</td></tr>
+        <tr><td>Difficulty retarget under load</td><td><span class="status done">✅ Verified</span></td><td class="item-note">Burst mining (blocks 286–296, 11 blocks in ~2 seconds) caused EMA spike. Chain recovered autonomously via stuck-chain detection + EMA clamp fix (29 Jun). Block 1170+ confirms healthy retarget.</td></tr>
         <tr><td>Chain reorg handling</td><td><span class="status done">✅ Verified</span></td><td class="item-note">Phase 6.10.1 — genuine fork/reorg between 2 independent nodes: node 1 reorganized to node 2's longer chain, orphaned blocks marked correctly, no crashes.</td></tr>
       </tbody>
     </table>
@@ -154,7 +154,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
       <div class="gap-item">
         <div class="gap-num">4</div>
-        <div class="gap-text"><strong>RESOLVED 26/Jun.</strong> Mainnet launched at nBits <code>0x2001a41a</code> (real production difficulty), 1170+ blocks mined. Difficulty adjustment stress-tested: burst mining blok 286–296 triggered EMA spike, recovered autonomously. Stuck-chain detection added (29 Jun) as additional safeguard.</div>
+        <div class="gap-text"><strong>RESOLVED 26/Jun.</strong> Mainnet launched at nBits <code>0x2001a41a</code> (real production difficulty), 1170+ blocks mined. Difficulty adjustment stress-tested: burst mining at blocks 286–296 triggered EMA spike, recovered autonomously. Stuck-chain detection added (29 Jun) as additional safeguard.</div>
       </div>
       <div class="gap-item">
         <div class="gap-num">5</div>
