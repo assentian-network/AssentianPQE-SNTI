@@ -612,6 +612,14 @@ int xmss_core_sign(const xmss_params *params,
      * to be on the safe side (there is no index value left to indicate that the 
      * key is finished, hence external handling would be necessary)
      */ 
+    // SNTI COVERITY NOTE (CID 651771/651922/651787-family, 30 Jul 2026): when
+    // params->full_height == 64, `1ULL << params->full_height` shifts by the full
+    // width of the type, which is undefined behavior in C/C++. This project's
+    // params.c never configures full_height >= 64 today (max is 60), so this path
+    // is unreachable in practice -- do not enable a full_height==64 parameter set
+    // without first fixing this (or rebasing onto an upstream xmss-reference that
+    // has). Left as-is per policy of not patching the vendored/audited crypto
+    // library without strong justification (see xmss_miner_state.h).
     if (idx >= ((1ULL << params->full_height) - 1)) {
         // Delete secret key here. We only do this in memory, production code
         // has to make sure that this happens on disk.
@@ -833,6 +841,14 @@ int xmssmt_core_sign(const xmss_params *params,
      * to be on the safe side (there is no index value left to indicate that the 
      * key is finished, hence external handling would be necessary)
      */ 
+    // SNTI COVERITY NOTE (CID 651771/651922/651787-family, 30 Jul 2026): when
+    // params->full_height == 64, `1ULL << params->full_height` shifts by the full
+    // width of the type, which is undefined behavior in C/C++. This project's
+    // params.c never configures full_height >= 64 today (max is 60), so this path
+    // is unreachable in practice -- do not enable a full_height==64 parameter set
+    // without first fixing this (or rebasing onto an upstream xmss-reference that
+    // has). Left as-is per policy of not patching the vendored/audited crypto
+    // library without strong justification (see xmss_miner_state.h).
     if (idx >= ((1ULL << params->full_height) - 1)) {
         // Delete secret key here. We only do this in memory, production code
         // has to make sure that this happens on disk.

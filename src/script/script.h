@@ -394,8 +394,13 @@ private:
 
       // If the input vector's most significant byte is 0x80, remove it from
       // the result's msb and return a negative.
-      if (vch.back() & 0x80)
+      if (vch.back() & 0x80) {
+          // All current call sites bound vch.size() via nMaxNumSize <= 5 (see
+          // CScriptNum ctor), so this shift never nears the 64-bit width; the
+          // assert guards against a future caller passing a larger nMaxNumSize.
+          assert(vch.size() <= sizeof(result));
           return -((int64_t)(result & ~(0x80ULL << (8 * (vch.size() - 1)))));
+      }
 
       return result;
     }

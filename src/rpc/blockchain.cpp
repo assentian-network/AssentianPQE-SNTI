@@ -1908,6 +1908,9 @@ static RPCHelpMan getblockstats()
 
         if (loop_inputs) {
             CAmount tx_total_in = 0;
+            // i == 0 is always the coinbase, which is skipped above via `continue`,
+            // so vtxundo (which excludes the coinbase) is always safe to index at i - 1.
+            Assert(i > 0);
             const auto& txundo = blockUndo.vtxundo.at(i - 1);
             for (const Coin& coin: txundo.vprevout) {
                 const CTxOut& prevoutput = coin.out;
