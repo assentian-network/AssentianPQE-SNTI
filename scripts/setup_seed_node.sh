@@ -36,7 +36,7 @@ echo ""
 inf "Installing dependencies..."
 apt-get update -qq
 apt-get install -y -qq \
-    libminiupnpc17 libnatpmp1 libevent-2.1-7 libsqlite3-0 \
+    libminiupnpc17 libnatpmp1 libevent-2.1-7 libevent-pthreads-2.1-7 libsqlite3-0 \
     libboost-filesystem1.74.0 libboost-thread1.74.0 \
     ufw curl wget 2>/dev/null || true
 ok "Dependencies installed"

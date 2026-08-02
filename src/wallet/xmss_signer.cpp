@@ -298,8 +298,8 @@ bool CXMSSSigner::SignXMSS(const uint256& hash, const std::vector<uint8_t>& pubk
         // IsXMSSKeyRetired()) -- mark retired immediately so a second call
         // is refused up front, without depending on the ledger's own much
         // higher (XMSS_MAX_LEAVES=1023) exhaustion threshold.
-        const_cast<bool&>(it->second.retired) = true;
-        const_cast<uint32_t&>(it->second.leaf_index) = leaf_used + 1;
+        it->second.retired = true;
+        it->second.leaf_index = leaf_used + 1;
     }
 
     return ok;
