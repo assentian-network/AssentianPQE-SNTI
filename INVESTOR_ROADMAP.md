@@ -190,7 +190,7 @@ This means every mining operation **produces a real cryptographic artifact** —
 - Website: https://assentian.network
 - Explorer: https://assentian.network/explorer/
 - GitHub: https://github.com/assentian-network/AssentianPQE-SNTI
-- Email: assentianpqe@gmail.com
+- Email: admin@assentian.network
 
 ---
 

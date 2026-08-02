@@ -1,6 +1,6 @@
 # Assentian-PQE (SNTI)
 ## One of the First Mineable Post-Quantum Cryptocurrencies
-### Whitepaper v1.2 | Updated July 2026
+### Whitepaper v1.2 | Updated 28 July 2026
 
 ---
 
@@ -36,7 +36,7 @@ Assentian-PQE (SNTI) is **one of the first mineable post-quantum cryptocurrencie
 Unlike theoretical proposals or migration promises, Assentian-PQE is **already running**:
 
 - ✅ Mainnet genesis block mined — June 26, 2026 (hash: `b4a26aef...`)
-- ✅ Mainnet live — 49,306+ blocks (as of 7 Jul 2026), 3-node network (Indonesia + USA + Singapore), all three nodes mining
+- ✅ Mainnet live — 120,735+ blocks (as of 28 Jul 2026), 3-node network (Indonesia + USA + Singapore), all three nodes mining
 - ✅ DNS seed live — seed/seed2/seed3.assentian.network
 - ✅ CPU mining operational, solo mining via RPC
 - ✅ Block explorer live at assentian.network/explorer/
@@ -58,7 +58,7 @@ Unlike theoretical proposals or migration promises, Assentian-PQE is **already r
 | **Codebase** | Bitcoin Core fork (C++) |
 | **License** | BSL-1.1 → GPL-2.0 (2030) |
 | **Magic Bytes** | SNTI (0x53, 0x4E, 0x54, 0x49) |
-| **Contact** | assentianpqe@gmail.com |
+| **Contact** | admin@assentian.network |
 
 ---
 
@@ -525,7 +525,7 @@ Total Supply: **210,000,000 SNTI** (hard cap — 10× Bitcoin's 21M, scaled for 
 ### ✅ Phase 1: Mainnet Launched — June 26, 2026
 
 - ✅ Mainnet genesis block — June 26, 2026 (`b4a26aef...`, nBits `0x2001a41a`)
-- ✅ 3-node network — Indonesia + USA (KC) + Singapore (SG), all mining, 49,306+ blocks (as of 7 Jul 2026)
+- ✅ 3-node network — Indonesia + USA (KC) + Singapore (SG), all mining, 120,735+ blocks (as of 28 Jul 2026)
 - ✅ DNS seeds — seed/seed2/seed3.assentian.network (3 IPs, round-robin)
 - ✅ Web wallet — assentian.network/wallet/
 - ✅ Block explorer — assentian.network/explorer/
@@ -862,7 +862,7 @@ SNTI still operates as a sound-money, fixed-supply cryptocurrency with unique us
 - Designed and implemented PoUW consensus
 - Implemented XMSS integration into Bitcoin Core
 - Sighash-v2 design and implementation
-- Contact: assentianpqe@gmail.com
+- Contact: admin@assentian.network
 
 ### 14.2 Open Source Contribution
 
@@ -934,7 +934,7 @@ The answer is Assentian-PQE.
 
 ---
 
-*Assentian-PQE Whitepaper v1.2 | Updated 7 July 2026*
+*Assentian-PQE Whitepaper v1.2 | Updated 28 July 2026*
 *Genesis: "Assentian-PQE 22/Jun/2026 XMSS Post Quantum Era - For Sentia"*
-*Contact: assentianpqe@gmail.com*
+*Contact: admin@assentian.network*
 *GitHub: https://github.com/assentian-network/AssentianPQE-SNTI*
