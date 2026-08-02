@@ -140,18 +140,20 @@ public:
         consensus.nPoUWv2StartHeight = 1;   // v1 proofs never valid on mainnet
         consensus.nPoUWv3StartHeight = 200; // hashMerkleRoot included in preimage from block 200
         consensus.nPoUWLeafReuseActivation = 1000; // M7: leaf-reuse prevention active from block 1000
-        // DRAFT (recomputed 27 Jul 2026 ~12:36 UTC): old value (80904, buffer
-        // +5000 from tip 75904 when first written 26 Jul) went stale within a
-        // day -- chain height is now 87230 and climbing at ~1973 blocks/hour
-        // (an unidentified peer saturating the pow_limit>>10 difficulty-ceiling
-        // bug, see draft/pouw-difficulty-ceiling-fix), far faster than the
-        // ~100/hour this project's buffers were originally sized for. Reset to
-        // tip + 100,000 blocks for real margin (~51h/~2.1 days even if this
-        // abnormal rate persists the whole time; ~41 days at the network's
-        // normal ~100 blocks/hour) instead of a small buffer that goes stale
-        // again immediately. Still NOT for activation/merge -- recompute again
-        // before any real coordinated Main->KC->SG deploy if time has passed.
-        consensus.nXMSSSpendLeafReuseActivation = 187000;
+        // DRAFT (recomputed 2 Aug 2026 ~UTC): old value (187000, set 27 Jul when
+        // the pow_limit>>10 difficulty-ceiling bug had an unidentified peer
+        // saturating the chain at ~1973 blocks/hour) went stale too -- the
+        // ceiling fix (draft/pouw-difficulty-ceiling-fix) activated for real at
+        // height 186000 on 30 Jul, the abnormal peer stopped entirely right at
+        // that point, and mainnet tip is now 189672 (already past 187000).
+        // Post-fix rate measured directly off chain data (5000-block window,
+        // heights 184672->189672) is ~52.6 blocks/hour -- back to a normal,
+        // real-difficulty-adjusted pace, not the exploited burst. Reset to
+        // 200000 (~10328-block buffer, ~196h/~8.2 days at the current measured
+        // rate) for a coordinated Main->KC->SG deploy window. Still NOT for
+        // activation/merge -- recompute again before any real coordinated
+        // deploy if much more time passes first.
+        consensus.nXMSSSpendLeafReuseActivation = 200000;
         consensus.nPoUWFSLSeedVerifyHeight = 3000; // audit T-1: FSL sk_seed must match claimed root from block 3000
         consensus.nPoUWStuckRecoveryHardenHeight = 4400; // audit KRITIS #5 (2 Jul 2026): require corroborated stuck-chain evidence, chain height was 3907 when written
         consensus.nPoUWTieredStuckRecoveryHeight = 49500; // SNTI M6 (6 Jul 2026): tiered 1-gap/2-gap stuck recovery, chain height was 49306 (stalled since block 49306, ~14h) when written -- buffer left for coordinated 3-node deploy
