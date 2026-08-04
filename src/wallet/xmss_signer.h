@@ -84,16 +84,6 @@ public:
      */
     std::vector<std::vector<uint8_t>> GetXMSSKeys() const;
 
-    /**
-     * Sign a hash with the XMSS key corresponding to the given public key.
-     * This is stateful — the key's leaf index advances after signing.
-     * @param hash 32-byte hash to sign
-     * @param pubkey 64-byte XMSS public key
-     * @param sig Output: XMSS signature (~2500 bytes)
-     * @return true on success
-     */
-    bool Sign(const uint256& hash, const std::vector<uint8_t>& pubkey, std::vector<uint8_t>& sig);
-
     // SigningProvider interface
     bool GetCScript(const CScriptID& scriptid, CScript& script) const override { return false; }
     bool HaveCScript(const CScriptID& scriptid) const override { return false; }

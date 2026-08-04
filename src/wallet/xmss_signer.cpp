@@ -145,32 +145,6 @@ std::vector<std::vector<uint8_t>> CXMSSSigner::GetXMSSKeys() const
     return result;
 }
 
-bool CXMSSSigner::Sign(const uint256& hash, const std::vector<uint8_t>& pubkey, std::vector<uint8_t>& sig)
-{
-    LOCK(cs_xmss_signer);
-
-    auto it = xmss_keys.find(pubkey);
-    if (it == xmss_keys.end()) return false;
-
-    // SNTI: Anti-reuse — check if key is exhausted before signing
-    if (it->second.leaf_index >= PoUWv2::XMSS_MAX_LEAVES) {
-        LogPrintf("CXMSSSigner::Sign: XMSS key exhausted (index=%u), need new key\n", it->second.leaf_index);
-        return false;
-    }
-
-    // Convert uint256 to vector
-    std::vector<uint8_t> hash_vec(hash.begin(), hash.end());
-
-    // Sign via CXMSSKey (stateful — advances leaf index)
-    bool success = it->second.key.Sign(hash_vec, sig);
-
-    if (success) {
-        it->second.leaf_index++;
-    }
-
-    return success;
-}
-
 // SigningProvider interface
 
 bool CXMSSSigner::GetPubKey(const CKeyID& address, CPubKey& pubkey) const
@@ -190,7 +164,7 @@ bool CXMSSSigner::GetPubKey(const CKeyID& address, CPubKey& pubkey) const
 bool CXMSSSigner::GetKey(const CKeyID& address, CKey& key) const
 {
     // XMSS keys are not CKey — they cannot be returned through this interface
-    // This is intentional: XMSS signing goes through Sign(), not CKey::Sign()
+    // This is intentional: XMSS signing goes through SignXMSS(), not CKey::Sign()
     return false;
 }
 
