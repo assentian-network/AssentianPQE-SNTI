@@ -20,6 +20,7 @@
 #include <policy/feerate.h>
 #include <policy/packages.h>
 #include <policy/policy.h>
+#include <script/interpreter.h>
 #include <script/script_error.h>
 #include <sync.h>
 #include <txdb.h>
@@ -348,10 +349,19 @@ private:
     bool cacheStore;
     ScriptError error{SCRIPT_ERR_UNKNOWN_ERROR};
     PrecomputedTransactionData *txdata;
+    // SNTI DRAFT: optional output slot for structural XMSS leaf-use capture
+    // (see xmss_leaf_key_dedup design). Non-null only when called from
+    // ConnectBlock's per-input capture path; nullptr everywhere else
+    // (mempool accept, wallet fee bumping, etc.) leaves this a no-op, same
+    // cost as before this field existed. Must point at caller-owned,
+    // stable-for-the-duration-of-control.Wait() storage -- this class does
+    // NOT own or allocate it (mirrors how `txdata` itself is a bare pointer
+    // into caller-owned storage for the same lifetime reason).
+    XMSSLeafUses* pxmss_leaf_uses{nullptr};
 
 public:
-    CScriptCheck(const CTxOut& outIn, const CTransaction& txToIn, unsigned int nInIn, unsigned int nFlagsIn, bool cacheIn, PrecomputedTransactionData* txdataIn) :
-        m_tx_out(outIn), ptxTo(&txToIn), nIn(nInIn), nFlags(nFlagsIn), cacheStore(cacheIn), txdata(txdataIn) { }
+    CScriptCheck(const CTxOut& outIn, const CTransaction& txToIn, unsigned int nInIn, unsigned int nFlagsIn, bool cacheIn, PrecomputedTransactionData* txdataIn, XMSSLeafUses* pxmss_leaf_usesIn = nullptr) :
+        m_tx_out(outIn), ptxTo(&txToIn), nIn(nInIn), nFlags(nFlagsIn), cacheStore(cacheIn), txdata(txdataIn), pxmss_leaf_uses(pxmss_leaf_usesIn) { }
 
     CScriptCheck(const CScriptCheck&) = delete;
     CScriptCheck& operator=(const CScriptCheck&) = delete;

@@ -26,8 +26,15 @@ enum BuriedDeployment : int16_t {
     DEPLOYMENT_DERSIG,
     DEPLOYMENT_CSV,
     DEPLOYMENT_SEGWIT,
+    // SNTI DRAFT: regtest-only -testactivationheight hook for
+    // nXMSSSpendLeafReuseActivation (see below) -- not a real BIP9/BIP90
+    // buried deployment, just reusing this enum's existing plumbing
+    // (GetBuriedDeployment/-testactivationheight=name@height) for a
+    // consensus rule that is also a plain height int, same shape as the
+    // ones above.
+    DEPLOYMENT_XMSSSPENDLEAFREUSE,
 };
-constexpr bool ValidDeployment(BuriedDeployment dep) { return dep <= DEPLOYMENT_SEGWIT; }
+constexpr bool ValidDeployment(BuriedDeployment dep) { return dep <= DEPLOYMENT_XMSSSPENDLEAFREUSE; }
 
 enum DeploymentPos : uint16_t {
     DEPLOYMENT_TESTDUMMY,
@@ -135,6 +142,18 @@ struct Params {
      *  Blocks below this height are exempt — they pre-date the check and may
      *  contain reused leaf indices mined by earlier binary versions. */
     int nPoUWLeafReuseActivation{std::numeric_limits<int>::max()}; //!< disabled unless set
+    /** DRAFT / NOT YET SCHEDULED: height at which XMSS leaf-index reuse
+     *  prevention is extended from mining leaves to *spending* leaves (every
+     *  P2XMSS / P2XMSSHASH input in every transaction, not just the
+     *  coinbase). Shares the same DB_POUW_LEAF keyspace as
+     *  nPoUWLeafReuseActivation -- a tree's leaf secret is identical whether
+     *  it was claimed for mining or for a spend, so reuse across the two
+     *  contexts is an equally real WOTS+ private-key break and must be
+     *  caught by the same table. Left at max() (disabled) pending code
+     *  review, testnet soak, and a coordinated mainnet activation height —
+     *  this is a hard fork. See analysis in pesan.md / session discussion
+     *  9 Jul 2026. */
+    int nXMSSSpendLeafReuseActivation{std::numeric_limits<int>::max()}; //!< disabled unless set — DRAFT, not activated
     /** Height at which Failed-Seed-List entries must cryptographically prove
      *  their claimed xmss_root derives from their claimed sk_seed (audit T-1).
      *  Below this height a miner could submit an arbitrary (sk_seed, root)
@@ -232,6 +251,8 @@ struct Params {
             return CSVHeight;
         case DEPLOYMENT_SEGWIT:
             return SegwitHeight;
+        case DEPLOYMENT_XMSSSPENDLEAFREUSE:
+            return nXMSSSpendLeafReuseActivation;
         } // no default case, so the compiler can warn about missing cases
         return std::numeric_limits<int>::max();
     }

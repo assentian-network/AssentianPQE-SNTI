@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 class CPubKey;
@@ -225,6 +226,15 @@ struct ScriptExecutionData
 
     //! The hash of the corresponding output
     std::optional<uint256> m_output_hash;
+
+    // SNTI: (pubkey, leaf_idx) pairs consumed by OP_XMSS_CHECKSIG/CHECKSIGVERIFY
+    // that this script *successfully* verified (never populated for a failed
+    // check -- see interpreter.cpp). Structural replacement for the old
+    // Solver()-template-based ExtractXMSSLeafUse() harvest: this fires for
+    // any script shape that actually executes the opcode, not just the two
+    // blessed P2XMSS/P2XMSSHASH templates. Type declared below the struct
+    // (XMSSLeafUses); left spelled out here to avoid a forward-declare.
+    std::vector<std::pair<std::vector<unsigned char>, uint32_t>> m_xmss_leaf_uses;
 };
 
 /** Signature hash sizes */
@@ -360,7 +370,33 @@ uint256 ComputeTaprootMerkleRoot(Span<const unsigned char> control, const uint25
 
 bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptExecutionData& execdata, ScriptError* error = nullptr);
 bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptError* error = nullptr);
+
+// SNTI DRAFT: (pubkey, leaf_idx) pairs consumed by successful
+// OP_XMSS_CHECKSIG(VERIFY) checks -- see ScriptExecutionData::m_xmss_leaf_uses.
+using XMSSLeafUses = std::vector<std::pair<std::vector<unsigned char>, uint32_t>>;
+
 bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror = nullptr);
+
+// SNTI DRAFT: same as VerifyScript(), but additionally surfaces every XMSS
+// leaf use seen across the whole script evaluation (scriptSig, scriptPubKey,
+// P2SH redeem script, and any witness/tapscript path), regardless of which
+// of those sub-evaluations it came from. Structural replacement for the old
+// Solver()-template-based harvest -- catches any script shape that actually
+// reaches the opcode, not just the two blessed P2XMSS/P2XMSSHASH templates.
+// xmss_leaf_uses_out may be appended to even on a script that ultimately
+// fails for an unrelated reason; harmless, since callers only ever consult
+// it after the entire block's script checks have succeeded.
+// Deliberately a DIFFERENT NAME, not a same-name overload of VerifyScript():
+// two pointer-typed trailing parameters (this one's XMSSLeafUses* vs. plain
+// VerifyScript()'s ScriptError*) both defaultable/nullable makes a bare
+// `nullptr` passed positionally genuinely ambiguous to overload resolution
+// -- confirmed by a real build break in test/script_tests.cpp's existing
+// `VerifyScript(..., nullptr)` call sites when this was first tried as an
+// overload. EvalScript's two-overload split avoids this only because its
+// differentiating parameter is a reference (ScriptExecutionData&), which
+// nullptr can't bind to at all -- not a pattern available here since both
+// candidates would need a pointer.
+bool VerifyScriptXMSSCapture(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags, const BaseSignatureChecker& checker, XMSSLeafUses* xmss_leaf_uses_out, ScriptError* serror = nullptr);
 
 size_t CountWitnessSigOps(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags);
 

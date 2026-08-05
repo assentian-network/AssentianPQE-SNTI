@@ -68,6 +68,7 @@
 // SNTI: XMSS PoUW verification
 #include <xmss_bridge.h>
 #include <pouw_v2.h>
+#include <xmss_leaf_key.h>
 #include <pouw_v2_keyder.h>
 
 #include <algorithm>
@@ -76,6 +77,7 @@
 #include <deque>
 #include <numeric>
 #include <optional>
+#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -141,7 +143,8 @@ const CBlockIndex* Chainstate::FindForkInGlobalIndex(const CBlockLocator& locato
 bool CheckInputScripts(const CTransaction& tx, TxValidationState& state,
                        const CCoinsViewCache& inputs, unsigned int flags, bool cacheSigStore,
                        bool cacheFullScriptStore, PrecomputedTransactionData& txdata,
-                       std::vector<CScriptCheck>* pvChecks = nullptr)
+                       std::vector<CScriptCheck>* pvChecks = nullptr,
+                       std::vector<XMSSLeafUses>* pxmss_leaf_uses_per_input = nullptr)
                        EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 bool CheckFinalTxAtTip(const CBlockIndex& active_chain_tip, const CTransaction& tx)
@@ -1869,7 +1872,7 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
 bool CScriptCheck::operator()() {
     const CScript &scriptSig = ptxTo->vin[nIn].scriptSig;
     const CScriptWitness *witness = &ptxTo->vin[nIn].scriptWitness;
-    return VerifyScript(scriptSig, m_tx_out.scriptPubKey, witness, nFlags, CachingTransactionSignatureChecker(ptxTo, nIn, m_tx_out.nValue, cacheStore, *txdata), &error);
+    return VerifyScriptXMSSCapture(scriptSig, m_tx_out.scriptPubKey, witness, nFlags, CachingTransactionSignatureChecker(ptxTo, nIn, m_tx_out.nValue, cacheStore, *txdata), pxmss_leaf_uses, &error);
 }
 
 static CuckooCache::cache<uint256, SignatureCacheHasher> g_scriptExecutionCache;
@@ -1916,13 +1919,18 @@ bool InitScriptExecutionCache(size_t max_size_bytes)
 bool CheckInputScripts(const CTransaction& tx, TxValidationState& state,
                        const CCoinsViewCache& inputs, unsigned int flags, bool cacheSigStore,
                        bool cacheFullScriptStore, PrecomputedTransactionData& txdata,
-                       std::vector<CScriptCheck>* pvChecks)
+                       std::vector<CScriptCheck>* pvChecks,
+                       std::vector<XMSSLeafUses>* pxmss_leaf_uses_per_input)
 {
     if (tx.IsCoinBase()) return true;
 
     if (pvChecks) {
         pvChecks->reserve(tx.vin.size());
     }
+    // SNTI DRAFT: caller (ConnectBlock, post nXMSSSpendLeafReuseActivation)
+    // must preallocate one slot per input before calling in, same lifetime
+    // requirement as txdata/pvChecks below.
+    assert(!pxmss_leaf_uses_per_input || pxmss_leaf_uses_per_input->size() == tx.vin.size());
 
     // First check if script executions have been cached with the same
     // flags. Note that this assumes that the inputs provided are
@@ -1933,7 +1941,17 @@ bool CheckInputScripts(const CTransaction& tx, TxValidationState& state,
     CSHA256 hasher = g_scriptExecutionCacheHasher;
     hasher.Write(UCharCast(tx.GetWitnessHash().begin()), 32).Write((unsigned char*)&flags, sizeof(flags)).Finalize(hashCacheEntry.begin());
     AssertLockHeld(cs_main); //TODO: Remove this requirement by making CuckooCache not require external locks
-    if (g_scriptExecutionCache.contains(hashCacheEntry, !cacheFullScriptStore)) {
+    // SNTI DRAFT: a cache hit above returns immediately without running any
+    // CScriptCheck/EvalScript below -- which means XMSS leaf-use capture
+    // would silently never fire for a cache-hit tx. Whenever capture is
+    // requested (pxmss_leaf_uses_per_input != nullptr, which today only
+    // happens from ConnectBlock post-activation), bypass the cache
+    // entirely -- both this lookup and the insert at the end of this
+    // function -- so capture always actually runs. See job_queue memory /
+    // xmss_spend_leaf_dedup_bypass_gap for why this can't be an
+    // opcode-presence prefilter instead (rejected: adds a component to keep
+    // sound for negligible perf gain on this chain's tx volume).
+    if (!pxmss_leaf_uses_per_input && g_scriptExecutionCache.contains(hashCacheEntry, !cacheFullScriptStore)) {
         return true;
     }
 
@@ -1960,7 +1978,8 @@ bool CheckInputScripts(const CTransaction& tx, TxValidationState& state,
         // spent being checked as a part of CScriptCheck.
 
         // Verify signature
-        CScriptCheck check(txdata.m_spent_outputs[i], tx, i, flags, cacheSigStore, &txdata);
+        CScriptCheck check(txdata.m_spent_outputs[i], tx, i, flags, cacheSigStore, &txdata,
+                            pxmss_leaf_uses_per_input ? &(*pxmss_leaf_uses_per_input)[i] : nullptr);
         if (pvChecks) {
             pvChecks->emplace_back(std::move(check));
         } else if (!check()) {
@@ -1991,9 +2010,13 @@ bool CheckInputScripts(const CTransaction& tx, TxValidationState& state,
         }
     }
 
-    if (cacheFullScriptStore && !pvChecks) {
+    if (cacheFullScriptStore && !pvChecks && !pxmss_leaf_uses_per_input) {
         // We executed all of the provided scripts, and were told to
         // cache the result. Do so now.
+        // SNTI DRAFT: skipped whenever capture was requested, symmetric
+        // with the lookup bypass above -- keeps this codepath from ever
+        // populating an entry that a future capture-requesting call could
+        // hit and skip execution on.
         g_scriptExecutionCache.insert(hashCacheEntry);
     }
 
@@ -2044,7 +2067,23 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
 // SNTI Fix2: PoUW leaf index tracking helpers
-static const uint8_t DB_POUW_LEAF = 'L';
+// (declared extern in xmss_leaf_key.h so integration tests can read these
+// tables directly without duplicating the magic byte values)
+const uint8_t DB_POUW_LEAF = 'L';
+
+// SNTI DRAFT: block_hash -> list of DB_POUW_LEAF keys that block's SPEND
+// inputs (not its coinbase mining leaf -- see below) marked when connected.
+// Written once, at the same point spend leaves are marked (ConnectBlock
+// tail). Exists solely so DisconnectBlock can unmark exactly those entries
+// on reorg without re-deriving them: leaf-use detection is now structural
+// (captured during actual script execution, see ScriptExecutionData:
+// m_xmss_leaf_uses in interpreter.h), and DisconnectBlock never re-executes
+// scripts, so it has no way to re-derive "which leaves did this block's
+// spends use" on its own. Not used for the coinbase mining leaf: that
+// proof's format is fixed/self-describing (ParseCoinbasePoUWLeaf() below),
+// not an attacker-shaped script, so re-parsing it on disconnect (as before)
+// is already reliable and doesn't need this side table.
+const uint8_t DB_POUW_LEAF_LIST = 'M';
 
 // SNTI SECURITY HARDENING (4 Jul 2026 internal audit): every "failed" XMSS
 // seed a miner publishes in a block's FSL (see pouw_v2_keyder.h) is a real
@@ -2098,19 +2137,50 @@ static uint256 ComputePoUWBaseMerkleRoot(const CBlock& block)
     return ComputeMerkleRoot(std::move(leaves));
 }
 
-static uint256 MakePoUWLeafKey(const std::vector<uint8_t>& pubkey64, uint32_t leaf_idx)
+// SNTI DRAFT (9 Jul 2026, not activated -- see nXMSSSpendLeafReuseActivation):
+// MakePoUWLeafKey() and ExtractXMSSLeafUse() now live in xmss_leaf_key.h/.cpp
+// (moved out so unit tests can exercise ExtractXMSSLeafUse() directly
+// without a full ConnectBlock()/chainstate fixture). MakePoUWLeafKey() is
+// still shared verbatim with the pre-existing PoUW mining-leaf check below --
+// deliberately one keyspace, not two, since a tree leaf's secret is the same
+// regardless of whether it was claimed by mining or by a wallet spend.
+
+// SNTI: parse this block's coinbase PoUW mining-leaf claim (v1 or v2/PW2
+// format). Pulled out of the two call sites that used to duplicate this
+// verbatim (PoUW Fix2 mark in ConnectBlock's tail, unmark in
+// DisconnectBlock) so a third copy isn't needed for the same-block
+// coinbase-vs-spend collision check below. Pure parsing, no side effects;
+// returns false (with pk_out/leaf_out unspecified) if no PoUW leaf claim is
+// found in any coinbase output.
+static bool ParseCoinbasePoUWLeaf(const CTransaction& cbTx, uint32_t nLeafIndex, std::vector<uint8_t>& pk_out, uint32_t& leaf_out)
 {
-    uint8_t idx_be[4];
-    idx_be[0] = (leaf_idx >> 24) & 0xFF;
-    idx_be[1] = (leaf_idx >> 16) & 0xFF;
-    idx_be[2] = (leaf_idx >>  8) & 0xFF;
-    idx_be[3] =  leaf_idx        & 0xFF;
-    CHash256 hasher;
-    hasher.Write(pubkey64);
-    hasher.Write({idx_be, 4});
-    uint256 result;
-    hasher.Finalize(result);
-    return result;
+    pk_out.clear();
+    leaf_out = 0;
+    bool found = false;
+    for (const auto& out : cbTx.vout) {
+        const CScript& s = out.scriptPubKey;
+        CScript::const_iterator pc = s.begin();
+        opcodetype opc; std::vector<uint8_t> d;
+        while (s.GetOp(pc, opc, d)) {
+            if (opc == OP_RETURN) continue;
+            // v2 proof -- magic PW2\x02 followed by 64-byte xmss_pk
+            if (d.size() >= 68 && d[0]=='P' && d[1]=='W' && d[2]=='2' && d[3]==0x02) {
+                pk_out.assign(d.begin()+4, d.begin()+68);
+                leaf_out = nLeafIndex;
+                found = true;
+            }
+            // v1 proof -- separate 64-byte pubkey push, then sig with leaf_idx in first 4 bytes
+            else if (d.size() == 64 && pk_out.empty()) {
+                pk_out = d;
+            } else if (d.size() > 64 && !found && pk_out.size() == 64) {
+                leaf_out = ((uint32_t)d[0]<<24)|((uint32_t)d[1]<<16)|
+                           ((uint32_t)d[2]<<8)|(uint32_t)d[3];
+                found = true;
+            }
+        }
+        if (found) break;
+    }
+    return pk_out.size() == 64 && found;
 }
 
 
@@ -2135,36 +2205,35 @@ DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIn
     {
         const Consensus::Params& cp = m_chainman.GetParams().GetConsensus();
         if (cp.fPoUW) {
-            const CTransaction& cbTx = *block.vtx[0];
             std::vector<uint8_t> cb_pk;
-            uint32_t cb_leaf = 0;
-            bool cb_found = false;
-            for (const auto& out : cbTx.vout) {
-                const CScript& s = out.scriptPubKey;
-                CScript::const_iterator pc = s.begin();
-                opcodetype opc; std::vector<uint8_t> d;
-                while (s.GetOp(pc, opc, d)) {
-                    if (opc == OP_RETURN) continue;
-                    if (d.size() >= 68 && d[0]=='P' && d[1]=='W' && d[2]=='2' && d[3]==0x02) {
-                        cb_pk.assign(d.begin()+4, d.begin()+68);
-                        cb_leaf = block.nLeafIndex;
-                        cb_found = true;
-                    } else if (d.size() == 64 && cb_pk.empty()) {
-                        cb_pk = d;
-                    } else if (d.size() > 64 && !cb_found && cb_pk.size() == 64) {
-                        cb_leaf = ((uint32_t)d[0]<<24)|((uint32_t)d[1]<<16)|
-                                  ((uint32_t)d[2]<<8)|(uint32_t)d[3];
-                        cb_found = true;
-                    }
-                }
-                if (cb_found) break;
-            }
-            if (cb_pk.size() == 64 && cb_found) {
+            uint32_t cb_leaf;
+            if (ParseCoinbasePoUWLeaf(*block.vtx[0], block.nLeafIndex, cb_pk, cb_leaf)) {
                 uint256 cb_key = MakePoUWLeafKey(cb_pk, cb_leaf);
                 m_chainman.m_blockman.m_block_tree_db->Erase(std::make_pair(DB_POUW_LEAF, cb_key));
                 LogPrint(BCLog::VALIDATION, "PoUW Fix2: unmarked leaf=%u reorg h=%d\n",
                          cb_leaf, pindex->nHeight);
             }
+        }
+    }
+
+    // SNTI DRAFT: unmark this block's XMSS SPEND leaves (coinbase mining
+    // leaf handled separately above) on reorg. Reads back the exact list
+    // this block itself wrote at connect time (DB_POUW_LEAF_LIST, see
+    // ConnectBlock tail) instead of re-deriving via script inspection --
+    // there is no script execution during disconnect, so structural
+    // detection (ScriptExecutionData::m_xmss_leaf_uses) has nothing to run
+    // against here. A block below activation height, or one with no XMSS
+    // spends, simply never wrote a list, so this is a no-op for it.
+    {
+        std::vector<uint256> spend_leaf_keys;
+        uint256 block_hash = block.GetHash();
+        if (m_chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF_LIST, block_hash), spend_leaf_keys)) {
+            for (const uint256& key : spend_leaf_keys) {
+                m_chainman.m_blockman.m_block_tree_db->Erase(std::make_pair(DB_POUW_LEAF, key));
+            }
+            m_chainman.m_blockman.m_block_tree_db->Erase(std::make_pair(DB_POUW_LEAF_LIST, block_hash));
+            LogPrint(BCLog::VALIDATION, "XMSS spend-leaf: unmarked %u leaves reorg h=%d\n",
+                     (unsigned)spend_leaf_keys.size(), pindex->nHeight);
         }
     }
 
@@ -2209,6 +2278,12 @@ DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIn
             for (unsigned int j = tx.vin.size(); j > 0;) {
                 --j;
                 const COutPoint& out = tx.vin[j].prevout;
+
+                // SNTI DRAFT: spend-leaf unmarking for this block happened
+                // once, up front, via the DB_POUW_LEAF_LIST side table --
+                // see the block near the top of this function. Nothing to
+                // do here per-input.
+
                 int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), view, out);
                 if (res == DISCONNECT_FAILED) return DISCONNECT_FAILED;
                 fClean = fClean && res != DISCONNECT_UNCLEAN;
@@ -2508,6 +2583,25 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
     int nInputs = 0;
     int64_t nSigOpsCost = 0;
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
+
+    // SNTI DRAFT: structural XMSS leaf-use capture. Each CScriptCheck for
+    // input j of tx i (constructed below) gets a pointer to its own
+    // exclusive slot xmss_leaf_capture[i][j] -- sized up front, before any
+    // CScriptCheck is constructed or handed to the (possibly parallel)
+    // CCheckQueue, so no two threads ever touch the same slot and no lock
+    // is needed. Mirrors the txsdata preallocate-before-control.Add()
+    // pattern in the comment above. Read back into vSpendLeafUses only
+    // after control.Wait() below, once every input's script has actually
+    // finished executing.
+    const bool fCheckSpendLeafReuse = pindex->nHeight >= params.GetConsensus().nXMSSSpendLeafReuseActivation;
+    std::vector<std::vector<XMSSLeafUses>> xmss_leaf_capture;
+    if (fCheckSpendLeafReuse) {
+        xmss_leaf_capture.resize(block.vtx.size());
+        for (size_t i = 0; i < block.vtx.size(); i++) {
+            xmss_leaf_capture[i].resize(block.vtx[i]->vin.size());
+        }
+    }
+
     for (unsigned int i = 0; i < block.vtx.size(); i++)
     {
         const CTransaction &tx = *(block.vtx[i]);
@@ -2561,12 +2655,40 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
             TxValidationState tx_state;
             // SNTI H6: propagate chain ID into sighash_v2 verification.
             txsdata[i].xmss_chain_id = params.GetConsensus().nXMSSChainId;
-            if (fScriptChecks && !CheckInputScripts(tx, tx_state, view, flags, fCacheResults, fCacheResults, txsdata[i], parallel_script_checks ? &vChecks : nullptr)) {
-                // Any transaction validation failure in ConnectBlock is a block consensus failure
-                state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
-                              tx_state.GetRejectReason(), tx_state.GetDebugMessage());
-                return error("ConnectBlock(): CheckInputScripts on %s failed with %s",
-                    tx.GetHash().ToString(), state.ToString());
+            if (fScriptChecks) {
+                if (!CheckInputScripts(tx, tx_state, view, flags, fCacheResults, fCacheResults, txsdata[i],
+                                        parallel_script_checks ? &vChecks : nullptr,
+                                        fCheckSpendLeafReuse ? &xmss_leaf_capture[i] : nullptr)) {
+                    // Any transaction validation failure in ConnectBlock is a block consensus failure
+                    state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
+                                  tx_state.GetRejectReason(), tx_state.GetDebugMessage());
+                    return error("ConnectBlock(): CheckInputScripts on %s failed with %s",
+                        tx.GetHash().ToString(), state.ToString());
+                }
+            } else if (fCheckSpendLeafReuse) {
+                // SNTI DRAFT: assumevalid/IBD fast-path -- scripts aren't
+                // executed at all for this block (it's trusted wholesale via
+                // the min-chain-work/assumevalid check above), so structural
+                // capture has nothing to observe. Fall back to the old
+                // static, Solver()-template-based extraction purely to keep
+                // DB_POUW_LEAF bookkeeping consistent for LATER (fully
+                // verified) blocks' reuse checks. This is NOT a security
+                // boundary here, unlike the fScriptChecks=true path above:
+                // an old, buried, assumevalid-trusted block's validity
+                // (including any signature/leaf reuse within it) is already
+                // accepted unconditionally by definition of skipping its
+                // script checks, so this fallback's known blind spot for
+                // non-template scripts (see xmss_spend_leaf_dedup_bypass_gap
+                // memory) is a non-issue in this specific path.
+                for (size_t j = 0; j < tx.vin.size(); j++) {
+                    const Coin& coin = view.AccessCoin(tx.vin[j].prevout);
+                    if (coin.IsSpent()) continue; // defensive; CheckTxInputs above already required this to exist
+                    std::vector<uint8_t> pk;
+                    uint32_t leaf_idx;
+                    if (ExtractXMSSLeafUse(coin.out.scriptPubKey, tx.vin[j].scriptSig, pk, leaf_idx)) {
+                        xmss_leaf_capture[i][j].emplace_back(std::move(pk), leaf_idx);
+                    }
+                }
             }
             control.Add(std::move(vChecks));
         }
@@ -2595,6 +2717,51 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
         LogPrintf("ERROR: %s: CheckQueue failed\n", __func__);
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "block-validation-failed");
     }
+
+    // SNTI DRAFT: gather every captured (structural, post control.Wait()) or
+    // fallback (assumevalid-path, static) XMSS spend-leaf use into one flat
+    // list now that every input's script has actually finished executing.
+    XMSSLeafUses vSpendLeafUses;
+    if (fCheckSpendLeafReuse) {
+        for (const auto& tx_slots : xmss_leaf_capture) {
+            for (const auto& slot : tx_slots) {
+                vSpendLeafUses.insert(vSpendLeafUses.end(), slot.begin(), slot.end());
+            }
+        }
+    }
+
+    // SNTI DRAFT: reject if any XMSS spend input in this block reused a leaf
+    // already recorded in DB_POUW_LEAF (by an earlier block -- mining or
+    // spending, same shared keyspace), reused one within this same block, or
+    // collides with *this* block's own coinbase PoUW mining leaf (seeded
+    // into seen_this_block below -- closes the same-block coinbase-vs-spend
+    // gap noted in earlier review/job_queue memory). Read-only, so it runs
+    // unconditionally here (including fJustCheck) -- the actual DB write
+    // happens only in the fJustCheck-gated tail below.
+    if (fCheckSpendLeafReuse && !vSpendLeafUses.empty()) {
+        std::set<uint256> seen_this_block;
+        if (params.GetConsensus().fPoUW) {
+            std::vector<uint8_t> cb_pk;
+            uint32_t cb_leaf;
+            if (ParseCoinbasePoUWLeaf(*block.vtx[0], block.nLeafIndex, cb_pk, cb_leaf)) {
+                seen_this_block.insert(MakePoUWLeafKey(cb_pk, cb_leaf));
+            }
+        }
+        for (const auto& use : vSpendLeafUses) {
+            uint256 key = MakePoUWLeafKey(use.first, use.second);
+            if (!seen_this_block.insert(key).second) {
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "xmss-spend-leaf-reuse",
+                    strprintf("XMSS leaf index %u reused within block %s (coinbase mining leaf or duplicate spend)",
+                              use.second, block.GetHash().GetHex()));
+            }
+            uint256 existing_block;
+            if (m_chainman.m_blockman.m_block_tree_db->Read(std::make_pair(DB_POUW_LEAF, key), existing_block)) {
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "xmss-spend-leaf-reuse",
+                    strprintf("XMSS leaf index %u already used in block %s", use.second, existing_block.GetHex()));
+            }
+        }
+    }
+
     const auto time_4{SteadyClock::now()};
     time_verify += time_4 - time_2;
     LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n", nInputs - 1,
@@ -2628,32 +2795,13 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
     // SNTI Fix2: mark PoUW leaf index as used
     if (!fJustCheck && m_chainman.GetParams().GetConsensus().fPoUW) {
         const CTransaction& cbTx = *block.vtx[0];
+        // SNTI: was a third copy of this parsing logic (mark here, unmark in
+        // DisconnectBlock, seed-for-same-block-check above) -- unified into
+        // ParseCoinbasePoUWLeaf() (25 Jul 2026 self-review) so there's one
+        // place to keep the v1/v2 proof parsing in sync, not three.
         std::vector<uint8_t> cb_pk;
-        uint32_t cb_leaf = 0;
-        bool cb_found = false;
-        for (const auto& out : cbTx.vout) {
-            const CScript& s = out.scriptPubKey;
-            CScript::const_iterator pc = s.begin();
-            opcodetype opc; std::vector<uint8_t> d;
-            while (s.GetOp(pc, opc, d)) {
-                if (opc == OP_RETURN) continue;
-                // M7: v2 proof — magic PW2\x02 followed by 64-byte xmss_pk
-                if (d.size() >= 68 && d[0]=='P' && d[1]=='W' && d[2]=='2' && d[3]==0x02) {
-                    cb_pk.assign(d.begin()+4, d.begin()+68);
-                    cb_leaf = block.nLeafIndex;
-                    cb_found = true;
-                }
-                // v1 proof — separate 64-byte pubkey push, then sig with leaf_idx in first 4 bytes
-                else if (d.size() == 64 && cb_pk.empty()) cb_pk = d;
-                else if (d.size() > 64 && !cb_found && cb_pk.size() == 64) {
-                    cb_leaf = ((uint32_t)d[0]<<24)|((uint32_t)d[1]<<16)|
-                              ((uint32_t)d[2]<<8)|(uint32_t)d[3];
-                    cb_found = true;
-                }
-            }
-            if (cb_found) break;
-        }
-        if (cb_pk.size() == 64 && cb_found) {
+        uint32_t cb_leaf;
+        if (ParseCoinbasePoUWLeaf(cbTx, block.nLeafIndex, cb_pk, cb_leaf)) {
             uint256 cb_key = MakePoUWLeafKey(cb_pk, cb_leaf);
             uint256 bh = block.GetHash();
             m_chainman.m_blockman.m_block_tree_db->Write(std::make_pair(DB_POUW_LEAF, cb_key), bh);
@@ -2685,6 +2833,27 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
             }
             break;
         }
+    }
+
+    // SNTI DRAFT: persist XMSS spend-leaf uses gathered earlier in this
+    // function. Only reached once fJustCheck is false and every other check
+    // in ConnectBlock (including the reuse check above) has already passed
+    // -- a block that fails anywhere else never reaches here, so this can
+    // never mark a leaf for a block that didn't actually get connected.
+    // Also writes DB_POUW_LEAF_LIST -- the exact list of keys marked here --
+    // so DisconnectBlock can unmark precisely these on reorg without
+    // re-deriving them (see DB_POUW_LEAF_LIST comment near its declaration).
+    if (fCheckSpendLeafReuse && !vSpendLeafUses.empty()) {
+        uint256 bh = block.GetHash();
+        std::vector<uint256> leaf_keys;
+        leaf_keys.reserve(vSpendLeafUses.size());
+        for (const auto& use : vSpendLeafUses) {
+            uint256 key = MakePoUWLeafKey(use.first, use.second);
+            m_chainman.m_blockman.m_block_tree_db->Write(std::make_pair(DB_POUW_LEAF, key), bh);
+            LogPrint(BCLog::VALIDATION, "XMSS spend-leaf: marked leaf=%u block=%s\n", use.second, bh.GetHex());
+            leaf_keys.push_back(key);
+        }
+        m_chainman.m_blockman.m_block_tree_db->Write(std::make_pair(DB_POUW_LEAF_LIST, bh), leaf_keys);
     }
 
     const auto time_6{SteadyClock::now()};

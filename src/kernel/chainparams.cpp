@@ -140,6 +140,20 @@ public:
         consensus.nPoUWv2StartHeight = 1;   // v1 proofs never valid on mainnet
         consensus.nPoUWv3StartHeight = 200; // hashMerkleRoot included in preimage from block 200
         consensus.nPoUWLeafReuseActivation = 1000; // M7: leaf-reuse prevention active from block 1000
+        // DRAFT (recomputed 2 Aug 2026 ~UTC): old value (187000, set 27 Jul when
+        // the pow_limit>>10 difficulty-ceiling bug had an unidentified peer
+        // saturating the chain at ~1973 blocks/hour) went stale too -- the
+        // ceiling fix (draft/pouw-difficulty-ceiling-fix) activated for real at
+        // height 186000 on 30 Jul, the abnormal peer stopped entirely right at
+        // that point, and mainnet tip is now 189672 (already past 187000).
+        // Post-fix rate measured directly off chain data (5000-block window,
+        // heights 184672->189672) is ~52.6 blocks/hour -- back to a normal,
+        // real-difficulty-adjusted pace, not the exploited burst. Reset to
+        // 200000 (~10328-block buffer, ~196h/~8.2 days at the current measured
+        // rate) for a coordinated Main->KC->SG deploy window. Still NOT for
+        // activation/merge -- recompute again before any real coordinated
+        // deploy if much more time passes first.
+        consensus.nXMSSSpendLeafReuseActivation = 200000;
         consensus.nPoUWFSLSeedVerifyHeight = 3000; // audit T-1: FSL sk_seed must match claimed root from block 3000
         consensus.nPoUWStuckRecoveryHardenHeight = 4400; // audit KRITIS #5 (2 Jul 2026): require corroborated stuck-chain evidence, chain height was 3907 when written
         consensus.nPoUWTieredStuckRecoveryHeight = 49500; // SNTI M6 (6 Jul 2026): tiered 1-gap/2-gap stuck recovery, chain height was 49306 (stalled since block 49306, ~14h) when written -- buffer left for coordinated 3-node deploy
@@ -504,6 +518,9 @@ public:
                 break;
             case Consensus::BuriedDeployment::DEPLOYMENT_CSV:
                 consensus.CSVHeight = int{height};
+                break;
+            case Consensus::BuriedDeployment::DEPLOYMENT_XMSSSPENDLEAFREUSE:
+                consensus.nXMSSSpendLeafReuseActivation = int{height};
                 break;
             }
         }
