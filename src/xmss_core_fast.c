@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -541,6 +542,12 @@ int xmss_core_keypair(const xmss_params *params,
     uint32_t addr[8] = {0};
 
     // TODO refactor BDS state not to need separate treehash instances
+    // SNTI COVERITY NOTE (CID 651928, 9 Aug 2026): bds_k is hardcoded to 0 at
+    // both initialization sites in params.c and never overridden from any
+    // external input, so this subtraction cannot underflow today. Guard kept
+    // as cheap insurance in case bds_k is ever tuned above 0 to actually use
+    // this file's BDS traversal optimization.
+    assert(params->bds_k <= params->tree_height);
     bds_state state;
     treehash_inst treehash[params->tree_height - params->bds_k];
     state.treehash = treehash;
@@ -591,6 +598,10 @@ int xmss_core_sign(const xmss_params *params,
     uint16_t i = 0;
 
     // TODO refactor BDS state not to need separate treehash instances
+    // SNTI COVERITY NOTE (CID 651818, 9 Aug 2026): see xmss_core_keypair for
+    // rationale -- bds_k is hardcoded to 0, this cannot underflow today, but
+    // this is the hot signing path so a guard is cheap insurance.
+    assert(params->bds_k <= params->tree_height);
     bds_state state;
     treehash_inst treehash[params->tree_height - params->bds_k];
     state.treehash = treehash;
@@ -1016,6 +1027,9 @@ int xmssmt_core_seed_keypair(const xmss_params *params,
                              unsigned char *seed)
 {
     uint32_t addr[8] = {0};
+    // SNTI COVERITY NOTE (CID 651815, 9 Aug 2026): see xmss_core_keypair for
+    // rationale -- bds_k is hardcoded to 0, this cannot underflow today.
+    assert(params->bds_k <= params->tree_height);
     bds_state state;
     treehash_inst treehash[params->tree_height - params->bds_k];
     state.treehash = treehash;
