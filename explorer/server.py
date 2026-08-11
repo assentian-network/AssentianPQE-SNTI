@@ -706,18 +706,30 @@ def api_mining_status():
     avg_block_time = 0.0
     blocks = []
     tip_height = int(info.get("blocks", 0)) if isinstance(info, dict) else 0
-    if tip_height > 0:
-        for _h in range(tip_height, max(tip_height - 10, -1), -1):
-            if _h < 0: break
-            _bh = rpc_call("getblockhash", [_h])
-            if isinstance(_bh, dict) and "error" in _bh: continue
-            _blk = rpc_call("getblock", [_bh, 1])
-            if isinstance(_blk, dict) and "error" in _blk: continue
+    best_hash = info.get("bestblockhash") if isinstance(info, dict) else None
+    # SNTI fix (8 Aug 2026): mean over the last 10 blocks was wildly noisy --
+    # PoUW v2 mining is bimodal (bursts of blocks seconds apart once a lucky
+    # XMSS tree is found, then long droughts hunting for the next one), so a
+    # single drought block dominated a 9-sample mean and made the figure swing
+    # from ~1s to 1000s+ depending on exactly when the page was loaded (see
+    # [[mining_burst_drought_pattern]]). Median over 100 blocks is far more
+    # stable. Walk backward via previousblockhash instead of a separate
+    # getblockhash call per height, to keep this at ~100 RPC round trips
+    # instead of ~200.
+    if tip_height > 0 and best_hash:
+        _cur_hash = best_hash
+        for _ in range(101):
+            _blk = rpc_call("getblock", [_cur_hash, 1])
+            if isinstance(_blk, dict) and "error" in _blk: break
             blocks.append(_blk)
+            _cur_hash = _blk.get("previousblockhash")
+            if not _cur_hash: break
         if len(blocks) >= 2:
             times = [int(b.get("time", 0)) for b in blocks]
-            diffs = [times[i] - times[i+1] for i in range(len(times)-1)]
-            avg_block_time = sum(diffs) / len(diffs)
+            diffs = sorted(times[i] - times[i+1] for i in range(len(times)-1))
+            n = len(diffs)
+            mid = n // 2
+            avg_block_time = float(diffs[mid]) if n % 2 else (diffs[mid-1] + diffs[mid]) / 2.0
 
     # SNTI fix (27 Jul 2026): getnetworkinfo has never had an "uptime" field --
     # that's the separate `uptime` RPC. Reading netinfo.get("uptime") always

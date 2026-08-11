@@ -680,7 +680,7 @@ async function loadStatus() {
     const workerCount = s.workers ?? '—';
     const acceptedShares = s.accepted != null ? s.accepted.toLocaleString() : '—';
     const blocksFound = m.blocks_mined ?? s.blocks_found ?? '—';
-    const avgBlockTime = m.avg_block_time != null ? m.avg_block_time.toFixed(1) + 's' : '—';
+    const medianBlockTime = m.avg_block_time != null ? m.avg_block_time.toFixed(1) + 's' : '—';
     document.getElementById('statsGrid').innerHTML = `
       <div class="stat-item"><div class="stat-label">Chain</div><div class="stat-value">${escHtml(d.chain||'—')}</div></div>
       <div class="stat-item"><div class="stat-label">Block Height</div><div class="stat-value">${escHtml(String(d.blocks??'—'))}</div></div>
@@ -690,7 +690,7 @@ async function loadStatus() {
       <div class="stat-item"><div class="stat-label">Mempool</div><div class="stat-value">${escHtml(String(d.mempool_txs??0))} txs</div></div>
       <div class="stat-item"><div class="stat-label">PoUW Status</div><div class="stat-value">${pouwBadge}</div></div>
       <div class="stat-item"><div class="stat-label">Blocks Mined</div><div class="stat-value">${escHtml(String(blocksFound))}</div></div>
-      <div class="stat-item"><div class="stat-label">Avg Block Time</div><div class="stat-value">${avgBlockTime}</div></div>
+      <div class="stat-item"><div class="stat-label">Median Block Time (100)</div><div class="stat-value">${medianBlockTime}</div></div>
       <div class="stat-item"><div class="stat-label">Active Workers</div><div class="stat-value">${escHtml(String(workerCount))}</div></div>
       <div class="stat-item"><div class="stat-label">Shares Accepted</div><div class="stat-value">${acceptedShares}</div></div>
       <div class="stat-item"><div class="stat-label">Node Version</div><div class="stat-value">${escHtml(String(d.version??'—'))}</div></div>
