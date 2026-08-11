@@ -4570,9 +4570,30 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
     // rejecting at height 7 and would have rejected 49 more times through height
     // 273. No other header/PoW rule is relaxed by this exemption.
     const Consensus::Params& consensusParams = chainman.GetConsensus();
-    if (nHeight > consensusParams.nPoUWDiffbitsGrandfatherHeight &&
-        block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams))
-        return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "bad-diffbits", "incorrect proof of work");
+    if (nHeight > consensusParams.nPoUWDiffbitsGrandfatherHeight) {
+        const unsigned int nBitsExpected = GetNextWorkRequired(pindexPrev, &block, consensusParams);
+        if (block.nBits != nBitsExpected) {
+            // SNTI DIAGNOSTIC (10 Aug 2026): added to catch a suspected recurring
+            // bug where a node's local CBlockIndex ancestor data for a branch gets
+            // corrupted (e.g. by a hard host-level reboot) and GetNextWorkRequired()
+            // then permanently recomputes the wrong nBits for that branch, wedging
+            // it here forever with no self-healing path. Logs the ancestor chain
+            // this calculation actually walked so the bad entry (if any) is visible
+            // next time this fires. See sg_node_resync_10aug memory for context.
+            const CBlockIndex* a1 = pindexPrev;
+            const CBlockIndex* a2 = a1 ? a1->pprev : nullptr;
+            const CBlockIndex* a3 = a2 ? a2->pprev : nullptr;
+            LogPrintf("bad-diffbits: height=%d hash=%s nTime=%u nBits=0x%08x calculated=0x%08x "
+                      "prev(h=%d hash=%s nTime=%u nBits=0x%08x) "
+                      "prev2(h=%d hash=%s nTime=%u nBits=0x%08x) "
+                      "prev3(h=%d hash=%s nTime=%u nBits=0x%08x)\n",
+                      nHeight, block.GetHash().ToString(), block.nTime, block.nBits, nBitsExpected,
+                      a1 ? a1->nHeight : -1, a1 ? a1->GetBlockHash().ToString() : "null", a1 ? a1->nTime : 0, a1 ? a1->nBits : 0,
+                      a2 ? a2->nHeight : -1, a2 ? a2->GetBlockHash().ToString() : "null", a2 ? a2->nTime : 0, a2 ? a2->nBits : 0,
+                      a3 ? a3->nHeight : -1, a3 ? a3->GetBlockHash().ToString() : "null", a3 ? a3->nTime : 0, a3 ? a3->nBits : 0);
+            return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "bad-diffbits", "incorrect proof of work");
+        }
+    }
 
     // Check against checkpoints
     if (chainman.m_options.checkpoints_enabled) {
@@ -4711,7 +4732,12 @@ bool ChainstateManager::AcceptBlockHeader(const CBlockHeader& block, BlockValida
         CBlockIndex* pindexPrev = nullptr;
         BlockMap::iterator mi{m_blockman.m_block_index.find(block.hashPrevBlock)};
         if (mi == m_blockman.m_block_index.end()) {
-            LogPrint(BCLog::VALIDATION, "header %s has prev block not found: %s\n", hash.ToString(), block.hashPrevBlock.ToString());
+            // SNTI DIAGNOSTIC (10 Aug 2026): was debug-gated (BCLog::VALIDATION,
+            // off by default) so this path left zero trace during past incidents.
+            // Made unconditional to distinguish this (header gap, not banned) from
+            // bad-diffbits (corrupt ancestor, peer gets banned) next time a node
+            // gets stuck on a fork. See sg_node_resync_10aug memory for context.
+            LogPrintf("header %s has prev block not found: %s\n", hash.ToString(), block.hashPrevBlock.ToString());
             return state.Invalid(BlockValidationResult::BLOCK_MISSING_PREV, "prev-blk-not-found");
         }
         pindexPrev = &((*mi).second);

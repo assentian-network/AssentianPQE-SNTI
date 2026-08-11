@@ -1829,11 +1829,16 @@ bool PeerManagerImpl::MaybePunishNodeForBlock(NodeId nodeid, const BlockValidati
     case BlockValidationResult::BLOCK_INVALID_HEADER:
     case BlockValidationResult::BLOCK_CHECKPOINT:
     case BlockValidationResult::BLOCK_INVALID_PREV:
+        // SNTI DIAGNOSTIC (10 Aug 2026): unconditional log so a peer getting
+        // banned/discouraged here (vs. surviving via BLOCK_MISSING_PREV below,
+        // only 10 DoS points) is visible next time a node gets stuck on a fork.
+        LogPrintf("MaybePunishNodeForBlock: peer=%d DoS=100 reason=%s (%s)\n", nodeid, state.GetRejectReason(), message);
         if (peer) Misbehaving(*peer, 100, message);
         return true;
     // Conflicting (but not necessarily invalid) data or different policy:
     case BlockValidationResult::BLOCK_MISSING_PREV:
         // TODO: Handle this much more gracefully (10 DoS points is super arbitrary)
+        LogPrintf("MaybePunishNodeForBlock: peer=%d DoS=10 reason=%s (%s)\n", nodeid, state.GetRejectReason(), message);
         if (peer) Misbehaving(*peer, 10, message);
         return true;
     case BlockValidationResult::BLOCK_RECENT_CONSENSUS_CHANGE:
