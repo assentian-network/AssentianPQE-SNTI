@@ -297,6 +297,11 @@ bool XMSSTreeLedgerClaimAndSign(const fs::path& datadir,
                   ret, root.GetHex().substr(0, 16));
         return false;
     }
+    if (smlen < hash32.size()) {
+        LogPrintf("XMSSTreeLedger: xmss_sign returned implausibly short smlen=%llu for root=%s\n",
+                  smlen, root.GetHex().substr(0, 16));
+        return false;
+    }
 
     state.nextLeafIndex++;
 

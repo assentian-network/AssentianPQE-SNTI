@@ -153,7 +153,7 @@ bool CXMSSKey::Sign(const std::vector<uint8_t>& hash, std::vector<uint8_t>& sig)
         hash.data(), static_cast<unsigned long long>(hash.size())
     );
 
-    if (ret != 0 || sig_msg_size < params.sig_bytes) {
+    if (ret != 0 || sig_msg_size < params.sig_bytes || sig_msg_size < hash.size()) {
         // Clear partial output on failure
         std::memset(sm.data(), 0, sm_buf_size);
         return false;
